@@ -1,7 +1,15 @@
 import https from "https";
 
-const TELEGRAM_BOT_TOKEN = "***REMOVED-TELEGRAM-TOKEN***";
-const SMS_GATEWAY_URL = "http://192.168.1.107:3000";
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+if (!TELEGRAM_BOT_TOKEN) {
+  throw new Error(
+    "TELEGRAM_BOT_TOKEN environment variable is required but was not set. " +
+      "Configure it in /opt/taxi1313/.env (see systemd EnvironmentFile).",
+  );
+}
+
+// Internal chat-id lookup gateway — overridable, with the previous value as default.
+const SMS_GATEWAY_URL = process.env.TELEGRAM_GATEWAY_URL || "http://192.168.1.107:3000";
 
 function telegramRequest(
   method: string,

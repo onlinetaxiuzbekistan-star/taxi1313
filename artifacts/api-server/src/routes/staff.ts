@@ -26,7 +26,9 @@ router.get("/", authMiddleware, requireRole("admin", "dispatcher"), async (req: 
   }
 });
 
-router.post("/", authMiddleware, requireRole("admin", "dispatcher"), async (req: AuthRequest, res) => {
+// Staff creation is an admin-only operation: it can assign roles and custom
+// RBAC roleIds, so dispatchers must never reach it (privilege-escalation guard).
+router.post("/", authMiddleware, requireRole("admin"), async (req: AuthRequest, res) => {
   try {
     const { name, phone, password, role, login: loginName, sipServer, sipDomain, sipLogin, sipPassword, branchId, roleId } = req.body;
     if (!name?.trim() || !password) {
@@ -81,7 +83,9 @@ router.post("/", authMiddleware, requireRole("admin", "dispatcher"), async (req:
   }
 });
 
-router.patch("/:id", authMiddleware, requireRole("admin", "dispatcher"), async (req: AuthRequest, res) => {
+// Admin-only: this route can reset passwords and reassign role/roleId of any
+// staff member. Dispatchers must never reach it.
+router.patch("/:id", authMiddleware, requireRole("admin"), async (req: AuthRequest, res) => {
   try {
     const id = parseInt(req.params.id);
     const { name, phone, password, role, roleId, login: loginName, sipServer, sipDomain, sipLogin, sipPassword, branchId } = req.body;
@@ -138,8 +142,10 @@ router.patch("/:id/calls-setting", authMiddleware, requireRole("admin", "dispatc
       res.status(400).json({ error: "validation_error", message: "acceptsCalls must be boolean" });
       return;
     }
+    // Dispatchers may toggle call settings, but must not touch admin rows.
+    const targetRoles = req.userRole === "admin" ? ["dispatcher", "admin"] : ["dispatcher"];
     const [user] = await db.update(usersTable).set({ acceptsCalls, updatedAt: new Date() })
-      .where(and(eq(usersTable.id, id), inArray(usersTable.role, ["dispatcher", "admin"])))
+      .where(and(eq(usersTable.id, id), inArray(usersTable.role, targetRoles as any)))
       .returning();
     if (!user) { res.status(404).json({ error: "not_found" }); return; }
     await logActivity(req.userId!, "", "update", "staff", id, `${acceptsCalls ? "Включены" : "Отключены"} звонки: ${user.name}`);
@@ -149,7 +155,8 @@ router.patch("/:id/calls-setting", authMiddleware, requireRole("admin", "dispatc
   }
 });
 
-router.delete("/:id", authMiddleware, requireRole("admin", "dispatcher"), async (req: AuthRequest, res) => {
+// Admin-only: deleting staff (including other admins) must not be reachable by dispatchers.
+router.delete("/:id", authMiddleware, requireRole("admin"), async (req: AuthRequest, res) => {
   try {
     const id = parseInt(req.params.id);
     if (id === req.userId) {
