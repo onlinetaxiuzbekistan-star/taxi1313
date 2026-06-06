@@ -1,11 +1,11 @@
 import { db, usersTable, ridesTable, orderOffersTable, ridePassengersTable, settingsTable } from "@workspace/db";
 import { eq, and, inArray, sql, like, isNull, isNotNull } from "drizzle-orm";
 import jwt from "jsonwebtoken";
-import { logger } from "./logger.js";
-import { matchRoute, type MatchPriority } from "./route-match.js";
-import { batchMatchRides, type BatchRide, type BatchDriver } from "./batch-dispatch.js";
+import { logger } from "../../src/lib/logger.js";
+import { matchRoute, type MatchPriority } from "../../src/lib/route-match.js";
+import { batchMatchRides, type BatchRide, type BatchDriver } from "../../src/lib/batch-dispatch.js";
 
-import { JWT_SECRET } from "./jwt-secret.js";
+import { JWT_SECRET } from "../../src/lib/jwt-secret.js";
 const BASE = `http://localhost:${process.env.PORT || 8080}`;
 
 const DRIVER_COUNT = 55;
@@ -501,7 +501,7 @@ export async function runStressSimulation(): Promise<StressReport> {
   t = Date.now();
   console.log("[STRESS] Phase 0b: Bump limits...");
   await bumpLimits();
-  const { loadSettingsCache } = await import("./settingsCache.js");
+  const { loadSettingsCache } = await import("../../src/lib/settingsCache.js");
   await loadSettingsCache();
   phaseTimings["bump_limits"] = Date.now() - t;
   console.log(`[STRESS] Phase 0b: Done (${phaseTimings["bump_limits"]}ms)`);

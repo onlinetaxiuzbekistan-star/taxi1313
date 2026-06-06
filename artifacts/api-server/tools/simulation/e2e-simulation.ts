@@ -1,9 +1,9 @@
 import { db, usersTable, ridesTable, orderOffersTable, ridePassengersTable } from "@workspace/db";
 import { eq, and, desc, inArray, sql, gte } from "drizzle-orm";
 import jwt from "jsonwebtoken";
-import { logger } from "./logger.js";
+import { logger } from "../../src/lib/logger.js";
 
-import { JWT_SECRET } from "./jwt-secret.js";
+import { JWT_SECRET } from "../../src/lib/jwt-secret.js";
 const BASE = `http://localhost:${process.env.PORT || 8080}`;
 
 interface TestResult {

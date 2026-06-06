@@ -5,7 +5,7 @@ import { fileURLToPath } from "url";
 const artifactDir = path.dirname(fileURLToPath(import.meta.url));
 
 await build({
-  entryPoints: [path.resolve(artifactDir, "src/load-test.ts")],
+  entryPoints: [path.resolve(artifactDir, "tools/simulation/load-test.ts")],
   platform: "node",
   bundle: true,
   format: "esm",

@@ -1,7 +1,7 @@
 import { db, usersTable, ridesTable, orderOffersTable, ridePassengersTable, settingsTable } from "@workspace/db";
 import { eq, and, inArray, sql, like, gte } from "drizzle-orm";
 import jwt from "jsonwebtoken";
-import { JWT_SECRET } from "./jwt-secret.js";
+import { JWT_SECRET } from "../../src/lib/jwt-secret.js";
 import { WebSocket } from "ws";
 import { writeFileSync, readFileSync, mkdirSync, existsSync } from "fs";
 import { join } from "path";
@@ -3533,7 +3533,7 @@ async function bumpLimits() {
   } else {
     await db.insert(settingsTable).values({ key: "max_dispatch_cycles", value: "1", label: "Max dispatch cycles (stress)" });
   }
-  const { loadSettingsCache } = await import("./settingsCache.js");
+  const { loadSettingsCache } = await import("../../src/lib/settingsCache.js");
   await loadSettingsCache();
 }
 
@@ -3541,7 +3541,7 @@ async function restoreLimits() {
   await db.update(settingsTable).set({ value: "30" }).where(eq(settingsTable.key, "max_orders_per_day"));
   await db.update(settingsTable).set({ value: "20" }).where(eq(settingsTable.key, "max_active_orders"));
   await db.delete(settingsTable).where(eq(settingsTable.key, "max_dispatch_cycles"));
-  const { loadSettingsCache } = await import("./settingsCache.js");
+  const { loadSettingsCache } = await import("../../src/lib/settingsCache.js");
   await loadSettingsCache();
 }
 

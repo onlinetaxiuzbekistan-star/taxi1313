@@ -2,18 +2,20 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "dist",
-    "rootDir": "src",
+    // rootDir is the package root so the relocated tools/simulation/* files
+    // (imported by routes/metrics.ts) are within the program.
+    "rootDir": ".",
     "types": ["node"],
     // Express handlers legitimately mix `return res.json()` (early exits) with
     // fall-through; noImplicitReturns (from the shared base) flags this as TS7030.
     // Scoped off here only — the base config is unchanged for other packages.
     "noImplicitReturns": false
   },
-  "include": ["src"],
+  "include": ["src", "tools"],
   "exclude": [
-    "src/lib/e2e-simulation.ts",
-    "src/lib/stress-simulation.ts",
-    "src/load-test.ts"
+    "tools/simulation/e2e-simulation.ts",
+    "tools/simulation/stress-simulation.ts",
+    "tools/simulation/load-test.ts"
   ],
   "references": [
     {
