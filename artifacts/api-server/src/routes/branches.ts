@@ -1,4 +1,6 @@
 import { Router, type IRouter } from "express";
+import { validateBody } from "../middlewares/validate.js";
+import { branchCreateBodySchema, adminUpdateBodySchema } from "../middlewares/request-schemas.js";
 import { db, branchesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { authMiddleware, requireRole, AuthRequest } from "../middlewares/auth.js";
@@ -15,7 +17,7 @@ router.get("/", async (_req, res) => {
   }
 });
 
-router.post("/", authMiddleware, requireRole("dispatcher", "admin"), async (req: AuthRequest, res) => {
+router.post("/", authMiddleware, requireRole("dispatcher", "admin"), validateBody(branchCreateBodySchema), async (req: AuthRequest, res) => {
   try {
     const { name, address, phone } = req.body;
     if (!name?.trim()) {
@@ -32,7 +34,7 @@ router.post("/", authMiddleware, requireRole("dispatcher", "admin"), async (req:
   }
 });
 
-router.patch("/:id", authMiddleware, requireRole("dispatcher", "admin"), async (req: AuthRequest, res) => {
+router.patch("/:id", authMiddleware, requireRole("dispatcher", "admin"), validateBody(adminUpdateBodySchema), async (req: AuthRequest, res) => {
   try {
     const id = parseInt(req.params.id);
     const { name, address, phone, isActive } = req.body;

@@ -1,4 +1,6 @@
 import { Router, type IRouter } from "express";
+import { validateBody } from "../middlewares/validate.js";
+import { districtCreateBodySchema, adminUpdateBodySchema } from "../middlewares/request-schemas.js";
 import { db, districtsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { authMiddleware, requireRole, AuthRequest } from "../middlewares/auth.js";
@@ -19,7 +21,7 @@ router.get("/", async (req, res) => {
   }
 });
 
-router.post("/", authMiddleware, requireRole("dispatcher", "admin"), async (req: AuthRequest, res) => {
+router.post("/", authMiddleware, requireRole("dispatcher", "admin"), validateBody(districtCreateBodySchema), async (req: AuthRequest, res) => {
   try {
     const { name, cityId, extraCharge, lat, lng } = req.body;
     if (!name?.trim()) { res.status(400).json({ error: "validation_error", message: "Название обязательно" }); return; }
@@ -34,7 +36,7 @@ router.post("/", authMiddleware, requireRole("dispatcher", "admin"), async (req:
   }
 });
 
-router.patch("/:id", authMiddleware, requireRole("dispatcher", "admin"), async (req: AuthRequest, res) => {
+router.patch("/:id", authMiddleware, requireRole("dispatcher", "admin"), validateBody(adminUpdateBodySchema), async (req: AuthRequest, res) => {
   try {
     const id = parseInt(req.params.id);
     const { name, cityId, extraCharge, lat, lng, isActive } = req.body;

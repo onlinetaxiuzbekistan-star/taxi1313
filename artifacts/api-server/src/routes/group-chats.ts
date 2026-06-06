@@ -1,4 +1,6 @@
 import { errorMessage } from "../lib/errors.js";
+import { validateBody } from "../middlewares/validate.js";
+import { groupChatCreateBodySchema, adminUpdateBodySchema, groupChatMembersBodySchema, groupChatMessageBodySchema } from "../middlewares/request-schemas.js";
 import { Router, type IRouter } from "express";
 import multer from "multer";
 import path from "path";
@@ -131,7 +133,7 @@ router.get("/", authMiddleware, async (req: AuthRequest, res) => {
   }
 });
 
-router.post("/", authMiddleware, requireRole(["dispatcher", "admin"]), async (req: AuthRequest, res) => {
+router.post("/", authMiddleware, requireRole(["dispatcher", "admin"]), validateBody(groupChatCreateBodySchema), async (req: AuthRequest, res) => {
   try {
     const { name, chatType, cityId, branchId, driverGroupId, driverGroupIds, description, memberIds } = req.body;
 
@@ -401,7 +403,7 @@ router.get("/:id", authMiddleware, async (req: AuthRequest, res) => {
   }
 });
 
-router.patch("/:id/settings", authMiddleware, requireRole(["dispatcher", "admin"]), async (req: AuthRequest, res) => {
+router.patch("/:id/settings", authMiddleware, requireRole(["dispatcher", "admin"]), validateBody(adminUpdateBodySchema), async (req: AuthRequest, res) => {
   try {
     const chatId = parseInt(req.params.id);
     const { photosEnabled, voiceEnabled, callsEnabled } = req.body;
@@ -435,7 +437,7 @@ router.delete("/:id", authMiddleware, requireRole(["dispatcher", "admin"]), asyn
   }
 });
 
-router.post("/:id/members", authMiddleware, requireRole(["dispatcher", "admin"]), async (req: AuthRequest, res) => {
+router.post("/:id/members", authMiddleware, requireRole(["dispatcher", "admin"]), validateBody(groupChatMembersBodySchema), async (req: AuthRequest, res) => {
   try {
     const chatId = parseInt(req.params.id);
     const { userIds } = req.body;
@@ -486,7 +488,7 @@ router.get("/:id/messages", authMiddleware, async (req: AuthRequest, res) => {
   }
 });
 
-router.post("/:id/messages", authMiddleware, async (req: AuthRequest, res) => {
+router.post("/:id/messages", authMiddleware, validateBody(groupChatMessageBodySchema), async (req: AuthRequest, res) => {
   try {
     const chatId = parseInt(req.params.id);
     if (!(await isMemberOrDispatcher(req.userId!, req.userRole || "", chatId))) {

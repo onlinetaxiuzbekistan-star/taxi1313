@@ -90,3 +90,13 @@ export const pushSendBodySchema = z.object({ title: z.string().min(1) }).passthr
 // ── Drivers ──
 export const driverStatusBodySchema = z.object({ status: z.string().min(1) }).passthrough();
 export const driverLocationBodySchema = z.object({ lat: numeric, lng: numeric }).passthrough();
+
+// ── Admin CRUD (cities / districts / branches / tariffs / group-chats) ──
+export const cityCreateBodySchema = z.object({ nameRu: z.string().min(1) }).passthrough();
+export const districtCreateBodySchema = z.object({ name: z.string().min(1), cityId: numeric }).passthrough();
+export const branchCreateBodySchema = z.object({ name: z.string().min(1) }).passthrough();
+export const tariffCreateBodySchema = z.object({ carClass: z.string().min(1) }).passthrough();
+export const adminUpdateBodySchema = z.object({}).passthrough(); // partial PATCH; field checks stay in handler
+export const groupChatCreateBodySchema = z.object({ name: z.string().min(1) }).passthrough();
+export const groupChatMembersBodySchema = z.object({ userIds: z.array(z.union([z.number(), z.string()])) }).passthrough();
+export const groupChatMessageBodySchema = z.object({ message: z.string().min(1) }).passthrough();
