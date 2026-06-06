@@ -12,6 +12,9 @@ export const rideStatusEnum = pgEnum("ride_status", [
   "in_progress",
   "completed",
   "cancelled",
+  // A child ride merged into a trip ride (autodispatch). Present in production;
+  // declared here so the schema/types match reality.
+  "merged",
 ]);
 
 export const paymentTypeEnum = pgEnum("payment_type", ["cash", "card", "transfer"]);

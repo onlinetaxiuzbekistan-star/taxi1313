@@ -362,7 +362,7 @@ router.post("/buy", authMiddleware, requireRole("driver"), validateBody(marketpl
 
                 await tx.update(ridesTable).set({
                   tripId: lockedRoute.id,
-                  status: "merged" as any,
+                  status: "merged",
                   updatedAt: new Date(),
                 }).where(eq(ridesTable.id, listing.rideId));
                 clog.log(`[MERGE-MARKET] ride ${listing.rideId} marked as merged into trip ${lockedRoute.id}`);

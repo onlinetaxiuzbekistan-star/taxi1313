@@ -370,7 +370,7 @@ router.post("/accept", authMiddleware, validateBody(rideIdBodySchema), async (re
 
         await tx.update(ridesTable).set({
           tripId: matchedRouteRide.id,
-          status: "merged" as any,
+          status: "merged",
           updatedAt: new Date(),
         }).where(eq(ridesTable.id, Number(rideId)));
         clog.log(`[MERGE] ride ${rideId} marked as merged into trip ${matchedRouteRide.id}`);
