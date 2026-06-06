@@ -99,18 +99,14 @@ public class LauncherActivity extends Activity {
             }
         } catch (Exception ignored) {}
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            Window window = getWindow();
-            window.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS);
-            window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
-            window.setStatusBarColor(Color.parseColor("#09090b"));
-            window.setNavigationBarColor(Color.parseColor("#09090b"));
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            getWindow().getDecorView().setSystemUiVisibility(
-                View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-            );
-        }
+        Window window = getWindow();
+        window.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS);
+        window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
+        window.setStatusBarColor(Color.parseColor("#09090b"));
+        window.setNavigationBarColor(Color.parseColor("#09090b"));
+        getWindow().getDecorView().setSystemUiVisibility(
+            View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+        );
 
         launchUrl = getString(R.string.launch_url);
         int serverPort = 80;
@@ -334,9 +330,7 @@ public class LauncherActivity extends Activity {
 
             @Override
             public void onPermissionRequest(PermissionRequest request) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                    request.grant(request.getResources());
-                }
+                request.grant(request.getResources());
             }
 
             @Override
@@ -510,9 +504,9 @@ public class LauncherActivity extends Activity {
     }
 
     private void registerNetworkCallback() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
-            if (cm == null) return;
+        ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+        if (cm == null) return;
+        {
             networkCallback = new ConnectivityManager.NetworkCallback() {
                 @Override
                 public void onAvailable(Network network) {
@@ -592,23 +586,21 @@ public class LauncherActivity extends Activity {
     }
 
     private void requestPermissions() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            String[] perms = {
-                Manifest.permission.ACCESS_FINE_LOCATION,
-                Manifest.permission.ACCESS_COARSE_LOCATION,
-                Manifest.permission.CAMERA,
-                Manifest.permission.RECORD_AUDIO,
-            };
-            boolean needRequest = false;
-            for (String p : perms) {
-                if (checkSelfPermission(p) != PackageManager.PERMISSION_GRANTED) {
-                    needRequest = true;
-                    break;
-                }
+        String[] perms = {
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION,
+            Manifest.permission.CAMERA,
+            Manifest.permission.RECORD_AUDIO,
+        };
+        boolean needRequest = false;
+        for (String p : perms) {
+            if (checkSelfPermission(p) != PackageManager.PERMISSION_GRANTED) {
+                needRequest = true;
+                break;
             }
-            if (needRequest) {
-                requestPermissions(perms, PERMISSION_REQUEST);
-            }
+        }
+        if (needRequest) {
+            requestPermissions(perms, PERMISSION_REQUEST);
         }
         if (Build.VERSION.SDK_INT >= 33) {
             if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
@@ -689,7 +681,7 @@ public class LauncherActivity extends Activity {
 
     @Override
     protected void onDestroy() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && networkCallback != null) {
+        if (networkCallback != null) {
             ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
             if (cm != null) {
                 try { cm.unregisterNetworkCallback(networkCallback); } catch (Exception ignored) {}
@@ -780,7 +772,7 @@ public class LauncherActivity extends Activity {
         @android.webkit.JavascriptInterface
         public int getBatteryLevel() {
             BatteryManager bm = (BatteryManager) getSystemService(Context.BATTERY_SERVICE);
-            if (bm != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            if (bm != null) {
                 return bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY);
             }
             return -1;
@@ -812,13 +804,10 @@ public class LauncherActivity extends Activity {
         public boolean isNetworkAvailable() {
             ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
             if (cm == null) return false;
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                Network net = cm.getActiveNetwork();
-                if (net == null) return false;
-                NetworkCapabilities caps = cm.getNetworkCapabilities(net);
-                return caps != null && caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET);
-            }
-            return cm.getActiveNetworkInfo() != null && cm.getActiveNetworkInfo().isConnected();
+            Network net = cm.getActiveNetwork();
+            if (net == null) return false;
+            NetworkCapabilities caps = cm.getNetworkCapabilities(net);
+            return caps != null && caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET);
         }
 
         @android.webkit.JavascriptInterface
@@ -862,26 +851,17 @@ public class LauncherActivity extends Activity {
 
         @android.webkit.JavascriptInterface
         public boolean hasLocationPermission() {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                return checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED;
-            }
-            return true;
+            return checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED;
         }
 
         @android.webkit.JavascriptInterface
         public boolean hasCameraPermission() {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                return checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED;
-            }
-            return true;
+            return checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED;
         }
 
         @android.webkit.JavascriptInterface
         public boolean hasMicrophonePermission() {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                return checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
-            }
-            return true;
+            return checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
         }
 
         @android.webkit.JavascriptInterface
@@ -926,24 +906,20 @@ public class LauncherActivity extends Activity {
 
         @android.webkit.JavascriptInterface
         public void setStatusBarColor(String color) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                runOnUiThread(() -> {
-                    try {
-                        getWindow().setStatusBarColor(Color.parseColor(color));
-                    } catch (Exception ignored) {}
-                });
-            }
+            runOnUiThread(() -> {
+                try {
+                    getWindow().setStatusBarColor(Color.parseColor(color));
+                } catch (Exception ignored) {}
+            });
         }
 
         @android.webkit.JavascriptInterface
         public void setNavigationBarColor(String color) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                runOnUiThread(() -> {
-                    try {
-                        getWindow().setNavigationBarColor(Color.parseColor(color));
-                    } catch (Exception ignored) {}
-                });
-            }
+            runOnUiThread(() -> {
+                try {
+                    getWindow().setNavigationBarColor(Color.parseColor(color));
+                } catch (Exception ignored) {}
+            });
         }
     }
 }
