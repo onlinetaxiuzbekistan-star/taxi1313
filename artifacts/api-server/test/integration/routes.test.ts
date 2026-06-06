@@ -267,3 +267,189 @@ describe("Payment webhook auth (payme)", () => {
     expect(r.body?.error?.code).not.toBe(-32504);
   });
 });
+
+describe("POST /rides (create) validation", () => {
+  it("rejects a body missing toCity", async () => {
+    const r = await request(app).post("/api/rides").send({ fromCity: "Бухара" });
+    expect(r.status).toBe(400);
+    expect(r.body.error).toBe("validation_error");
+  });
+
+  it("rejects a body missing fromCity", async () => {
+    const r = await request(app).post("/api/rides").send({ toCity: "Самарканд" });
+    expect(r.status).toBe(400);
+    expect(r.body.error).toBe("validation_error");
+  });
+});
+
+describe("Rides read endpoints", () => {
+  it("GET /rides/cities returns 200", async () => {
+    const r = await request(app).get("/api/rides/cities");
+    expect(r.status).toBe(200);
+  });
+
+  it("GET /rides/pricing-info returns 200", async () => {
+    const r = await request(app).get("/api/rides/pricing-info");
+    expect(r.status).toBe(200);
+  });
+
+  it("GET /rides (public list) returns 200", async () => {
+    const r = await request(app).get("/api/rides");
+    expect(r.status).toBe(200);
+  });
+
+  it("GET /rides (list) works for a dispatcher", async () => {
+    const r = await request(app).get("/api/rides").set("Authorization", `Bearer ${tokenFor(dispatcherId, "dispatcher")}`);
+    expect(r.status).toBe(200);
+  });
+
+  it("GET /rides/:id returns 404 for a missing ride", async () => {
+    const r = await request(app).get("/api/rides/99999999");
+    expect(r.status).toBe(404);
+  });
+});
+
+describe("PATCH /rides/:id + cancel (status management)", () => {
+  async function seedRide(status = "accepted") {
+    const [r] = await db.insert(ridesTable).values({
+      driverId, status, price: 12000, riderPhone: "+998905559000",
+      fromCity: "Бухара", toCity: "Самарканд", passengers: 1, scheduledAt: new Date(),
+    }).returning();
+    return r.id;
+  }
+
+  it("requires auth for PATCH /rides/:id", async () => {
+    const rid = await seedRide();
+    const r = await request(app).patch(`/api/rides/${rid}`).send({ status: "in_progress" });
+    expect(r.status).toBe(401);
+  });
+
+  it("rejects a driver (non-dispatcher) PATCH /rides/:id with 403", async () => {
+    const rid = await seedRide();
+    const r = await request(app).patch(`/api/rides/${rid}`)
+      .set("Authorization", `Bearer ${driverAuthToken}`)
+      .send({ status: "in_progress" });
+    expect(r.status).toBe(403);
+  });
+
+  it("lets a dispatcher cancel a ride", async () => {
+    const rid = await seedRide("accepted");
+    const r = await request(app).post(`/api/rides/${rid}/cancel`)
+      .set("Authorization", `Bearer ${tokenFor(dispatcherId, "dispatcher")}`)
+      .send({ reason: "test" });
+    expect([200, 201]).toContain(r.status);
+    const [ride] = await db.select().from(ridesTable).where(eq(ridesTable.id, rid));
+    expect(ride.status).toBe("cancelled");
+  });
+});
+
+describe("Marketplace edge cases", () => {
+  it("GET /listings works for a driver", async () => {
+    const r = await request(app).get("/api/marketplace/listings").set("Authorization", `Bearer ${driverAuthToken}`);
+    expect(r.status).toBe(200);
+  });
+
+  it("rejects selling a ride you do not own (403)", async () => {
+    // ride owned by driverId; otherDriver (buyer) tries to sell it
+    const [r2] = await db.insert(ridesTable).values({
+      driverId, status: "pending", price: 5000, riderPhone: "+998905559001",
+      fromCity: "Бухара", toCity: "Самарканд", passengers: 1, scheduledAt: new Date(),
+    }).returning();
+    const r = await request(app).post("/api/marketplace/sell")
+      .set("Authorization", `Bearer ${buyerAuthToken}`)
+      .send({ rideId: r2.id, price: 5000 });
+    expect(r.status).toBe(403);
+  });
+
+  it("rejects buying a non-existent listing", async () => {
+    const r = await request(app).post("/api/marketplace/buy")
+      .set("Authorization", `Bearer ${buyerAuthToken}`)
+      .send({ listingId: 99999999 });
+    expect(r.status).toBeGreaterThanOrEqual(400);
+  });
+});
+
+describe("Dispatch service via active-rides", () => {
+  it("GET /drivers/:driverId/active-rides (dispatcher) returns 200", async () => {
+    const r = await request(app).get(`/api/drivers/${driverId}/active-rides`)
+      .set("Authorization", `Bearer ${tokenFor(dispatcherId, "dispatcher")}`);
+    expect(r.status).toBe(200);
+  });
+});
+
+describe("Staff + payments edge cases", () => {
+  it("rejects a dispatcher deleting staff (403)", async () => {
+    const r = await request(app).delete(`/api/staff/${dispatcherId}`)
+      .set("Authorization", `Bearer ${tokenFor(dispatcherId, "dispatcher")}`);
+    expect(r.status).toBe(403);
+  });
+
+  it("GET /payments/cards requires auth", async () => {
+    const r = await request(app).get("/api/payments/cards");
+    expect(r.status).toBe(401);
+  });
+
+  it("GET /payments/balance works for a driver", async () => {
+    const r = await request(app).get("/api/payments/balance").set("Authorization", `Bearer ${driverAuthToken}`);
+    expect(r.status).toBe(200);
+    expect(typeof r.body.balance).toBe("number");
+  });
+});
+
+describe("Paynet webhook method handling", () => {
+  const basic = (u: string, p: string) => "Basic " + Buffer.from(`${u}:${p}`).toString("base64");
+  it("returns method-not-found for an unknown method (authed)", async () => {
+    const r = await request(app).post("/api/paynet/jsonrpc")
+      .set("Authorization", basic("paynet-user", "paynet-pass-secret"))
+      .send({ jsonrpc: "2.0", id: 9, method: "NopeMethod", params: {} });
+    expect(r.status).not.toBe(401);
+    expect(r.body.error).toBeTruthy();
+  });
+});
+
+describe("Additional coverage", () => {
+  it("GET /staff requires auth", async () => {
+    const r = await request(app).get("/api/staff");
+    expect(r.status).toBe(401);
+  });
+
+  it("GET /staff works for an admin", async () => {
+    const r = await request(app).get("/api/staff").set("Authorization", `Bearer ${tokenFor(adminId, "admin")}`);
+    expect(r.status).toBe(200);
+    expect(Array.isArray(r.body.staff)).toBe(true);
+  });
+
+  it("admin can PATCH a staff member", async () => {
+    const [s] = await db.insert(usersTable).values({
+      phone: "+998900007777", name: "Patch Me", passwordHash: "x", role: "dispatcher",
+    }).returning();
+    const r = await request(app).patch(`/api/staff/${s.id}`)
+      .set("Authorization", `Bearer ${tokenFor(adminId, "admin")}`)
+      .send({ name: "Patched Name" });
+    expect(r.status).toBe(200);
+    const [u] = await db.select().from(usersTable).where(eq(usersTable.id, s.id));
+    expect(u.name).toBe("Patched Name");
+  });
+
+  it("GET /payments/history works for a driver", async () => {
+    const r = await request(app).get("/api/payments/history").set("Authorization", `Bearer ${driverAuthToken}`);
+    expect(r.status).toBe(200);
+  });
+
+  it("payme CheckPerformTransaction passes auth with the correct key", async () => {
+    const basic = "Basic " + Buffer.from("Paycom:payme-key-secret").toString("base64");
+    const r = await request(app).post("/api/payme/")
+      .set("Authorization", basic)
+      .send({ id: 7, method: "CheckPerformTransaction", params: { account: { phone: "+998900000003" }, amount: 500000 } });
+    expect(r.body?.error?.code).not.toBe(-32504); // auth passed
+  });
+
+  it("paynet rejects a missing method (authed)", async () => {
+    const basic = "Basic " + Buffer.from("paynet-user:paynet-pass-secret").toString("base64");
+    const r = await request(app).post("/api/paynet/jsonrpc")
+      .set("Authorization", basic)
+      .send({ jsonrpc: "2.0", id: 8, params: {} });
+    expect(r.status).not.toBe(401);
+    expect(r.body.error).toBeTruthy();
+  });
+});
