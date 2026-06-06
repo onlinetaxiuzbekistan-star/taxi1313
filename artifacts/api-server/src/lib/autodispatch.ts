@@ -1059,7 +1059,30 @@ export async function resumePendingDispatches(): Promise<void> {
   }
 }
 
-setTimeout(() => resumePendingDispatches(), 10_000);
+let sweepInterval: ReturnType<typeof setInterval> | null = null;
+let sweeping = false;
+
+/**
+ * Dispatch sweep: recovers dispatch loops lost on restart and re-starts any that died
+ * silently. resumePendingDispatches() already de-dups via activeLoops.has(), so this only
+ * ever (re)starts genuinely orphaned rides. The `sweeping` flag prevents overlapping runs.
+ */
+export function startDispatchSweep(): void {
+  if (sweepInterval) return;
+  // Boot recovery shortly after startup (let the server finish booting first).
+  setTimeout(() => { void resumePendingDispatches(); }, 10_000);
+  // Periodic safety net.
+  sweepInterval = setInterval(async () => {
+    if (sweeping) return;
+    sweeping = true;
+    try { await resumePendingDispatches(); } finally { sweeping = false; }
+  }, 60_000);
+  console.log("[DISPATCH SWEEP] started (boot resume in 10s, then every 60s)");
+}
+
+export function stopDispatchSweep(): void {
+  if (sweepInterval) { clearInterval(sweepInterval); sweepInterval = null; }
+}
 
 export async function getOfferStatus(rideId: number) {
   const offers = await db

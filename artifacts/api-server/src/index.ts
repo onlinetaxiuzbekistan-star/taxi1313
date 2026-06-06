@@ -13,6 +13,7 @@ import { warmupModels } from "./lib/photo-ai-validator.js";
 import { startMemoryGuardian, stopMemoryGuardian } from "./lib/memory-guardian.js";
 import { seedDatabase } from "./lib/seed.js";
 import { startAutoCancelScheduler, stopAutoCancelScheduler } from "./lib/order-auto-cancel.js";
+import { startDispatchSweep, stopDispatchSweep } from "./lib/autodispatch.js";
 import { pool } from "@workspace/db";
 import { redis } from "./lib/redis.js";
 
@@ -71,6 +72,7 @@ seedDatabase().then(() => {
     startAutoCancelScheduler();
     startListingsCleanupScheduler();
     startMemoryGuardian();
+    startDispatchSweep();
     warmupModels().catch(() => {});
   });
 }).catch((err) => {
@@ -81,6 +83,7 @@ seedDatabase().then(() => {
     startAutoCancelScheduler();
     startListingsCleanupScheduler();
     startMemoryGuardian();
+    startDispatchSweep();
     warmupModels().catch(() => {});
   });
 });
@@ -105,6 +108,7 @@ async function shutdown(signal: string) {
     stopAutoCancelScheduler();
     stopListingsCleanupScheduler();
     stopMemoryGuardian();
+    stopDispatchSweep();
 
     // 2) Stop accepting new HTTP connections; wait for in-flight requests to finish.
     await new Promise<void>((resolve) => server.close(() => resolve()));
