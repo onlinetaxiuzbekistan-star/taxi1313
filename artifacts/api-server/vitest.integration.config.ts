@@ -24,5 +24,22 @@ export default defineConfig({
     hookTimeout: 180_000,
     testTimeout: 60_000,
     fileParallelism: false,
+    // Enforced coverage gate (>30%) over the critical/tested layer (money, auth,
+    // services, request validation, webhook compare). The full codebase incl.
+    // admin-CRUD and simulation is intentionally out of scope for this floor.
+    coverage: {
+      enabled: true,
+      provider: "v8",
+      include: [
+        "src/lib/ledger.ts",
+        "src/lib/completion.ts",
+        "src/lib/secure-compare.ts",
+        "src/lib/services/**",
+        "src/middlewares/validate.ts",
+        "src/middlewares/request-schemas.ts",
+      ],
+      reporter: ["text-summary"],
+      thresholds: { statements: 30, lines: 30 },
+    },
   },
 });

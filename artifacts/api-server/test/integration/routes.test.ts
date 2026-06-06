@@ -2,14 +2,16 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import request from "supertest";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
+import { eq } from "drizzle-orm";
 import { startTestDb, stopTestDb } from "./setup.js";
 
 const SECRET = "test-session-secret-at-least-32-characters-long";
 
 let app: any;
-let db: any, usersTable: any, ridesTable: any, driverSessionsTable: any;
+let db: any, usersTable: any, ridesTable: any, driverSessionsTable: any, settingsTable: any, marketplaceListingsTable: any;
 let adminId = 0, dispatcherId = 0, driverId = 0, otherDriverId = 0, rideId = 0;
 let driverAuthToken = ""; // driver JWT backed by a real session (passes authMiddleware)
+let buyerAuthToken = "";  // second driver, for marketplace buy
 
 const tokenFor = (id: number, role: string) => jwt.sign({ userId: id, role }, SECRET, { expiresIn: "1h" });
 let ipCounter = 0;
@@ -32,6 +34,7 @@ beforeAll(async () => {
   const dbMod = await import("@workspace/db");
   db = dbMod.db; usersTable = dbMod.usersTable; ridesTable = dbMod.ridesTable;
   driverSessionsTable = dbMod.driverSessionsTable;
+  settingsTable = dbMod.settingsTable; marketplaceListingsTable = dbMod.marketplaceListingsTable;
   app = (await import("../../src/app.js")).default;
 
   [{ id: adminId }] = await db.insert(usersTable).values({
@@ -57,6 +60,22 @@ beforeAll(async () => {
     driverId, sessionToken: sid, expiresAt: new Date(Date.now() + 3600_000),
   });
   driverAuthToken = jwt.sign({ userId: driverId, role: "driver", sid }, SECRET, { expiresIn: "1h" });
+
+  // Buyer driver session (for marketplace buy).
+  const sid2 = "test-session-token-buyer";
+  await db.insert(driverSessionsTable).values({
+    driverId: otherDriverId, sessionToken: sid2, expiresAt: new Date(Date.now() + 3600_000),
+  });
+  buyerAuthToken = jwt.sign({ userId: otherDriverId, role: "driver", sid: sid2 }, SECRET, { expiresIn: "1h" });
+
+  // Webhook credentials (settings.category = "payments").
+  await db.insert(settingsTable).values([
+    { key: "paynet_enabled", value: "true", category: "payments" },
+    { key: "paynet_username", value: "paynet-user", category: "payments" },
+    { key: "paynet_password", value: "paynet-pass-secret", category: "payments" },
+    { key: "payme_enabled", value: "true", category: "payments" },
+    { key: "payme_merchant_key", value: "payme-key-secret", category: "payments" },
+  ]);
 }, 180_000);
 
 afterAll(async () => { await stopTestDb(); });
@@ -168,5 +187,83 @@ describe("POST /payments/deposit/init", () => {
       .send({ cardDbId: 1 });
     expect(r.status).toBe(400);
     expect(r.body.error).toBe("validation_error");
+  });
+});
+
+describe("Marketplace sell/buy flow", () => {
+  let listingRideId = 0;
+  let createdListingId = 0;
+
+  it("seller lists a ride for sale", async () => {
+    // A pending ride owned by the seller (sell accepts accepted|pending; buy needs pending|offered).
+    [{ id: listingRideId }] = await db.insert(ridesTable).values({
+      driverId, status: "pending", price: 8000, riderPhone: "+998905550010",
+      fromCity: "Бухара", toCity: "Самарканд", passengers: 1, scheduledAt: new Date(),
+    }).returning();
+
+    const r = await request(app).post("/api/marketplace/sell")
+      .set("Authorization", `Bearer ${driverAuthToken}`)
+      .send({ rideId: listingRideId, price: 8000 });
+    expect(r.status).toBe(200);
+    expect(r.body.listing?.id).toBeGreaterThan(0);
+    createdListingId = r.body.listing.id;
+
+    const [listing] = await db.select().from(marketplaceListingsTable)
+      .where(eq(marketplaceListingsTable.id, createdListingId));
+    expect(listing.status).toBe("active");
+  });
+
+  it("another driver buys the listing and is assigned the ride", async () => {
+    const r = await request(app).post("/api/marketplace/buy")
+      .set("Authorization", `Bearer ${buyerAuthToken}`)
+      .send({ listingId: createdListingId });
+    expect(r.status).toBe(200);
+
+    const [ride] = await db.select().from(ridesTable).where(eq(ridesTable.id, listingRideId));
+    expect(ride.driverId).toBe(otherDriverId); // reassigned to the buyer
+  });
+
+  it("rejects a sell with a missing price (validation)", async () => {
+    const r = await request(app).post("/api/marketplace/sell")
+      .set("Authorization", `Bearer ${driverAuthToken}`)
+      .send({ rideId: listingRideId });
+    expect(r.status).toBe(400);
+    expect(r.body.error).toBe("validation_error");
+  });
+});
+
+describe("Payment webhook auth (paynet)", () => {
+  const basic = (u: string, p: string) => "Basic " + Buffer.from(`${u}:${p}`).toString("base64");
+
+  it("rejects wrong credentials with 401", async () => {
+    const r = await request(app).post("/api/paynet/jsonrpc")
+      .set("Authorization", basic("paynet-user", "WRONG"))
+      .send({ jsonrpc: "2.0", id: 1, method: "GetInformation", params: {} });
+    expect(r.status).toBe(401);
+  });
+
+  it("accepts correct credentials (not 401)", async () => {
+    const r = await request(app).post("/api/paynet/jsonrpc")
+      .set("Authorization", basic("paynet-user", "paynet-pass-secret"))
+      .send({ jsonrpc: "2.0", id: 2, method: "GetInformation", params: {} });
+    expect(r.status).not.toBe(401);
+  });
+});
+
+describe("Payment webhook auth (payme)", () => {
+  const basic = (u: string, p: string) => "Basic " + Buffer.from(`${u}:${p}`).toString("base64");
+
+  it("returns an auth error for a wrong merchant key", async () => {
+    const r = await request(app).post("/api/payme/")
+      .set("Authorization", basic("Paycom", "WRONG-KEY"))
+      .send({ id: 1, method: "CheckPerformTransaction", params: {} });
+    expect(r.body?.error?.code).toBe(-32504); // Payme auth error
+  });
+
+  it("passes auth with the correct merchant key (no auth error)", async () => {
+    const r = await request(app).post("/api/payme/")
+      .set("Authorization", basic("Paycom", "payme-key-secret"))
+      .send({ id: 2, method: "CheckPerformTransaction", params: {} });
+    expect(r.body?.error?.code).not.toBe(-32504);
   });
 });
