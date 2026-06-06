@@ -593,31 +593,28 @@ router.get("/my-sales", authMiddleware, requireRole("driver"), async (req: AuthR
     ))
     .orderBy(desc(marketplaceListingsTable.createdAt));
 
-    const normalized = await Promise.all(listings.map(async (l) => {
-      let buyerName = null;
-      let buyerPhone = null;
-      let buyerCar = null;
-      let buyerCarNumber = null;
-      if (l.buyerId) {
-        const [buyer] = await db.select({ name: usersTable.name, phone: usersTable.phone, carModel: usersTable.carModel, carNumber: usersTable.carNumber })
-          .from(usersTable).where(eq(usersTable.id, l.buyerId));
-        buyerName = buyer?.name || null;
-        buyerPhone = buyer?.phone || null;
-        buyerCar = buyer?.carModel || null;
-        buyerCarNumber = buyer?.carNumber || null;
-      }
+    // Batch-fetch buyers in one query instead of one per listing (N+1).
+    const buyerIds = [...new Set(listings.map((l) => l.buyerId).filter(Boolean) as number[])];
+    const buyers = buyerIds.length
+      ? await db.select({ id: usersTable.id, name: usersTable.name, phone: usersTable.phone, carModel: usersTable.carModel, carNumber: usersTable.carNumber })
+          .from(usersTable).where(inArray(usersTable.id, buyerIds))
+      : [];
+    const buyerMap = new Map(buyers.map((b) => [b.id, b]));
+
+    const normalized = listings.map((l) => {
+      const buyer = l.buyerId ? buyerMap.get(l.buyerId) : null;
       return {
         ...l,
         fromCity: l.fromCity || l.rideFromCity,
         toCity: l.toCity || l.rideToCity,
         scheduledAt: l.scheduledAt || l.rideScheduledAt,
         passengers: l.seatsCount || l.passengers,
-        buyerName,
-        buyerPhone,
-        buyerCar,
-        buyerCarNumber,
+        buyerName: buyer?.name || null,
+        buyerPhone: buyer?.phone || null,
+        buyerCar: buyer?.carModel || null,
+        buyerCarNumber: buyer?.carNumber || null,
       };
-    }));
+    });
 
     res.json({ listings: normalized });
   } catch (err) {
@@ -776,56 +773,45 @@ router.get("/history", authMiddleware, requireRole("driver"), async (req: AuthRe
     ))
     .orderBy(desc(marketplaceListingsTable.updatedAt));
 
-    const normalized = await Promise.all(listings.map(async (l) => {
-      let sellerName = null;
-      let sellerCity = null;
-      let sellerCarBrand = null;
-      let sellerCarColor = null;
-      let sellerCarNumber = null;
-      let buyerName = null;
-      let buyerCity = null;
-      let buyerCarBrand = null;
-      let buyerCarColor = null;
-      let buyerCarNumber = null;
-      const [seller] = await db.select({
-        name: usersTable.name,
-        phone: usersTable.phone,
-        city: usersTable.city,
-        carBrand: usersTable.carBrand,
-        carColor: usersTable.carColor,
-        carNumber: usersTable.carNumber,
-      }).from(usersTable).where(eq(usersTable.id, l.sellerId));
-      sellerName = seller?.name || null;
-      sellerCity = seller?.city || null;
-      sellerCarBrand = seller?.carBrand || null;
-      sellerCarColor = seller?.carColor || null;
-      sellerCarNumber = seller?.carNumber || null;
-      if (l.buyerId) {
-        const [buyer] = await db.select({
+    // Batch-fetch all sellers + buyers in one query instead of 1-2 per listing (N+1).
+    const personIds = [...new Set(
+      listings.flatMap((l) => [l.sellerId, l.buyerId]).filter(Boolean) as number[],
+    )];
+    const people = personIds.length
+      ? await db.select({
+          id: usersTable.id,
           name: usersTable.name,
           phone: usersTable.phone,
           city: usersTable.city,
           carBrand: usersTable.carBrand,
           carColor: usersTable.carColor,
           carNumber: usersTable.carNumber,
-        }).from(usersTable).where(eq(usersTable.id, l.buyerId));
-        buyerName = buyer?.name || null;
-        buyerCity = buyer?.city || null;
-        buyerCarBrand = buyer?.carBrand || null;
-        buyerCarColor = buyer?.carColor || null;
-        buyerCarNumber = buyer?.carNumber || null;
-      }
+        }).from(usersTable).where(inArray(usersTable.id, personIds))
+      : [];
+    const personMap = new Map(people.map((p) => [p.id, p]));
+
+    const normalized = listings.map((l) => {
+      const seller = l.sellerId ? personMap.get(l.sellerId) : null;
+      const buyer = l.buyerId ? personMap.get(l.buyerId) : null;
       return {
         ...l,
         fromCity: l.fromCity || l.rideFromCity,
         toCity: l.toCity || l.rideToCity,
         scheduledAt: l.scheduledAt || l.rideScheduledAt,
         passengers: l.seatsCount || l.passengers,
-        sellerName, sellerCity, sellerCarBrand, sellerCarColor, sellerCarNumber,
-        buyerName, buyerCity, buyerCarBrand, buyerCarColor, buyerCarNumber,
+        sellerName: seller?.name || null,
+        sellerCity: seller?.city || null,
+        sellerCarBrand: seller?.carBrand || null,
+        sellerCarColor: seller?.carColor || null,
+        sellerCarNumber: seller?.carNumber || null,
+        buyerName: buyer?.name || null,
+        buyerCity: buyer?.city || null,
+        buyerCarBrand: buyer?.carBrand || null,
+        buyerCarColor: buyer?.carColor || null,
+        buyerCarNumber: buyer?.carNumber || null,
         role: l.sellerId === userId ? "seller" : "buyer",
       };
-    }));
+    });
 
     res.json({ listings: normalized });
   } catch (err) {

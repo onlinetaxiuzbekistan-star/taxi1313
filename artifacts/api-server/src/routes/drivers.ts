@@ -2667,25 +2667,66 @@ router.get("/pending-offers", authMiddleware, async (req: AuthRequest, res) => {
         eq(orderOffersTable.status, "pending"),
       ));
 
-    const result = [];
-    for (const offer of offers) {
-      if (offer.expiresAt && new Date() > offer.expiresAt) {
-        await db.update(orderOffersTable).set({
-          status: "expired", respondedAt: new Date(),
-        }).where(eq(orderOffersTable.id, offer.id));
-        continue;
-      }
-      const [ride] = await db.select().from(ridesTable).where(eq(ridesTable.id, offer.rideId));
-      if (!ride || !["pending", "offered"].includes(ride.status as string)) {
-        await db.update(orderOffersTable).set({
-          status: "expired", respondedAt: new Date(),
-        }).where(eq(orderOffersTable.id, offer.id));
-        continue;
-      }
-      const expiresIn = offer.expiresAt ? Math.max(0, offer.expiresAt.getTime() - Date.now()) : 0;
-      const enrichedRide = await enrichRideForOffer(ride);
-      result.push({ ride: enrichedRide, expiresIn, offerId: offer.id });
+    const now = Date.now();
+    const liveOffers = offers.filter((o) => !(o.expiresAt && now > o.expiresAt.getTime()));
+    const expiredByTime = offers.filter((o) => o.expiresAt && now > o.expiresAt.getTime());
+
+    // Batch-fetch the rides for all live offers (was one SELECT per offer).
+    const offerRideIds = [...new Set(liveOffers.map((o) => o.rideId).filter(Boolean) as number[])];
+    const rides = offerRideIds.length
+      ? await db.select().from(ridesTable).where(inArray(ridesTable.id, offerRideIds))
+      : [];
+    const rideMap = new Map(rides.map((r) => [r.id, r]));
+
+    const validOffers = liveOffers.filter((o) => {
+      const ride = rideMap.get(o.rideId);
+      return ride && ["pending", "offered"].includes(ride.status as string);
+    });
+    const staleOfferIds = [
+      ...expiredByTime.map((o) => o.id),
+      ...liveOffers.filter((o) => !validOffers.includes(o)).map((o) => o.id),
+    ];
+    if (staleOfferIds.length) {
+      await db.update(orderOffersTable)
+        .set({ status: "expired", respondedAt: new Date() })
+        .where(inArray(orderOffersTable.id, staleOfferIds));
     }
+
+    // Batch the enrichment (market listing + passengers) for all valid rides in 2 queries.
+    const validRideIds = [...new Set(validOffers.map((o) => o.rideId) as number[])];
+    const mlistings = validRideIds.length
+      ? await db.select({ rideId: marketplaceListingsTable.rideId, comment: marketplaceListingsTable.comment, baggageType: marketplaceListingsTable.baggageType })
+          .from(marketplaceListingsTable)
+          .where(and(inArray(marketplaceListingsTable.rideId, validRideIds), eq(marketplaceListingsTable.status, "active")))
+      : [];
+    const listingMap = new Map(mlistings.map((m) => [m.rideId, m]));
+    const paxRows = validRideIds.length
+      ? await db.select({ rideId: ridePassengersTable.rideId, seatNumber: ridePassengersTable.seatNumber, gender: ridePassengersTable.gender, baggageType: ridePassengersTable.baggageType })
+          .from(ridePassengersTable).where(inArray(ridePassengersTable.rideId, validRideIds))
+      : [];
+    const paxByRide = new Map<number, any[]>();
+    for (const p of paxRows) {
+      const arr = paxByRide.get(p.rideId) ?? [];
+      arr.push(p);
+      paxByRide.set(p.rideId, arr);
+    }
+
+    const result = validOffers.map((offer) => {
+      const ride = rideMap.get(offer.rideId)!;
+      const ml = listingMap.get(ride.id);
+      const passengers = paxByRide.get(ride.id) ?? [];
+      const expiresIn = offer.expiresAt ? Math.max(0, offer.expiresAt.getTime() - Date.now()) : 0;
+      return {
+        ride: {
+          ...ride,
+          comment: ml?.comment ?? (ride as any).comment ?? null,
+          baggageType: ml?.baggageType ?? passengers[0]?.baggageType ?? null,
+          seatPassengers: passengers,
+        },
+        expiresIn,
+        offerId: offer.id,
+      };
+    });
 
     res.json({ offers: result, noRoute: !hasActiveRoute });
   } catch (err) {
