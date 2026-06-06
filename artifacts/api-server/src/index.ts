@@ -14,6 +14,7 @@ import { startMemoryGuardian, stopMemoryGuardian } from "./lib/memory-guardian.j
 import { seedDatabase } from "./lib/seed.js";
 import { startAutoCancelScheduler, stopAutoCancelScheduler } from "./lib/order-auto-cancel.js";
 import { startDispatchSweep, stopDispatchSweep } from "./lib/autodispatch.js";
+import { startWorkers, stopWorkers } from "./lib/queues/workers.js";
 import { pool } from "@workspace/db";
 import { redis } from "./lib/redis.js";
 
@@ -73,6 +74,7 @@ seedDatabase().then(() => {
     startListingsCleanupScheduler();
     startMemoryGuardian();
     startDispatchSweep();
+    startWorkers();
     warmupModels().catch(() => {});
   });
 }).catch((err) => {
@@ -84,6 +86,7 @@ seedDatabase().then(() => {
     startListingsCleanupScheduler();
     startMemoryGuardian();
     startDispatchSweep();
+    startWorkers();
     warmupModels().catch(() => {});
   });
 });
@@ -109,6 +112,9 @@ async function shutdown(signal: string) {
     stopListingsCleanupScheduler();
     stopMemoryGuardian();
     stopDispatchSweep();
+
+    // 1b) Drain BullMQ workers/queue (finishes in-flight jobs, closes its own Redis conns).
+    await stopWorkers();
 
     // 2) Stop accepting new HTTP connections; wait for in-flight requests to finish.
     await new Promise<void>((resolve) => server.close(() => resolve()));

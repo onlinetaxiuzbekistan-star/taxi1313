@@ -1,6 +1,7 @@
 import { db, ridesTable, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { sendSms, getNotificationSettings } from "./sms.js";
+import { enqueueSms } from "./queues/sms.queue.js";
 import { sendTelegramVerification } from "./telegram-direct.js";
 
 function interpolate(template: string, vars: Record<string, string>): string {
@@ -79,7 +80,7 @@ export async function sendVerificationSms(phone: string, code: string) {
 
     const template = notif["sms_text_verification"] || "Такси 1313: Ваш код подтверждения: {code}";
     const message = interpolate(template, { code });
-    await sendSms(phone, message);
+    await enqueueSms(phone, message);
   } catch (err) {
     console.error("[SMS-NOTIF] Verification SMS error for " + phone + ":", err);
   }

@@ -1,7 +1,9 @@
 import webpush from "web-push";
+import { UnrecoverableError } from "bullmq";
 import { db, deviceTokensTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { broadcastToUser, broadcastToRole } from "./websocket.js";
+import { enqueuePushJob, type PushJobData } from "./queues/push.queue.js";
 import { logger } from "./logger.js";
 
 const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || "";
@@ -29,7 +31,9 @@ async function getUserSubscriptions(userId: number) {
     .where(eq(deviceTokensTable.userId, userId));
 }
 
-async function sendWebPush(userId: number, payload: PushPayload): Promise<void> {
+// Producer: fan a user out into one queued job per subscription. The actual
+// webpush.sendNotification() happens in deliverPushJob() on the worker side.
+async function enqueuePush(userId: number, payload: PushPayload): Promise<void> {
   if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
     logger.debug({ userId, title: payload.title }, "VAPID not configured, skipping push");
     return;
@@ -37,6 +41,27 @@ async function sendWebPush(userId: number, payload: PushPayload): Promise<void> 
 
   const subscriptions = await getUserSubscriptions(userId);
   if (subscriptions.length === 0) return;
+
+  for (const sub of subscriptions) {
+    if (!sub.endpoint || !sub.p256dh || !sub.auth) continue;
+    await enqueuePushJob({
+      userId,
+      subId: sub.id,
+      endpoint: sub.endpoint,
+      p256dh: sub.p256dh,
+      auth: sub.auth,
+      payload,
+    });
+  }
+}
+
+// Worker side: deliver a single subscription's push. Throws UnrecoverableError
+// on 410/404 (subscription is gone — deleted, never retry); rethrows other
+// errors so BullMQ retries with backoff.
+export async function deliverPushJob(data: PushJobData): Promise<void> {
+  if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) return;
+
+  const { userId, subId, endpoint, p256dh, auth, payload } = data;
 
   const pushPayload = JSON.stringify({
     title: payload.title,
@@ -46,25 +71,19 @@ async function sendWebPush(userId: number, payload: PushPayload): Promise<void> 
     data: payload.data || {},
   });
 
-  for (const sub of subscriptions) {
-    if (!sub.endpoint || !sub.p256dh || !sub.auth) continue;
+  const pushSubscription = { endpoint, keys: { p256dh, auth } };
 
-    const pushSubscription = {
-      endpoint: sub.endpoint,
-      keys: { p256dh: sub.p256dh, auth: sub.auth },
-    };
-
-    try {
-      await webpush.sendNotification(pushSubscription, pushPayload);
-      logger.info({ userId, title: payload.title }, "Web Push sent");
-    } catch (err: any) {
-      if (err.statusCode === 410 || err.statusCode === 404) {
-        await db.delete(deviceTokensTable).where(eq(deviceTokensTable.id, sub.id));
-        logger.info({ userId, subId: sub.id }, "Removed expired push subscription");
-      } else {
-        logger.warn({ err: err.message, statusCode: err.statusCode, userId }, "Web Push send error");
-      }
+  try {
+    await webpush.sendNotification(pushSubscription, pushPayload);
+    logger.info({ userId, title: payload.title }, "Web Push sent");
+  } catch (err: any) {
+    if (err.statusCode === 410 || err.statusCode === 404) {
+      await db.delete(deviceTokensTable).where(eq(deviceTokensTable.id, subId));
+      logger.info({ userId, subId, statusCode: err.statusCode }, "Removed expired push subscription");
+      throw new UnrecoverableError(`subscription_gone_${err.statusCode}`);
     }
+    logger.warn({ err: err.message, statusCode: err.statusCode, userId }, "Web Push send error");
+    throw err;
   }
 }
 
@@ -76,7 +95,7 @@ export async function notifyNewOrder(driverId: number, rideId: number, fromCity:
     body: `${fromCity} → ${toCity}, ${price.toLocaleString("ru-RU")} сум`,
   });
 
-  await sendWebPush(driverId, {
+  await enqueuePush(driverId, {
     title: "🚕 Новый заказ",
     body: `${fromCity} → ${toCity}, ${price.toLocaleString("ru-RU")} сум`,
     data: { type: "new_order", rideId: String(rideId), url: "/driver" },
@@ -100,7 +119,7 @@ export async function notifyOrderAssigned(driverId: number, rideId: number, from
     body: `Вам назначен заказ #${rideId}: ${fromCity} → ${toCity}`,
   });
 
-  await sendWebPush(driverId, {
+  await enqueuePush(driverId, {
     title: "📋 Заказ назначен",
     body: `Вам назначен заказ #${rideId}: ${fromCity} → ${toCity}`,
     data: { type: "order_assigned", rideId: String(rideId), url: "/driver" },
@@ -114,7 +133,7 @@ export async function notifyOrderTaken(driverId: number, rideId: number): Promis
     message: `Заказ #${rideId} принят другим водителем`,
   });
 
-  await sendWebPush(driverId, {
+  await enqueuePush(driverId, {
     title: "Заказ занят",
     body: `Заказ #${rideId} был принят другим водителем`,
     data: { type: "order_taken", rideId: String(rideId) },
@@ -158,7 +177,7 @@ export async function notifyNewChatMessage(
 ): Promise<void> {
   const preview = messagePreview.length > 80 ? messagePreview.slice(0, 80) + "…" : messagePreview;
 
-  await sendWebPush(recipientId, {
+  await enqueuePush(recipientId, {
     title: `💬 ${senderName}`,
     body: preview,
     data: {
