@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { clog } from "../lib/logger.js";
 import { db, ridesTable, usersTable, tariffsTable, orderOffersTable, ridePassengersTable, districtsTable, settingsTable, routesTable, routeOptionsTable, transactionsTable, driverGroupsTable, citiesTable } from "@workspace/db";
 import { eq, desc, asc, and, sql, inArray, gte, lte, like, or, ilike } from "drizzle-orm";
 import { broadcastToAll, broadcastToUser } from "../lib/websocket.js";
@@ -263,7 +264,7 @@ async function calcPrice(fromCity: string, toCity: string, _passengers: number, 
   }
   const priceBack = carClass === "business" ? route.priceBusiness : carClass === "comfort" ? route.priceComfort : route.priceEconomy;
   const priceFront = carClass === "business" ? route.priceFrontBusiness : carClass === "comfort" ? route.priceFrontComfort : route.priceFrontEconomy;
-  console.log("ROUTE PRICE back:", priceBack, "front:", priceFront, "route:", route.fromCity, "→", route.toCity);
+  clog.log("ROUTE PRICE back:", priceBack, "front:", priceFront, "route:", route.fromCity, "→", route.toCity);
   return {
     price: Math.round(priceBack),
     priceBack: Math.round(priceBack),
@@ -626,7 +627,7 @@ async function findMatchingTrip(
   for (const trip of trips) {
     const freeSeats = (trip.seatsTotal ?? 0) - (trip.seatsTaken ?? 0);
     if (freeSeats < passengersNeeded) {
-      console.log(`[MATCH] Trip ${trip.id}: [ERROR] MATCH_FAILED: NO_SEATS — ${freeSeats} free < ${passengersNeeded} needed`);
+      clog.log(`[MATCH] Trip ${trip.id}: [ERROR] MATCH_FAILED: NO_SEATS — ${freeSeats} free < ${passengersNeeded} needed`);
       continue;
     }
 
@@ -789,7 +790,7 @@ router.post("/price-estimate", async (req, res) => {
       price = seatTotal;
     }
 
-    console.log("SEAT TOTAL:", seatTotal, "front:", nFront, "back:", nBack, "FINAL PRICE:", price);
+    clog.log("SEAT TOTAL:", seatTotal, "front:", nFront, "back:", nBack, "FINAL PRICE:", price);
 
     res.json({
       price: Math.round(price),
@@ -1158,7 +1159,7 @@ router.post("/", validateBody(createRideBodySchema), async (req, res) => {
       }
     } catch (err: any) {
       if (config.isDevelopment) {
-        console.warn("JWT parse failed:", err?.message);
+        clog.warn("JWT parse failed:", err?.message);
       }
     }
     const isDispatcher = userRole === "dispatcher" || userRole === "admin";
@@ -1269,7 +1270,7 @@ router.post("/", validateBody(createRideBodySchema), async (req, res) => {
       finalPrice = seatCount * (est.priceBack || est.price || 0);
     }
 
-    console.log("SAVE RIDE:", { seats: seatsArray.length, frontCount, backCount, priceFront: est.priceFront, priceBack: est.priceBack, basePrice, finalPrice, fromDistrictCharge, toDistrictCharge, optionsTotal, roundTrip });
+    clog.log("SAVE RIDE:", { seats: seatsArray.length, frontCount, backCount, priceFront: est.priceFront, priceBack: est.priceBack, basePrice, finalPrice, fromDistrictCharge, toDistrictCharge, optionsTotal, roundTrip });
 
     const fromCityData = findCity(fromCity);
     const toCityData = findCity(toCity);
@@ -1382,7 +1383,7 @@ router.post("/", validateBody(createRideBodySchema), async (req, res) => {
 
     const ridePassengers = await db.select().from(ridePassengersTable).where(eq(ridePassengersTable.rideId, ride.id));
 
-    console.log("PASSENGERS:", {
+    clog.log("PASSENGERS:", {
       rideId: ride.id,
       seats: Array.isArray(seats) ? seats.length : 0,
       passengersCount: ridePassengers.length,
@@ -1404,7 +1405,7 @@ router.post("/", validateBody(createRideBodySchema), async (req, res) => {
 
     res.status(201).json({ ...ride, seatPassengers: enrichPassengersWithRouteInfo(ridePassengers, ride) });
   } catch (err: any) {
-    console.error("CREATE RIDE ERROR:", err);
+    clog.error("CREATE RIDE ERROR:", err);
     req.log.error({ err }, "Create ride error");
     res.status(500).json({ error: "server_error", message: err?.message || "Internal server error" });
   }
@@ -1605,8 +1606,8 @@ router.patch("/:id", authMiddleware, requireRole("dispatcher", "admin"), validat
     }
 
     if (driverId && status !== "accepted") {
-      console.log("DISPATCH MODE:", { rideId, mode: "offer-only", assigned: false, requestedDriverId: driverId });
-      console.error(`[BLOCKED] dispatcher tried to directly assign driver ${driverId} to ride ${rideId} — use offer flow instead`);
+      clog.log("DISPATCH MODE:", { rideId, mode: "offer-only", assigned: false, requestedDriverId: driverId });
+      clog.error(`[BLOCKED] dispatcher tried to directly assign driver ${driverId} to ride ${rideId} — use offer flow instead`);
     }
 
     if (status === "accepted" && !existing.driverId) {
@@ -1863,7 +1864,7 @@ router.patch("/:id/passengers/:passengerId", authMiddleware, requireRole("dispat
                     .where(eq(ridePassengersTable.id, pp.id));
                 }
               }
-              console.log(`[SEAT-CHANGE] ride ${thisRide.id} price recomputed: front=${frontCount} back=${backCount} basePrice=${basePrice} final=${finalPrice} tripMul=${tripMul}`);
+              clog.log(`[SEAT-CHANGE] ride ${thisRide.id} price recomputed: front=${frontCount} back=${backCount} basePrice=${basePrice} final=${finalPrice} tripMul=${tripMul}`);
             }
           }
         }

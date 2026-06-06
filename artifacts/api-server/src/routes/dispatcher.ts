@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { clog } from "../lib/logger.js";
 import { db, ridesTable, usersTable, orderOffersTable } from "@workspace/db";
 import { eq, and, desc, sql, inArray } from "drizzle-orm";
 import { broadcastToAll, broadcastToUser } from "../lib/websocket.js";
@@ -78,7 +79,7 @@ async function sendOfferToDriver(
     .returning();
 
   if (!updatedRide) {
-    console.log(`[SAFE OFFER] ride ${numRideId} already taken, skipping`);
+    clog.log(`[SAFE OFFER] ride ${numRideId} already taken, skipping`);
     return { success: false, error: "Рейс уже принят другим водителем", status: 409 };
   }
 
@@ -90,9 +91,9 @@ async function sendOfferToDriver(
   }).returning();
 
   const offerId = offer.id;
-  console.log(`[SAFE OFFER] created offerId=${offerId}, rideId=${numRideId}, driverId=${numDriverId}`);
+  clog.log(`[SAFE OFFER] created offerId=${offerId}, rideId=${numRideId}, driverId=${numDriverId}`);
 
-  console.log(`[DISPATCH FLOW] driverId=${numDriverId}, rideId=${numRideId}, offerId=${offerId}, offerStatus=pending, action=dispatcher_send`);
+  clog.log(`[DISPATCH FLOW] driverId=${numDriverId}, rideId=${numRideId}, offerId=${offerId}, offerStatus=pending, action=dispatcher_send`);
   log.info({ driverId: numDriverId, rideId: numRideId, offerIdCreated: offerId }, "Sending WS new_order to driver");
   broadcastToUser(numDriverId, {
     type: "new_order",

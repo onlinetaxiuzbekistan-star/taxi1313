@@ -1,4 +1,5 @@
 import fs from "fs";
+import { clog } from "./logger.js";
 import path from "path";
 import sharp from "sharp";
 
@@ -33,10 +34,10 @@ async function getBlazeFace() {
       const blazeface = await import("@tensorflow-models/blazeface");
       const model = await blazeface.load();
       blazefaceModel = model;
-      console.log("[AI VALIDATOR] BlazeFace model loaded");
+      clog.log("[AI VALIDATOR] BlazeFace model loaded");
       return model;
     } catch (err) {
-      console.error("[AI VALIDATOR] BlazeFace load failed:", err);
+      clog.error("[AI VALIDATOR] BlazeFace load failed:", err);
       throw err;
     } finally {
       blazefaceLoading = null;
@@ -58,10 +59,10 @@ async function getOCRWorker() {
       const { createWorker } = await import("tesseract.js");
       const worker = await createWorker("eng");
       ocrWorker = worker;
-      console.log("[AI VALIDATOR] Tesseract OCR worker ready");
+      clog.log("[AI VALIDATOR] Tesseract OCR worker ready");
       return worker;
     } catch (err) {
-      console.error("[AI VALIDATOR] Tesseract load failed:", err);
+      clog.error("[AI VALIDATOR] Tesseract load failed:", err);
       throw err;
     } finally {
       ocrLoading = null;
@@ -98,7 +99,7 @@ async function detectFaces(filePath: string): Promise<{ count: number; confidenc
 
     return { count: validFaces.length, confidence: maxConf, engineError: false };
   } catch (err) {
-    console.error("[AI VALIDATOR] BlazeFace detection error:", err);
+    clog.error("[AI VALIDATOR] BlazeFace detection error:", err);
     return { count: 0, confidence: 0, engineError: true };
   } finally {
     if (tensor) {
@@ -123,7 +124,7 @@ async function extractPlateText(filePath: string): Promise<{ text: string; confi
     const plateChars = rawText.replace(/[^A-Za-z0-9А-Яа-яЁё]/g, "");
     return { text: plateChars, confidence: result.data.confidence, engineError: false };
   } catch (err) {
-    console.error("[AI VALIDATOR] Tesseract OCR error:", err);
+    clog.error("[AI VALIDATOR] Tesseract OCR error:", err);
     return { text: "", confidence: 0, engineError: true };
   }
 }
@@ -524,8 +525,8 @@ export async function validatePhotos(urls: {
 export async function warmupModels(): Promise<void> {
   try {
     await Promise.all([getBlazeFace(), getOCRWorker()]);
-    console.log("[AI VALIDATOR] All models warmed up");
+    clog.log("[AI VALIDATOR] All models warmed up");
   } catch (err) {
-    console.error("[AI VALIDATOR] Model warmup failed:", err);
+    clog.error("[AI VALIDATOR] Model warmup failed:", err);
   }
 }

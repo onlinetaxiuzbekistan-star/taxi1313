@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { clog } from "../lib/logger.js";
 import multer from "multer";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -941,7 +942,7 @@ router.post("/admin/create", authMiddleware, requireRole("dispatcher", "admin"),
     await db.insert(driverAuditLogsTable).values({
       driverId: driver.id, actorId: req.userId!, action: "create",
       details: `Водитель создан: ${safe.name}`,
-    }).catch(e => console.warn("[AUDIT] insert failed:", e.message));
+    }).catch(e => clog.warn("[AUDIT] insert failed:", e.message));
     res.status(201).json(safe);
   } catch (err) {
     req.log.error({ err }, "Admin create driver error");
@@ -1098,7 +1099,7 @@ router.patch("/admin/:id", authMiddleware, requireRole("dispatcher", "admin"), a
         driverId, actorId, action: "edit" as string, field: a.field,
         oldValue: a.old != null ? String(a.old) : null, newValue: a.new_ != null ? String(a.new_) : null,
       }));
-      await db.insert(driverAuditLogsTable).values(auditRows).catch(e => console.warn("[AUDIT] insert failed:", e.message));
+      await db.insert(driverAuditLogsTable).values(auditRows).catch(e => clog.warn("[AUDIT] insert failed:", e.message));
     }
 
     res.json(safe);
@@ -1126,7 +1127,7 @@ router.patch("/admin/:id/password", authMiddleware, requireRole("dispatcher", "a
     const newHash = await hashPassword(password.trim());
     await db.update(usersTable).set({ passwordHash: newHash, updatedAt: new Date() }).where(eq(usersTable.id, driverId));
 
-    console.log("PASSWORD RESET: driver", driverId, "password updated by", (req as AuthRequest).userId);
+    clog.log("PASSWORD RESET: driver", driverId, "password updated by", (req as AuthRequest).userId);
     res.json({ success: true, message: "Пароль обновлён" });
   } catch (err) {
     req.log.error({ err }, "Password reset error");
@@ -1410,7 +1411,7 @@ router.post("/accept", authMiddleware, async (req: AuthRequest, res) => {
     }
 
     if (existing.driverId === driverId && ["accepted", "in_progress"].includes(existing.status as string)) {
-      console.log(`[IDEMPOTENT] rideId=${rideId}, driverId=${driverId}, status=${existing.status} — already accepted by this driver`);
+      clog.log(`[IDEMPOTENT] rideId=${rideId}, driverId=${driverId}, status=${existing.status} — already accepted by this driver`);
       res.json({ success: true, ride: existing, idempotent: true });
       return;
     }
@@ -1439,7 +1440,7 @@ router.post("/accept", authMiddleware, async (req: AuthRequest, res) => {
             res.status(409).json({ error: "no_seats", message: "Нет свободных мест в рейсе" });
             return;
           }
-          console.log(`[ACCEPT] driver ${driverId} has active route ${matchedRouteRide.id} (${matchedRouteRide.fromCity}→${matchedRouteRide.toCity}), ${totalSeats - routePassengers.length}/${totalSeats} free — adding passenger`);
+          clog.log(`[ACCEPT] driver ${driverId} has active route ${matchedRouteRide.id} (${matchedRouteRide.fromCity}→${matchedRouteRide.toCity}), ${totalSeats - routePassengers.length}/${totalSeats} free — adding passenger`);
         }
       }
     }
@@ -1471,13 +1472,13 @@ router.post("/accept", authMiddleware, async (req: AuthRequest, res) => {
         and(eq(ridesTable.driverId, driverId), inArray(ridesTable.status, ["accepted", "in_progress"]))
       );
       if (inProgressTrips.length > 0) {
-        console.log(`[FINAL CHECK] driverId=${driverId}, rideId=${rideId}, rejected=active_trip (${inProgressTrips.map(t => t.id).join(",")})`);
+        clog.log(`[FINAL CHECK] driverId=${driverId}, rideId=${rideId}, rejected=active_trip (${inProgressTrips.map(t => t.id).join(",")})`);
         res.status(409).json({ error: "driver_busy", message: "У вас есть активный рейс" });
         return;
       }
     }
 
-    console.log(`[ACCEPT] rideId=${rideId}, mode=${rideMode}, source=${rideSource}, isUrgent=${existing.isUrgent}, skipOffer=${skipOffer}, driverId=${driverId}`);
+    clog.log(`[ACCEPT] rideId=${rideId}, mode=${rideMode}, source=${rideSource}, isUrgent=${existing.isUrgent}, skipOffer=${skipOffer}, driverId=${driverId}`);
     let acceptedOffer: any = null;
 
     if (!skipOffer) {
@@ -1489,7 +1490,7 @@ router.post("/accept", authMiddleware, async (req: AuthRequest, res) => {
         )
       );
       if (!pendingOffer) {
-        console.error(`[BLOCKED] driver ${driverId} tried to accept ride ${rideId} without pending offer`);
+        clog.error(`[BLOCKED] driver ${driverId} tried to accept ride ${rideId} without pending offer`);
         res.status(403).json({ error: "MUST_ACCEPT_OFFER_FIRST", message: "У вас нет активного предложения на этот заказ" });
         return;
       }
@@ -1508,7 +1509,7 @@ router.post("/accept", authMiddleware, async (req: AuthRequest, res) => {
       }
       acceptedOffer = ao;
     } else {
-      console.log(`[ACCEPT] ride ${rideId} mode=${rideMode} source=${rideSource} — skipping offer requirement for driver ${driverId}`);
+      clog.log(`[ACCEPT] ride ${rideId} mode=${rideMode} source=${rideSource} — skipping offer requirement for driver ${driverId}`);
     }
 
     const [ride] = await db.update(ridesTable).set({
@@ -1526,7 +1527,7 @@ router.post("/accept", authMiddleware, async (req: AuthRequest, res) => {
     .returning();
 
     if (!ride) {
-      console.log(`[SAFE ACCEPT] rideId=${rideId}, driverId=${driverId}, success=false (already taken)`);
+      clog.log(`[SAFE ACCEPT] rideId=${rideId}, driverId=${driverId}, success=false (already taken)`);
       if (acceptedOffer) {
         await db.update(orderOffersTable).set({ status: "expired", respondedAt: new Date() })
           .where(eq(orderOffersTable.id, acceptedOffer.id));
@@ -1543,7 +1544,7 @@ router.post("/accept", authMiddleware, async (req: AuthRequest, res) => {
         ne(orderOffersTable.driverId, driverId),
       ));
 
-    console.log(`[SAFE ACCEPT] rideId=${rideId}, driverId=${driverId}, success=true, mode=${rideMode}, source=${rideSource}`);
+    clog.log(`[SAFE ACCEPT] rideId=${rideId}, driverId=${driverId}, success=true, mode=${rideMode}, source=${rideSource}`);
 
     // Auto-cancel any OTHER empty driver-routes belonging to this driver (avoid dual-active-ride state)
     // IMPORTANT: never cancel the route we are about to merge into (matchedRouteRide.id)
@@ -1564,12 +1565,12 @@ router.post("/accept", authMiddleware, async (req: AuthRequest, res) => {
           await db.update(ridesTable)
             .set({ status: "cancelled", updatedAt: new Date() })
             .where(eq(ridesTable.id, r.id));
-          console.log(`[AUTO-CANCEL] empty driver-route ${r.id} cancelled (driver ${driverId} accepted ${rideId})`);
+          clog.log(`[AUTO-CANCEL] empty driver-route ${r.id} cancelled (driver ${driverId} accepted ${rideId})`);
           broadcastToAll({ type: "ride_updated", ride: { ...r, status: "cancelled" } });
         }
       }
     } catch (e) {
-      console.error("[AUTO-CANCEL] failed:", e);
+      clog.error("[AUTO-CANCEL] failed:", e);
     }
 
     if (matchedRouteRide) {
@@ -1649,7 +1650,7 @@ router.post("/accept", authMiddleware, async (req: AuthRequest, res) => {
           status: "merged" as any,
           updatedAt: new Date(),
         }).where(eq(ridesTable.id, Number(rideId)));
-        console.log(`[MERGE] ride ${rideId} marked as merged into trip ${matchedRouteRide.id}`);
+        clog.log(`[MERGE] ride ${rideId} marked as merged into trip ${matchedRouteRide.id}`);
 
         const newCount = routePassengers.length + rideSeats;
         await tx.update(ridesTable)
@@ -1673,7 +1674,7 @@ router.post("/accept", authMiddleware, async (req: AuthRequest, res) => {
         return;
       }
 
-      console.log(`[ACCEPT] ${insertResult.addedSeats} passenger(s) attached to route ${matchedRouteRide.id}, lastSeat=${insertResult.nextSeat}, total=${insertResult.newCount}`);
+      clog.log(`[ACCEPT] ${insertResult.addedSeats} passenger(s) attached to route ${matchedRouteRide.id}, lastSeat=${insertResult.nextSeat}, total=${insertResult.newCount}`);
       req.log.info({ rideId, driverId, routeRideId: matchedRouteRide.id, seatNumber: insertResult.nextSeat }, "Passenger attached to route ride");
 
       const [updatedRoute] = await db.select().from(ridesTable).where(eq(ridesTable.id, matchedRouteRide.id));
@@ -1718,7 +1719,7 @@ router.post("/accept", authMiddleware, async (req: AuthRequest, res) => {
         updatedAt: new Date(),
       }).where(eq(ridesTable.id, ride.id));
 
-      console.log(`[ACCEPT] ride ${ride.id}, existingPax=${existingPax.length}, finalPax=${finalPaxCount}`);
+      clog.log(`[ACCEPT] ride ${ride.id}, existingPax=${existingPax.length}, finalPax=${finalPaxCount}`);
     }
 
     resetConsecutiveIgnores(driverId);
@@ -1756,9 +1757,9 @@ router.post("/accept", authMiddleware, async (req: AuthRequest, res) => {
           buyerCarNumber: driver.carNumber,
         });
         broadcastToAll({ type: "marketplace_listing_sold", listingId: mpListing.id });
-        console.log(`[MARKETPLACE] listing ${mpListing.id} → in_progress, buyer=${driverId}, seller=${mpListing.sellerId}`);
+        clog.log(`[MARKETPLACE] listing ${mpListing.id} → in_progress, buyer=${driverId}, seller=${mpListing.sellerId}`);
       }
-    } catch (mpErr) { console.error("[MARKETPLACE] update listing on accept failed:", mpErr); }
+    } catch (mpErr) { clog.error("[MARKETPLACE] update listing on accept failed:", mpErr); }
 
     const [freshRide] = await db.select().from(ridesTable).where(eq(ridesTable.id, Number(rideId)));
     broadcastToAll({ type: "ride_updated", ride: freshRide || ride });
@@ -1792,7 +1793,7 @@ router.post("/accept", authMiddleware, async (req: AuthRequest, res) => {
         });
 
         if (freeNow <= 0) {
-          console.log(`[ACCEPT] car FULL for driver ${driverId}, trip ${matchedRouteRide.id} — expiring all pending offers`);
+          clog.log(`[ACCEPT] car FULL for driver ${driverId}, trip ${matchedRouteRide.id} — expiring all pending offers`);
           await db.update(orderOffersTable)
             .set({ status: "expired", respondedAt: new Date() })
             .where(and(
@@ -1817,9 +1818,9 @@ router.post("/accept", authMiddleware, async (req: AuthRequest, res) => {
     const responseMs = offerCreatedAt > 0 ? Date.now() - offerCreatedAt : 0;
     recordDriverAccept(driverId, responseMs);
 
-    try { const { markAssigned: mqAssign } = await import("../lib/driver-queue.js"); mqAssign(driverId, responseMs); } catch (e) { console.error("[QUEUE] markAssigned failed", e); }
+    try { const { markAssigned: mqAssign } = await import("../lib/driver-queue.js"); mqAssign(driverId, responseMs); } catch (e) { clog.error("[QUEUE] markAssigned failed", e); }
 
-    try { const { refreshOccupiedSeats } = await import("../lib/driver-queue.js"); await refreshOccupiedSeats(); } catch (e) { console.error("[QUEUE] refreshOccupiedSeats after accept failed", e); }
+    try { const { refreshOccupiedSeats } = await import("../lib/driver-queue.js"); await refreshOccupiedSeats(); } catch (e) { clog.error("[QUEUE] refreshOccupiedSeats after accept failed", e); }
 
     req.log.info({ rideId, driverId }, "Driver accepted ride via POST /accept");
     notifyRideStatusChange(Number(rideId), "accepted").catch(() => {});
@@ -1995,10 +1996,10 @@ router.post("/complete", authMiddleware, async (req: AuthRequest, res) => {
             earnings,
             buyerId: mpListing.buyerId,
           });
-          console.log(`[MARKETPLACE] listing ${mpListing.id} → completed, seller=${mpListing.sellerId}, earnings=${earnings}`);
+          clog.log(`[MARKETPLACE] listing ${mpListing.id} → completed, seller=${mpListing.sellerId}, earnings=${earnings}`);
         }
       }
-    } catch (mpErr) { console.error("[MARKETPLACE] update listing on complete failed:", mpErr); }
+    } catch (mpErr) { clog.error("[MARKETPLACE] update listing on complete failed:", mpErr); }
 
     try {
       const { returnToQueue, getQueuePosition: gqp } = await import("../lib/driver-queue.js");
@@ -2006,11 +2007,11 @@ router.post("/complete", authMiddleware, async (req: AuthRequest, res) => {
       const cd = getCachedDriver(driverId);
       if (cd && cd.status === "online" && cd.balance >= getSettingNum("min_driver_balance", 0)) {
         returnToQueue(driverId);
-        console.log(`[TRIP] completed rideId=${rideId}, driverId=${driverId}, linked=${linkedClientRides.length}, queuePos=${gqp(driverId)}`);
+        clog.log(`[TRIP] completed rideId=${rideId}, driverId=${driverId}, linked=${linkedClientRides.length}, queuePos=${gqp(driverId)}`);
       } else {
-        console.log(`[TRIP] completed rideId=${rideId}, driverId=${driverId}, skipped queue return (status=${cd?.status}, balance=${cd?.balance})`);
+        clog.log(`[TRIP] completed rideId=${rideId}, driverId=${driverId}, skipped queue return (status=${cd?.status}, balance=${cd?.balance})`);
       }
-    } catch (e) { console.error("[QUEUE] returnToQueue failed", e); }
+    } catch (e) { clog.error("[QUEUE] returnToQueue failed", e); }
     req.log.info({ rideId, driverId, linkedRides: linkedClientRides.length }, "Driver completed ride");
     res.json(ride);
 
@@ -2075,7 +2076,7 @@ router.post("/cancel", authMiddleware, async (req: AuthRequest, res) => {
       // Все клиенты тут только personal (manual/driver) — удаляем их вместе с рейсом
       try {
         await db.delete(ridePassengersTable).where(eq(ridePassengersTable.rideId, Number(rideId)));
-      } catch (e) { console.error("[cancel] failed to delete ride_passengers:", e); }
+      } catch (e) { clog.error("[cancel] failed to delete ride_passengers:", e); }
     }
 
     if (!ride) {
@@ -2314,7 +2315,7 @@ router.get("/my-active-ride", authMiddleware, async (req: AuthRequest, res) => {
       .where(eq(ridePassengersTable.rideId, tripRide.id))
       .orderBy(ridePassengersTable.seatNumber);
 
-    console.log("SEAT SYNC:", {
+    clog.log("SEAT SYNC:", {
       rideId: tripRide.id,
       ridePassengersField: tripRide.passengers,
       dbPassengers: passengers.length,
@@ -2772,7 +2773,7 @@ router.get("/trip-stops", authMiddleware, requireRole("driver"), async (req: Aut
 
     const allDroppedOff = passengers.length > 0 && passengers.every(p => p.status === "dropped_off");
     if (allDroppedOff) {
-      console.log(`[ROUTE] skipped - no active passengers, all ${passengers.length} dropped off for ride ${tripRide.id}`);
+      clog.log(`[ROUTE] skipped - no active passengers, all ${passengers.length} dropped off for ride ${tripRide.id}`);
       res.json({
         stops: [],
         nextStop: null,
@@ -2789,7 +2790,7 @@ router.get("/trip-stops", authMiddleware, requireRole("driver"), async (req: Aut
 
     const activePassengers = passengers.filter(p => p.status !== "dropped_off");
     if (activePassengers.length === 0 && passengers.length === 0) {
-      console.log(`[ROUTE] skipped - no passengers at all for ride ${tripRide.id}`);
+      clog.log(`[ROUTE] skipped - no passengers at all for ride ${tripRide.id}`);
       res.json({ stops: [], nextStop: null, tripStatus: tripRide.status, rideId: tripRide.id, passengers: [] });
       return;
     }
@@ -3160,7 +3161,7 @@ router.post("/passenger/:passengerId/dropoff", authMiddleware, requireRole("driv
     });
 
     if (allDroppedOff && updatedPassengers.length > 0) {
-      console.log(`[TRIP] auto-completing rideId=${ride.id}, all ${updatedPassengers.length} passengers dropped off`);
+      clog.log(`[TRIP] auto-completing rideId=${ride.id}, all ${updatedPassengers.length} passengers dropped off`);
 
       const completionResult = await completeRide(ride.id);
       if (completionResult.success) {
@@ -3172,7 +3173,7 @@ router.post("/passenger/:passengerId/dropoff", authMiddleware, requireRole("driv
         for (const cr of linkedClientRides) {
           await db.update(ridesTable).set({ status: "completed", updatedAt: new Date() })
             .where(eq(ridesTable.id, cr.id));
-          console.log(`[TRIP] auto-completed linked client ride ${cr.id}`);
+          clog.log(`[TRIP] auto-completed linked client ride ${cr.id}`);
         }
 
         const [completedRide] = await db.select().from(ridesTable).where(eq(ridesTable.id, ride.id));
@@ -3201,18 +3202,18 @@ router.post("/passenger/:passengerId/dropoff", authMiddleware, requireRole("driv
                 earnings: mpL.price,
                 buyerId: mpL.buyerId,
               });
-              console.log(`[MARKETPLACE] auto-complete listing ${mpL.id} → completed, seller=${mpL.sellerId}`);
+              clog.log(`[MARKETPLACE] auto-complete listing ${mpL.id} → completed, seller=${mpL.sellerId}`);
             }
           }
-        } catch (mpErr) { console.error("[MARKETPLACE] auto-complete listing update failed:", mpErr); }
+        } catch (mpErr) { clog.error("[MARKETPLACE] auto-complete listing update failed:", mpErr); }
 
         try {
           const { returnToQueue: rtq } = await import("../lib/driver-queue.js");
           const { getCachedDriver: gcd } = await import("../lib/driver-cache.js");
           const cd2 = gcd(driverId);
           if (cd2 && cd2.status === "online" && cd2.balance >= getSettingNum("min_driver_balance", 0)) rtq(driverId);
-        } catch (e) { console.error("[QUEUE] auto-complete returnToQueue failed", e); }
-        console.log(`[TRIP] auto-completed rideId=${ride.id}, driverId=${driverId}, linked=${linkedClientRides.length}`);
+        } catch (e) { clog.error("[QUEUE] auto-complete returnToQueue failed", e); }
+        clog.log(`[TRIP] auto-completed rideId=${ride.id}, driverId=${driverId}, linked=${linkedClientRides.length}`);
 
         const autoBody = {
           success: true,
@@ -3226,7 +3227,7 @@ router.post("/passenger/:passengerId/dropoff", authMiddleware, requireRole("driv
         res.json(autoBody);
         return;
       } else {
-        console.log(`[TRIP] auto-complete failed for rideId=${ride.id}: ${completionResult.error}`);
+        clog.log(`[TRIP] auto-complete failed for rideId=${ride.id}: ${completionResult.error}`);
       }
     }
 
@@ -3397,7 +3398,7 @@ router.get("/pickup-route", authMiddleware, requireRole("driver"), async (req: A
 
     if (passengersWithCoords.length === 0) {
       if (activePassengers.length === 0 && passengers.length > 0) {
-        console.log(`[ROUTE] pickup-route skipped - all ${passengers.length} passengers dropped off for ride ${ride.id}`);
+        clog.log(`[ROUTE] pickup-route skipped - all ${passengers.length} passengers dropped off for ride ${ride.id}`);
       }
       res.json({ stops: [], geometry: null, totalDistance: 0, totalDuration: 0 });
       return;
@@ -3410,7 +3411,7 @@ router.get("/pickup-route", authMiddleware, requireRole("driver"), async (req: A
       sorted = nearestNeighborPickup(passengersWithCoords, driverLat, driverLng, ride.toLat, ride.toLng);
     }
 
-    console.log("[ROUTE OPTIMIZE] pickup-route:", {
+    clog.log("[ROUTE OPTIMIZE] pickup-route:", {
       rideId: ride.id,
       driverPos: { lat: driverLat, lng: driverLng },
       passengers: passengersWithCoords.map(p => ({ id: p.id, name: p.name, lat: p.pickupLat, lng: p.pickupLng })),

@@ -1,4 +1,5 @@
 import { db, usersTable, driverGroupsTable } from "@workspace/db";
+import { clog } from "./logger.js";
 import { eq, and, inArray } from "drizzle-orm";
 import { redis } from "./redis.js";
 
@@ -93,10 +94,10 @@ export async function restoreDriverGPSFromRedis(): Promise<void> {
       }
     }
     if (restored > 0) {
-      console.log(`[DRIVER CACHE] Restored ${restored} GPS positions from Redis`);
+      clog.log(`[DRIVER CACHE] Restored ${restored} GPS positions from Redis`);
     }
   } catch (err) {
-    console.error("[DRIVER CACHE] Redis GPS restore failed:", (err as Error).message);
+    clog.error("[DRIVER CACHE] Redis GPS restore failed:", (err as Error).message);
   }
 }
 
@@ -168,7 +169,7 @@ export async function syncDriverCache(): Promise<void> {
       }
     }
 
-    console.log(`[DRIVER CACHE] synced ${driverCache.size} online/busy drivers, ${groupLevelCache.size} groups`);
+    clog.log(`[DRIVER CACHE] synced ${driverCache.size} online/busy drivers, ${groupLevelCache.size} groups`);
 
     await restoreDriverGPSFromRedis();
 
@@ -187,7 +188,7 @@ export async function syncDriverCache(): Promise<void> {
       }
     } catch {}
   } catch (err) {
-    console.error("[DRIVER CACHE] sync failed:", (err as Error).message);
+    clog.error("[DRIVER CACHE] sync failed:", (err as Error).message);
   }
 }
 

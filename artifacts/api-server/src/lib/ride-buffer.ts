@@ -1,4 +1,5 @@
 import { db, ridesTable, usersTable, ridePassengersTable, orderOffersTable } from "@workspace/db";
+import { clog } from "./logger.js";
 import { eq, and, inArray, sql } from "drizzle-orm";
 import { batchMatchRides, type BatchRide, type BatchDriver, type BatchAssignment } from "./batch-dispatch.js";
 import { broadcastToAll, broadcastToUser } from "./websocket.js";
@@ -20,11 +21,11 @@ let batchTimer: ReturnType<typeof setTimeout> | null = null;
 export function addToBuffer(rideId: number, fromCity: string, toCity: string, carClass: string = "economy") {
   buffer.push({ id: rideId, fromCity, toCity, carClass, addedAt: Date.now() });
 
-  console.log(`[BATCH] Buffered ride ${rideId} (${fromCity}→${toCity}), buffer size: ${buffer.length}`);
+  clog.log(`[BATCH] Buffered ride ${rideId} (${fromCity}→${toCity}), buffer size: ${buffer.length}`);
 
   if (!batchTimer) {
     const windowSec = getSettingNum("batch_window_seconds", 90);
-    console.log(`[BATCH] Starting ${windowSec}s batch window`);
+    clog.log(`[BATCH] Starting ${windowSec}s batch window`);
     batchTimer = setTimeout(() => {
       batchTimer = null;
       processBatch().catch(err => {
@@ -46,7 +47,7 @@ export async function processBatch(): Promise<BatchAssignment[]> {
   if (buffer.length === 0) return [];
 
   const bufferedRides = buffer.splice(0);
-  console.log(`[BATCH] Processing ${bufferedRides.length} buffered rides`);
+  clog.log(`[BATCH] Processing ${bufferedRides.length} buffered rides`);
 
   const rideIds = bufferedRides.map(r => r.id);
   const stillPending = await db
@@ -61,7 +62,7 @@ export async function processBatch(): Promise<BatchAssignment[]> {
     .map(r => ({ id: r.id, fromCity: r.fromCity, toCity: r.toCity, carClass: r.carClass }));
 
   if (ridesToMatch.length === 0) {
-    console.log("[BATCH] No pending rides left to match");
+    clog.log("[BATCH] No pending rides left to match");
     return [];
   }
 
@@ -119,7 +120,7 @@ export async function processBatch(): Promise<BatchAssignment[]> {
   const assignments = batchMatchRides(ridesToMatch, batchDrivers, maxKm, maxMin);
 
   const matchedRideIds = new Set(assignments.map(a => a.rideId));
-  console.log(`[BATCH] Matched ${assignments.length}/${ridesToMatch.length} rides`);
+  clog.log(`[BATCH] Matched ${assignments.length}/${ridesToMatch.length} rides`);
 
   for (const a of assignments) {
     const price = 100000 + Math.floor(Math.random() * 200000);
@@ -134,7 +135,7 @@ export async function processBatch(): Promise<BatchAssignment[]> {
       .returning({ id: ridesTable.id });
 
     if (updateResult.length === 0) {
-      console.log(`[BATCH] Ride ${a.rideId} was already claimed, skipping`);
+      clog.log(`[BATCH] Ride ${a.rideId} was already claimed, skipping`);
       continue;
     }
 
@@ -174,7 +175,7 @@ export async function processBatch(): Promise<BatchAssignment[]> {
 
   const unmatchedRides = ridesToMatch.filter(r => !matchedRideIds.has(r.id));
   if (unmatchedRides.length > 0) {
-    console.log(`[BATCH] Falling back to auto-dispatch for ${unmatchedRides.length} unmatched rides`);
+    clog.log(`[BATCH] Falling back to auto-dispatch for ${unmatchedRides.length} unmatched rides`);
     for (const ride of unmatchedRides) {
       const stillExists = await db.select({ id: ridesTable.id }).from(ridesTable)
         .where(and(eq(ridesTable.id, ride.id), eq(ridesTable.status, "pending")));

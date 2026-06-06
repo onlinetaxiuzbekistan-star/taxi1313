@@ -1,4 +1,5 @@
 import Redis from "ioredis";
+import { clog } from "./logger.js";
 import { config } from "./config.js";
 
 const REDIS_URL = config.redisUrl;
@@ -11,8 +12,8 @@ export const redis = new Redis(REDIS_URL, {
   lazyConnect: false,
 });
 
-redis.on("connect", () => console.log("[REDIS] Connected"));
-redis.on("error", (err) => console.error("[REDIS] Error:", err.message));
+redis.on("connect", () => clog.log("[REDIS] Connected"));
+redis.on("error", (err) => clog.error("[REDIS] Error:", err.message));
 
 export async function getRedisJson<T>(key: string): Promise<T | null> {
   const val = await redis.get(key);

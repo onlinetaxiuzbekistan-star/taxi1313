@@ -1,4 +1,5 @@
 import { Router, type Response } from "express";
+import { clog } from "../lib/logger.js";
 import { type AuthRequest, authMiddleware, requireRole } from "../middlewares/auth.js";
 import { exec } from "child_process";
 import { promisify } from "util";
@@ -215,7 +216,7 @@ router.post("/apk/build", authMiddleware, requireRole("admin", "dispatcher"), as
   res.json({ status: "building", buildId, version });
 
   runBuild(targetUrl, buildId, version).catch(err => {
-    console.error("[APK] Build failed:", err);
+    clog.error("[APK] Build failed:", err);
   });
 });
 
@@ -241,7 +242,7 @@ async function runBuild(serverUrl: string, buildId: string, version: string) {
     try {
       const content = fullLogParts.join("\n") + (extra ? "\n\n=== TAIL ===\n" + extra : "");
       fs.writeFileSync(buildLogPath, content);
-    } catch (e) { console.error("[APK] writeFullLog failed:", e); }
+    } catch (e) { clog.error("[APK] writeFullLog failed:", e); }
   };
 
   const addLog = (msg: string) => {
@@ -250,7 +251,7 @@ async function runBuild(serverUrl: string, buildId: string, version: string) {
       currentBuild.log.push(line);
     }
     fullLogParts.push(line);
-    console.log(`[APK] ${msg}`);
+    clog.log(`[APK] ${msg}`);
   };
 
   const captureExec = async (label: string, cmd: string, opts: any) => {

@@ -1,4 +1,5 @@
 import { db, usersTable, citiesTable, districtsTable, routesTable, settingsTable, rolesTable, permissionsTable, rolePermissionsTable } from "@workspace/db";
+import { clog } from "./logger.js";
 import { eq, sql } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 
@@ -126,7 +127,7 @@ async function rehashAllPasswords(): Promise<void> {
       const freshHash = await bcrypt.hash(pw, 10);
       const verifyOk = await bcrypt.compare(pw, freshHash);
       await db.update(usersTable).set({ passwordHash: freshHash }).where(eq(usersTable.id, user.id));
-      console.log(`[SEED] Re-hashed password for ${phone} (user ${user.id}), verify=${verifyOk}`);
+      clog.log(`[SEED] Re-hashed password for ${phone} (user ${user.id}), verify=${verifyOk}`);
     }
   }
 }
@@ -140,7 +141,7 @@ async function seedCitiesAndDistricts(): Promise<void> {
 
   if (missingCities.length > 0) {
     await db.insert(citiesTable).values(missingCities);
-    console.log(`[SEED] Inserted ${missingCities.length} missing cities`);
+    clog.log(`[SEED] Inserted ${missingCities.length} missing cities`);
   }
 
   for (const existing of existingCities) {
@@ -148,7 +149,7 @@ async function seedCitiesAndDistricts(): Promise<void> {
       const match = CITIES_DATA.find(c => c.nameRu === existing.nameRu);
       if (match) {
         await db.update(citiesTable).set({ slug: match.slug }).where(eq(citiesTable.id, existing.id));
-        console.log(`[SEED] Updated slug for city: ${existing.nameRu} → ${match.slug}`);
+        clog.log(`[SEED] Updated slug for city: ${existing.nameRu} → ${match.slug}`);
       }
     }
   }
@@ -165,12 +166,12 @@ async function seedCitiesAndDistricts(): Promise<void> {
       lng: d.lng || null,
     }));
     await db.insert(districtsTable).values(districtValues);
-    console.log(`[SEED] Inserted ${districtValues.length} districts`);
+    clog.log(`[SEED] Inserted ${districtValues.length} districts`);
   }
 
   const [{ finalCityCount }] = await db.select({ finalCityCount: sql<number>`count(*)::int` }).from(citiesTable);
   const [{ finalDistrictCount }] = await db.select({ finalDistrictCount: sql<number>`count(*)::int` }).from(districtsTable);
-  console.log(`[SEED] CITIES: ${finalCityCount}, DISTRICTS: ${finalDistrictCount}`);
+  clog.log(`[SEED] CITIES: ${finalCityCount}, DISTRICTS: ${finalDistrictCount}`);
 }
 
 export async function seedDatabase(): Promise<void> {
@@ -179,12 +180,12 @@ export async function seedDatabase(): Promise<void> {
 
     const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(usersTable);
     if (count > 0) {
-      console.log("[SEED] Database has", count, "users, re-hashing demo passwords...");
+      clog.log("[SEED] Database has", count, "users, re-hashing demo passwords...");
       await rehashAllPasswords();
       return;
     }
 
-    console.log("[SEED] Empty database detected, seeding essential data...");
+    clog.log("[SEED] Empty database detected, seeding essential data...");
 
     const dispatcherHash = await hashPw("password");
     const driverHash = await hashPw("driver123");
@@ -230,7 +231,7 @@ export async function seedDatabase(): Promise<void> {
         city: "Фергана",
       },
     ]);
-    console.log("[SEED] Created 4 users (1 dispatcher + 3 drivers)");
+    clog.log("[SEED] Created 4 users (1 dispatcher + 3 drivers)");
 
     const [{ routeCount }] = await db.select({ routeCount: sql<number>`count(*)::int` }).from(routesTable);
     if (routeCount === 0) {
@@ -254,14 +255,14 @@ export async function seedDatabase(): Promise<void> {
           { fromCity: samarkand.nameRu, toCity: tashkent.nameRu, distanceKm: 270, durationMin: 270, priceEconomy: 100000, priceFrontEconomy: 130000, priceComfort: 150000, priceFrontComfort: 180000, isActive: true },
           { fromCity: samarkand.nameRu, toCity: bukhara.nameRu, distanceKm: 270, durationMin: 240, priceEconomy: 100000, priceFrontEconomy: 130000, priceComfort: 150000, priceFrontComfort: 180000, isActive: true },
         ]);
-        console.log("[SEED] Created 8 routes");
+        clog.log("[SEED] Created 8 routes");
       }
     }
 
     const [{ settingsCount }] = await db.select({ settingsCount: sql<number>`count(*)::int` }).from(settingsTable);
     if (settingsCount === 0) {
       await db.insert(settingsTable).values(DEFAULT_SETTINGS);
-      console.log(`[SEED] Created ${DEFAULT_SETTINGS.length} settings`);
+      clog.log(`[SEED] Created ${DEFAULT_SETTINGS.length} settings`);
     }
 
     const [{ roleCount }] = await db.select({ roleCount: sql<number>`count(*)::int` }).from(rolesTable);
@@ -271,7 +272,7 @@ export async function seedDatabase(): Promise<void> {
         { name: "Диспетчер", description: "Стандартный диспетчер — заказы, водители, чат" },
         { name: "Оператор", description: "Только просмотр и создание заказов" },
       ]);
-      console.log("[SEED] Created 3 roles");
+      clog.log("[SEED] Created 3 roles");
     }
 
     const [{ permCount }] = await db.select({ permCount: sql<number>`count(*)::int` }).from(permissionsTable);
@@ -299,7 +300,7 @@ export async function seedDatabase(): Promise<void> {
         { key: "references.manage", group: "Справочники", label: "Управление справочниками" },
       ];
       await db.insert(permissionsTable).values(perms);
-      console.log("[SEED] Created 20 permissions");
+      clog.log("[SEED] Created 20 permissions");
     }
 
     const [{ rpCount }] = await db.select({ rpCount: sql<number>`count(*)::int` }).from(rolePermissionsTable);
@@ -329,16 +330,16 @@ export async function seedDatabase(): Promise<void> {
 
       if (rpValues.length > 0) {
         await db.insert(rolePermissionsTable).values(rpValues);
-        console.log(`[SEED] Created ${rpValues.length} role-permission mappings`);
+        clog.log(`[SEED] Created ${rpValues.length} role-permission mappings`);
       }
     }
 
     await rehashAllPasswords();
 
-    console.log("[SEED] Database seeding complete!");
-    console.log("[SEED] Dispatcher: +998901234567 / password");
-    console.log("[SEED] Drivers: +998922222222, +998882015555, +998905365555 / driver123");
+    clog.log("[SEED] Database seeding complete!");
+    clog.log("[SEED] Dispatcher: +998901234567 / password");
+    clog.log("[SEED] Drivers: +998922222222, +998882015555, +998905365555 / driver123");
   } catch (err: any) {
-    console.error("[SEED] Error:", err.message);
+    clog.error("[SEED] Error:", err.message);
   }
 }

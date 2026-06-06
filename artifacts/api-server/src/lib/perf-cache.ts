@@ -1,4 +1,5 @@
 import { registerCache } from "./memory-guardian.js";
+import { clog } from "./logger.js";
 import type { Request, Response, NextFunction } from "express";
 
 const RPS_WINDOW_MS = 60_000;
@@ -134,7 +135,7 @@ export function logSlowQuery(query: string, durationMs: number) {
       ts: Date.now(),
     });
     if (slowQueries.length > MAX_SLOW_QUERIES) slowQueries.shift();
-    console.log(`[SLOW QUERY] ${Math.round(durationMs)}ms: ${query.substring(0, 100)}`);
+    clog.log(`[SLOW QUERY] ${Math.round(durationMs)}ms: ${query.substring(0, 100)}`);
   }
 }
 

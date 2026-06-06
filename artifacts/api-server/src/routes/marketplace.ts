@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { clog } from "../lib/logger.js";
 import { db, marketplaceListingsTable, ridesTable, usersTable, transactionsTable, routesTable, districtsTable, ridePassengersTable, orderOffersTable } from "@workspace/db";
 import { eq, and, ne, sql, desc, count, isNull, isNotNull, inArray } from "drizzle-orm";
 import { authMiddleware, requireRole, AuthRequest } from "../middlewares/auth.js";
@@ -371,7 +372,7 @@ router.post("/buy", authMiddleware, requireRole("driver"), async (req: AuthReque
                   status: "merged" as any,
                   updatedAt: new Date(),
                 }).where(eq(ridesTable.id, listing.rideId));
-                console.log(`[MERGE-MARKET] ride ${listing.rideId} marked as merged into trip ${lockedRoute.id}`);
+                clog.log(`[MERGE-MARKET] ride ${listing.rideId} marked as merged into trip ${lockedRoute.id}`);
 
                 const actualCount = await tx.select({ cnt: count() })
                   .from(ridePassengersTable).where(eq(ridePassengersTable.rideId, lockedRoute.id));

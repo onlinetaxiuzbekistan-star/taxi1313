@@ -1,4 +1,5 @@
 import { db, idempotencyKeysTable } from "@workspace/db";
+import { clog } from "./logger.js";
 import { eq, lt } from "drizzle-orm";
 
 const TTL_MS = 10 * 60 * 1000;
@@ -69,6 +70,6 @@ export async function storeIdempotentResult(key: string, driverId: number, actio
       rideVersion: rv,
     }).onConflictDoNothing();
   } catch (err) {
-    console.error("[IDEMPOTENCY] DB store failed:", (err as Error).message);
+    clog.error("[IDEMPOTENCY] DB store failed:", (err as Error).message);
   }
 }

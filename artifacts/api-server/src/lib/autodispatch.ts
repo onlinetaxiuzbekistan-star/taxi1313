@@ -1,4 +1,5 @@
 import { db, ridesTable, usersTable, orderOffersTable, ridePassengersTable, driverGroupsTable, marketplaceListingsTable } from "@workspace/db";
+import { clog } from "./logger.js";
 import { eq, and, inArray, ne, sql } from "drizzle-orm";
 import { broadcastToAll, broadcastToUser, isUserOnline } from "./websocket.js";
 import { logger } from "./logger.js";
@@ -42,7 +43,7 @@ export function markOfferAcked(offerId: number) {
     clearTimeout(timer);
     pendingAckTimers.delete(offerId);
   }
-  console.log(`[WS ACK] offerId=${offerId} marked as delivered`);
+  clog.log(`[WS ACK] offerId=${offerId} marked as delivered`);
 }
 
 export function isOfferAcked(offerId: number): boolean {
@@ -58,7 +59,7 @@ export function scheduleAckTimeout(offerId: number, driverId: number, rideId: nu
   const timer = setTimeout(async () => {
     pendingAckTimers.delete(offerId);
     if (ackedOffers.has(offerId)) return;
-    console.log(`[ACK TIMEOUT] offerId=${offerId} driverId=${driverId} rideId=${rideId} — no ACK in ${ACK_TIMEOUT_MS}ms (offer stays pending, will expire via dispatch loop)`);
+    clog.log(`[ACK TIMEOUT] offerId=${offerId} driverId=${driverId} rideId=${rideId} — no ACK in ${ACK_TIMEOUT_MS}ms (offer stays pending, will expire via dispatch loop)`);
     resendOfferIfStillPending(driverId, rideId, 30000, offerId).catch(() => {});
   }, ACK_TIMEOUT_MS);
   pendingAckTimers.set(offerId, timer);
@@ -73,7 +74,7 @@ function pruneAckedOffers() {
       pruned++;
     }
   }
-  if (pruned > 0) console.log(`[ACK PRUNE] removed ${pruned} stale acked offers, ${ackedOffers.size} remaining`);
+  if (pruned > 0) clog.log(`[ACK PRUNE] removed ${pruned} stale acked offers, ${ackedOffers.size} remaining`);
 }
 
 let ackPruneTimer: ReturnType<typeof setInterval> | null = setInterval(pruneAckedOffers, 60_000);
@@ -127,7 +128,7 @@ export async function enrichRideForOffer(ride: any): Promise<any> {
 export async function resendOfferIfStillPending(driverId: number, rideId: number, offerTimeoutMs: number, offerId?: number) {
   try {
     if (offerId && ackedOffers.has(offerId)) {
-      console.log(`[WS ACK] offerId=${offerId} already acked, skipping retry`);
+      clog.log(`[WS ACK] offerId=${offerId} already acked, skipping retry`);
       return;
     }
 
@@ -152,7 +153,7 @@ export async function resendOfferIfStillPending(driverId: number, rideId: number
     const remainingMs = offer.expiresAt
       ? Math.max(3000, new Date(offer.expiresAt).getTime() - Date.now())
       : Math.max(3000, offerTimeoutMs - 2000);
-    console.log(`[WS RETRY] resending offer to driver ${driverId}, rideId=${rideId}, offerId=${offer.id}, remainingMs=${remainingMs}`);
+    clog.log(`[WS RETRY] resending offer to driver ${driverId}, rideId=${rideId}, offerId=${offer.id}, remainingMs=${remainingMs}`);
     broadcastToUser(driverId, {
       type: "new_order",
       offerId: offer.id,
@@ -295,7 +296,7 @@ async function findDriversWithActiveRoutes(fromCity: string, toCity: string, rid
         // Same time_slot on both sides — accept regardless of date drift (off-by-one-day, week mismatch, etc.).
         // The slot itself (e.g. 22:00-00:00) already defines a 2-hour window for the time of day.
         if (sameTimeSlot && diffHours <= 36) {
-          console.log(`[ROUTE MATCH] same time_slot ${rideTimeSlot}, accept driver ${route.driverId} despite date drift (${Math.round(diffHours)}h)`);
+          clog.log(`[ROUTE MATCH] same time_slot ${rideTimeSlot}, accept driver ${route.driverId} despite date drift (${Math.round(diffHours)}h)`);
         } else {
           // For urgent rides (no rideTimeSlot): allow drivers whose route ENDS within 40 min (scheduledAt + duration)
           const isUrgentRide = !rideTimeSlot;
@@ -305,7 +306,7 @@ async function findDriversWithActiveRoutes(fromCity: string, toCity: string, rid
           const nowMs = Date.now();
           const eligibleByTail = isUrgentRide && routeDurationMin > 0 && routeEndMs > nowMs && (routeEndMs - nowMs) <= urgentTailMs;
           if (!eligibleByTail) continue;
-          console.log(`[ROUTE MATCH] urgent-tail accept driver ${route.driverId}: route ends in ${Math.round((routeEndMs - nowMs) / 60000)} min`);
+          clog.log(`[ROUTE MATCH] urgent-tail accept driver ${route.driverId}: route ends in ${Math.round((routeEndMs - nowMs) / 60000)} min`);
         }
       }
     }
@@ -313,13 +314,13 @@ async function findDriversWithActiveRoutes(fromCity: string, toCity: string, rid
     // STRICT: if both rides have an explicit time_slot, they MUST match.
     // Prevents 14:00-16:00 driver getting 00:00-02:00 ride offer.
     if (rideTimeSlot && (route as any).timeSlot && rideTimeSlot !== (route as any).timeSlot) {
-      console.log(`[ROUTE MATCH] skip driver ${route.driverId}: time_slot mismatch route=${(route as any).timeSlot} ride=${rideTimeSlot}`);
+      clog.log(`[ROUTE MATCH] skip driver ${route.driverId}: time_slot mismatch route=${(route as any).timeSlot} ride=${rideTimeSlot}`);
       continue;
     }
 
     // URGENT-ONLY ROUTE: водитель в режиме «только срочные» не должен получать обычные (с time_slot) заказы
     if ((route as any).isUrgent === true && rideTimeSlot) {
-      console.log(`[ROUTE MATCH] skip driver ${route.driverId}: urgent-only route, but ride has time_slot=${rideTimeSlot}`);
+      clog.log(`[ROUTE MATCH] skip driver ${route.driverId}: urgent-only route, but ride has time_slot=${rideTimeSlot}`);
       continue;
     }
 
@@ -460,13 +461,13 @@ export function stopDispatchLoop(rideId: number) {
   if (controller) {
     controller.abort();
     activeLoops.delete(rideId);
-    console.log(`[DISPATCH LOOP] stopped for ride ${rideId}`);
+    clog.log(`[DISPATCH LOOP] stopped for ride ${rideId}`);
   }
 }
 
 export async function startAutoDispatch(rideId: number, fromCity: string): Promise<void> {
   if (!getSettingBool("auto_dispatch_enabled", true)) {
-    console.log(`[DISPATCH LOOP] auto-dispatch disabled by settings, skipping ride ${rideId}`);
+    clog.log(`[DISPATCH LOOP] auto-dispatch disabled by settings, skipping ride ${rideId}`);
     return;
   }
 
@@ -475,7 +476,7 @@ export async function startAutoDispatch(rideId: number, fromCity: string): Promi
   }
 
   if (activeLoops.has(rideId)) {
-    console.log(`[DISPATCH LOOP] already running for ride ${rideId}, skipping`);
+    clog.log(`[DISPATCH LOOP] already running for ride ${rideId}, skipping`);
     return;
   }
 
@@ -488,36 +489,36 @@ export async function startAutoDispatch(rideId: number, fromCity: string): Promi
   const maxCycles = maxDispatchCycles > 0 ? maxDispatchCycles : Math.max(maxRetries, 3) * 10;
   const cyclePauseMs = 60_000;
 
-  console.log(`[DISPATCH LOOP] starting QUEUE-BASED dispatch for ride ${rideId} (maxCycles=${maxCycles}, queueSize=${getQueueSize()})`);
+  clog.log(`[DISPATCH LOOP] starting QUEUE-BASED dispatch for ride ${rideId} (maxCycles=${maxCycles}, queueSize=${getQueueSize()})`);
 
   try {
     for (let cycle = 1; cycle <= maxCycles; cycle++) {
       if (signal.aborted) break;
 
       if (!(await isRideStillPending(rideId))) {
-        console.log(`[DISPATCH LOOP] ride ${rideId}: accepted! stopping loop`);
+        clog.log(`[DISPATCH LOOP] ride ${rideId}: accepted! stopping loop`);
         break;
       }
 
-      console.log(`[DISPATCH LOOP] ride ${rideId}: cycle ${cycle}/${maxCycles} (queue=${getQueueSize()})`);
+      clog.log(`[DISPATCH LOOP] ride ${rideId}: cycle ${cycle}/${maxCycles} (queue=${getQueueSize()})`);
 
       const offeredCount = await runQueueDispatchCycle(rideId, fromCity, signal);
 
       if (signal.aborted) break;
 
       if (!(await isRideStillPending(rideId))) {
-        console.log(`[DISPATCH LOOP] ride ${rideId}: accepted after cycle ${cycle}!`);
+        clog.log(`[DISPATCH LOOP] ride ${rideId}: accepted after cycle ${cycle}!`);
         break;
       }
 
       if (cycle >= maxCycles) {
-        console.log(`[DISPATCH LOOP] ride ${rideId}: max cycles (${maxCycles}) reached`);
+        clog.log(`[DISPATCH LOOP] ride ${rideId}: max cycles (${maxCycles}) reached`);
         broadcastToAll({ type: "dispatch_failed", rideId, reason: "max_cycles_reached" });
         break;
       }
 
       const pauseMs = offeredCount === 0 ? 15_000 : cyclePauseMs;
-      console.log(`[DISPATCH LOOP] ride ${rideId}: cycle ${cycle} done (offered=${offeredCount}), pausing ${pauseMs / 1000}s`);
+      clog.log(`[DISPATCH LOOP] ride ${rideId}: cycle ${cycle} done (offered=${offeredCount}), pausing ${pauseMs / 1000}s`);
 
       broadcastToAll({
         type: "dispatch_cycle_complete",
@@ -531,13 +532,13 @@ export async function startAutoDispatch(rideId: number, fromCity: string): Promi
     }
   } finally {
     activeLoops.delete(rideId);
-    console.log(`[DISPATCH LOOP] ride ${rideId}: loop ended`);
+    clog.log(`[DISPATCH LOOP] ride ${rideId}: loop ended`);
   }
 }
 
 export async function startMarketplaceDispatch(rideId: number, fromCity: string, listingId: number): Promise<void> {
   if (activeLoops.has(rideId)) {
-    console.log(`[MARKETPLACE DISPATCH] already running for ride ${rideId}, skipping`);
+    clog.log(`[MARKETPLACE DISPATCH] already running for ride ${rideId}, skipping`);
     return;
   }
 
@@ -548,28 +549,28 @@ export async function startMarketplaceDispatch(rideId: number, fromCity: string,
   const pauseSchedule = [120_000, 300_000, 300_000, 600_000];
   const maxRounds = 10;
 
-  console.log(`[MARKETPLACE DISPATCH] starting for ride ${rideId} listingId=${listingId}`);
+  clog.log(`[MARKETPLACE DISPATCH] starting for ride ${rideId} listingId=${listingId}`);
 
   try {
     for (let round = 0; round < maxRounds; round++) {
       if (signal.aborted) break;
 
       if (!(await isRideStillPending(rideId))) {
-        console.log(`[MARKETPLACE DISPATCH] ride ${rideId}: accepted! stopping`);
+        clog.log(`[MARKETPLACE DISPATCH] ride ${rideId}: accepted! stopping`);
         break;
       }
 
-      console.log(`[MARKETPLACE DISPATCH] ride ${rideId}: round ${round + 1}/${maxRounds} — running auto-dispatch cycle`);
+      clog.log(`[MARKETPLACE DISPATCH] ride ${rideId}: round ${round + 1}/${maxRounds} — running auto-dispatch cycle`);
       const offeredCount = await runQueueDispatchCycle(rideId, fromCity, signal);
 
       if (signal.aborted) break;
       if (!(await isRideStillPending(rideId))) {
-        console.log(`[MARKETPLACE DISPATCH] ride ${rideId}: accepted after round ${round + 1}!`);
+        clog.log(`[MARKETPLACE DISPATCH] ride ${rideId}: accepted after round ${round + 1}!`);
         break;
       }
 
       const pauseMs = pauseSchedule[Math.min(round, pauseSchedule.length - 1)];
-      console.log(`[MARKETPLACE DISPATCH] ride ${rideId}: round ${round + 1} done (offered=${offeredCount}), visible as urgent, pausing ${pauseMs / 1000}s before next round`);
+      clog.log(`[MARKETPLACE DISPATCH] ride ${rideId}: round ${round + 1} done (offered=${offeredCount}), visible as urgent, pausing ${pauseMs / 1000}s before next round`);
 
       broadcastToAll({
         type: "dispatch_cycle_complete",
@@ -583,7 +584,7 @@ export async function startMarketplaceDispatch(rideId: number, fromCity: string,
     }
   } finally {
     activeLoops.delete(rideId);
-    console.log(`[MARKETPLACE DISPATCH] ride ${rideId}: loop ended`);
+    clog.log(`[MARKETPLACE DISPATCH] ride ${rideId}: loop ended`);
   }
 }
 
@@ -613,7 +614,7 @@ async function runQueueDispatchCycle(
 
   const [ride] = await db.select().from(ridesTable).where(eq(ridesTable.id, rideId));
   if (!ride || (ride.status !== "pending" && ride.status !== "offered")) {
-    console.log(`[QUEUE DISPATCH] skipped ride ${rideId}: status=${ride?.status}`);
+    clog.log(`[QUEUE DISPATCH] skipped ride ${rideId}: status=${ride?.status}`);
     return 0;
   }
 
@@ -635,7 +636,7 @@ async function runQueueDispatchCycle(
         sql`upper(trim(${usersTable.carModel})) = upper(${reqCarModel})`,
       ));
     allowedByCarModel = new Set(matches.map(m => m.id));
-    console.log(`[QUEUE DISPATCH] ride ${rideId}: requiredCarModel=${reqCarModel} → ${allowedByCarModel.size} eligible drivers`);
+    clog.log(`[QUEUE DISPATCH] ride ${rideId}: requiredCarModel=${reqCarModel} → ${allowedByCarModel.size} eligible drivers`);
   }
 
   // MONEY-CARGO restriction: only trusted drivers (cash_carrier=true) receive offers
@@ -646,7 +647,7 @@ async function runQueueDispatchCycle(
       .from(usersTable)
       .where(and(eq(usersTable.role, "driver"), eq((usersTable as any).cashCarrier, true)));
     allowedByCash = new Set(cashDrivers.map(m => m.id));
-    console.log(`[QUEUE DISPATCH] ride ${rideId}: MONEY cargo → ${allowedByCash.size} trusted drivers`);
+    clog.log(`[QUEUE DISPATCH] ride ${rideId}: MONEY cargo → ${allowedByCash.size} trusted drivers`);
   }
 
   // OPTIONS restriction: filter drivers by their preferences vs ride's selected options.
@@ -665,7 +666,7 @@ async function runQueueDispatchCycle(
           .where(and(eq(ridePassengersTable.rideId, rideId), eq(ridePassengersTable.baggageType, "large")));
         if (bigBag.length > 0) needRoof = true;
       } catch (e) {
-        console.warn(`[QUEUE DISPATCH] ride ${rideId}: large-baggage probe failed, defaulting to needRoof=true for safety`, e);
+        clog.warn(`[QUEUE DISPATCH] ride ${rideId}: large-baggage probe failed, defaulting to needRoof=true for safety`, e);
         needRoof = true;
       }
     }
@@ -682,7 +683,7 @@ async function runQueueDispatchCycle(
         allowed.add(d.id);
       }
       allowedByOptions = allowed;
-      console.log(`[QUEUE DISPATCH] ride ${rideId}: option filter (roof=${needRoof}, parcel=${needParcel}) → ${allowed.size} eligible drivers`);
+      clog.log(`[QUEUE DISPATCH] ride ${rideId}: option filter (roof=${needRoof}, parcel=${needParcel}) → ${allowed.size} eligible drivers`);
     }
   }
 
@@ -697,7 +698,7 @@ async function runQueueDispatchCycle(
     ))
     .returning({ id: orderOffersTable.id });
   if (staleExpired.length > 0) {
-    console.log(`[QUEUE DISPATCH] expired ${staleExpired.length} stale offers`);
+    clog.log(`[QUEUE DISPATCH] expired ${staleExpired.length} stale offers`);
   }
 
   const pendingOffers = await db
@@ -712,7 +713,7 @@ async function runQueueDispatchCycle(
   await syncDriverCache();
   await refreshOccupiedSeats();
 
-  console.log(`[QUEUE DISPATCH] ride ${rideId} (${fromCity} → ${toCity}): requiredSeats=${requiredSeats}, queue=${getQueueSize()}, routeMatches=${driverRoutes.length}`);
+  clog.log(`[QUEUE DISPATCH] ride ${rideId} (${fromCity} → ${toCity}): requiredSeats=${requiredSeats}, queue=${getQueueSize()}, routeMatches=${driverRoutes.length}`);
 
   const revenueTimeout = getDispatchTimeoutOverride();
   const offerTimeoutMs = (revenueTimeout ?? getSettingNum("offer_timeout_seconds", 30)) * 1000 || OFFER_TIMEOUT_DEFAULT_MS;
@@ -727,16 +728,16 @@ async function runQueueDispatchCycle(
     if (allowedByOptions && !allowedByOptions.has(dr.driverId)) return false;
     if (driversWithPendingOffers.has(dr.driverId)) return false;
     if (isInUnassignCooldown(rideId, dr.driverId)) {
-      console.log(`[QUEUE DISPATCH] route-driver ${dr.driverId}: in unassign cooldown for ride ${rideId} → skip`);
+      clog.log(`[QUEUE DISPATCH] route-driver ${dr.driverId}: in unassign cooldown for ride ${rideId} → skip`);
       return false;
     }
     const cached = getCachedDriver(dr.driverId);
     if (!cached) return false;
     if (!isUserOnline(dr.driverId)) {
-      console.log(`[QUEUE DISPATCH] route-driver ${dr.driverId}: offline but still allowing with low priority`);
+      clog.log(`[QUEUE DISPATCH] route-driver ${dr.driverId}: offline but still allowing with low priority`);
     }
     if (dr.freeSeats < requiredSeats) {
-      console.log(`[QUEUE DISPATCH] route-driver ${dr.driverId}: freeSeats=${dr.freeSeats} < required=${requiredSeats} → skip`);
+      clog.log(`[QUEUE DISPATCH] route-driver ${dr.driverId}: freeSeats=${dr.freeSeats} < required=${requiredSeats} → skip`);
       return false;
     }
     return true;
@@ -748,12 +749,12 @@ async function runQueueDispatchCycle(
   });
 
   if (routeDriversFirst.length > 0) {
-    console.log(`[QUEUE DISPATCH] ride ${rideId}: ${routeDriversFirst.length} route-matched drivers (fillup order: ${routeDriversFirst.map(d => `${d.driverId}[free=${d.freeSeats}]`).join(", ")})`);
+    clog.log(`[QUEUE DISPATCH] ride ${rideId}: ${routeDriversFirst.length} route-matched drivers (fillup order: ${routeDriversFirst.map(d => `${d.driverId}[free=${d.freeSeats}]`).join(", ")})`);
     for (const rd of routeDriversFirst) {
       alreadyOffered.add(rd.driverId);
     }
   } else {
-    console.log(`[QUEUE DISPATCH] ride ${rideId}: NO route-matched drivers — falling back to online queue drivers`);
+    clog.log(`[QUEUE DISPATCH] ride ${rideId}: NO route-matched drivers — falling back to online queue drivers`);
   }
 
   const routeBatches = Math.ceil(routeDriversFirst.length / batchSize);
@@ -764,7 +765,7 @@ async function runQueueDispatchCycle(
     if (signal.aborted) return offeredCount;
     if (!(await isRideStillPending(rideId))) {
       const assignTime = Date.now() - metrics.startTime;
-      console.log(`[QUEUE DISPATCH] ride ${rideId} accepted! time_to_assign=${assignTime}ms, retries=${metrics.retries}, skipped=${metrics.skippedDrivers}`);
+      clog.log(`[QUEUE DISPATCH] ride ${rideId} accepted! time_to_assign=${assignTime}ms, retries=${metrics.retries}, skipped=${metrics.skippedDrivers}`);
       broadcastToAll({ type: "dispatch_metrics", rideId, timeToAssignMs: assignTime, retries: metrics.retries, skippedDrivers: metrics.skippedDrivers, queueSize: getQueueSize() });
       return offeredCount;
     }
@@ -794,7 +795,7 @@ async function runQueueDispatchCycle(
       const schedMs = ride.scheduledAt ? new Date(ride.scheduledAt).getTime() : 0;
       const isScheduled = !!rideTimeSlot || schedMs > 0;
       if (isScheduled && !(ride as any).isMail) {
-        console.log(`[QUEUE DISPATCH] ride ${rideId}: scheduled (timeSlot=${rideTimeSlot}, scheduledAt=${ride.scheduledAt}) — skip queue fallback, only route-matched drivers eligible`);
+        clog.log(`[QUEUE DISPATCH] ride ${rideId}: scheduled (timeSlot=${rideTimeSlot}, scheduledAt=${ride.scheduledAt}) — skip queue fallback, only route-matched drivers eligible`);
         batchIndex++;
         continue;
       }
@@ -811,12 +812,12 @@ async function runQueueDispatchCycle(
       const fromCitySlug = resolveCitySlug(fromCity);
       for (const qc of queueCandidates) {
         if (isInUnassignCooldown(rideId, qc.driver.id)) {
-          console.log(`[QUEUE FILTER cooldown] driver ${qc.driver.id}: in unassign cooldown for ride ${rideId} → skip`);
+          clog.log(`[QUEUE FILTER cooldown] driver ${qc.driver.id}: in unassign cooldown for ride ${rideId} → skip`);
           alreadyOffered.add(qc.driver.id);
           continue;
         }
         if (allowedByOptions && !allowedByOptions.has(qc.driver.id)) {
-          console.log(`[QUEUE FILTER options] driver ${qc.driver.id}: missing required preferences → skip`);
+          clog.log(`[QUEUE FILTER options] driver ${qc.driver.id}: missing required preferences → skip`);
           alreadyOffered.add(qc.driver.id);
           continue;
         }
@@ -833,7 +834,7 @@ async function runQueueDispatchCycle(
         const driverCity = ((qc.driver as any).city || "").trim();
         const driverCitySlug = resolveCitySlug(driverCity);
         if (driverCity && driverCitySlug !== fromCitySlug) {
-          console.log(`[QUEUE FILTER city] driver ${qc.driver.id}: city=${driverCity} (${driverCitySlug}) != ride.from=${fromCity} (${fromCitySlug}) → skip`);
+          clog.log(`[QUEUE FILTER city] driver ${qc.driver.id}: city=${driverCity} (${driverCitySlug}) != ride.from=${fromCity} (${fromCitySlug}) → skip`);
           continue;
         }
         alreadyOffered.add(qc.driver.id);
@@ -845,14 +846,14 @@ async function runQueueDispatchCycle(
         });
       }
       if (candidates.length > 0) {
-        console.log(`[QUEUE DISPATCH] ride ${rideId}: fallback to queue — found ${candidates.length} online drivers: ${candidates.map(c => c.driverId).join(",")}`);
+        clog.log(`[QUEUE DISPATCH] ride ${rideId}: fallback to queue — found ${candidates.length} online drivers: ${candidates.map(c => c.driverId).join(",")}`);
       }
     }
 
-    console.log(`[DISPATCH CANDIDATES] ride ${rideId}: batch=${batchIndex}, candidates=${candidates.length}, ids=[${candidates.map(c => c.driverId).join(",")}]`);
+    clog.log(`[DISPATCH CANDIDATES] ride ${rideId}: batch=${batchIndex}, candidates=${candidates.length}, ids=[${candidates.map(c => c.driverId).join(",")}]`);
 
     if (candidates.length === 0) {
-      console.log(`[QUEUE DISPATCH] ride ${rideId}: no more candidates in queue (batch ${batchIndex})`);
+      clog.log(`[QUEUE DISPATCH] ride ${rideId}: no more candidates in queue (batch ${batchIndex})`);
       break;
     }
 
@@ -865,7 +866,7 @@ async function runQueueDispatchCycle(
       .returning();
 
     if (!offeredRide) {
-      console.log(`[QUEUE DISPATCH] ride ${rideId} already taken`);
+      clog.log(`[QUEUE DISPATCH] ride ${rideId} already taken`);
       break;
     }
 
@@ -884,7 +885,7 @@ async function runQueueDispatchCycle(
 
       if (routeInfo && routeInfo.routeRideId > 0) {
         if (!(await isDriverStillEligibleForRoute(driverId, routeInfo.routeRideId, requiredSeats))) {
-          console.log(`[QUEUE DISPATCH] skip driver ${driverId}: no longer eligible for route`);
+          clog.log(`[QUEUE DISPATCH] skip driver ${driverId}: no longer eligible for route`);
           metrics.skippedDrivers++;
           return false;
         }
@@ -939,11 +940,11 @@ async function runQueueDispatchCycle(
     const settled = await Promise.allSettled(offerPromises);
     const sentCount = settled.filter(r => r.status === "fulfilled" && r.value).length;
     const failedCount = settled.filter(r => r.status === "rejected").length;
-    if (failedCount > 0) console.warn(`[QUEUE DISPATCH] ride ${rideId}: ${failedCount} offer(s) failed in batch ${batchIndex}`);
+    if (failedCount > 0) clog.warn(`[QUEUE DISPATCH] ride ${rideId}: ${failedCount} offer(s) failed in batch ${batchIndex}`);
     offeredCount += sentCount;
 
     const batchSendTime = Date.now() - cycleStart;
-    console.log(`[QUEUE DISPATCH] ride ${rideId}: batch ${batchIndex} sent to ${candidates.map(d => d.driverId).join(",")} in ${batchSendTime}ms (timeout=${offerTimeoutMs / 1000}s, queuePos=[${candidates.map(c => c.queuePos).join(",")}])`);
+    clog.log(`[QUEUE DISPATCH] ride ${rideId}: batch ${batchIndex} sent to ${candidates.map(d => d.driverId).join(",")} in ${batchSendTime}ms (timeout=${offerTimeoutMs / 1000}s, queuePos=[${candidates.map(c => c.queuePos).join(",")}])`);
 
     const [latestRide] = await db.select().from(ridesTable).where(eq(ridesTable.id, rideId));
     broadcastToAll({ type: "ride_updated", ride: latestRide });
@@ -953,7 +954,7 @@ async function runQueueDispatchCycle(
 
     if (!(await isRideStillPending(rideId))) {
       const assignTime = Date.now() - metrics.startTime;
-      console.log(`[QUEUE DISPATCH] ride ${rideId} accepted after batch ${batchIndex}! time_to_assign=${assignTime}ms`);
+      clog.log(`[QUEUE DISPATCH] ride ${rideId} accepted after batch ${batchIndex}! time_to_assign=${assignTime}ms`);
       broadcastToAll({ type: "dispatch_metrics", rideId, timeToAssignMs: assignTime, retries: metrics.retries, skippedDrivers: metrics.skippedDrivers, queueSize: getQueueSize() });
       return offeredCount;
     }
@@ -1020,7 +1021,7 @@ async function runQueueDispatchCycle(
   }
 
   const totalTime = Date.now() - metrics.startTime;
-  console.log(`[QUEUE DISPATCH] ride ${rideId}: cycle complete. total_time=${totalTime}ms, offered=${offeredCount}, retries=${metrics.retries}, skipped=${metrics.skippedDrivers}, queue=${getQueueSize()}`);
+  clog.log(`[QUEUE DISPATCH] ride ${rideId}: cycle complete. total_time=${totalTime}ms, offered=${offeredCount}, retries=${metrics.retries}, skipped=${metrics.skippedDrivers}, queue=${getQueueSize()}`);
 
   return offeredCount;
 }
@@ -1040,22 +1041,22 @@ export async function resumePendingDispatches(): Promise<void> {
       );
 
     if (pendingRides.length === 0) {
-      console.log(`[DISPATCH RESUME] no pending rides to resume`);
+      clog.log(`[DISPATCH RESUME] no pending rides to resume`);
       return;
     }
 
-    console.log(`[DISPATCH RESUME] resuming dispatch for ${pendingRides.length} pending rides: ${pendingRides.map(r => r.id).join(",")}`);
+    clog.log(`[DISPATCH RESUME] resuming dispatch for ${pendingRides.length} pending rides: ${pendingRides.map(r => r.id).join(",")}`);
 
     for (const ride of pendingRides) {
       if (!activeLoops.has(ride.id)) {
         startAutoDispatch(ride.id, ride.fromCity || "").catch(err => {
-          console.error(`[DISPATCH RESUME] failed for ride ${ride.id}:`, (err as Error).message);
+          clog.error(`[DISPATCH RESUME] failed for ride ${ride.id}:`, (err as Error).message);
         });
         await new Promise(r => setTimeout(r, 500));
       }
     }
   } catch (err) {
-    console.error(`[DISPATCH RESUME] error:`, (err as Error).message);
+    clog.error(`[DISPATCH RESUME] error:`, (err as Error).message);
   }
 }
 
@@ -1077,7 +1078,7 @@ export function startDispatchSweep(): void {
     sweeping = true;
     try { await resumePendingDispatches(); } finally { sweeping = false; }
   }, 60_000);
-  console.log("[DISPATCH SWEEP] started (boot resume in 10s, then every 60s)");
+  clog.log("[DISPATCH SWEEP] started (boot resume in 10s, then every 60s)");
 }
 
 export function stopDispatchSweep(): void {

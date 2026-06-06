@@ -1,4 +1,5 @@
 import { db, settingsTable } from "@workspace/db";
+import { clog } from "./logger.js";
 import { logger } from "./logger.js";
 
 let SETTINGS_CACHE: Record<string, string> = {};
@@ -13,10 +14,10 @@ export async function loadSettingsCache(): Promise<void> {
     }
     cacheLoaded = true;
     logger.info({ count: rows.length }, "[SETTINGS] Cache loaded");
-    console.log(`[SETTINGS] Loaded ${rows.length} settings into cache`);
+    clog.log(`[SETTINGS] Loaded ${rows.length} settings into cache`);
   } catch (err) {
     logger.error({ err }, "[SETTINGS] Failed to load cache");
-    console.error("[SETTINGS] Failed to load cache:", err);
+    clog.error("[SETTINGS] Failed to load cache:", err);
   }
 }
 
@@ -26,7 +27,7 @@ export function refreshCache(updates: { key: string; value: string }[]): void {
     const oldVal = newCache[key];
     newCache[key] = value;
     if (oldVal !== value) {
-      console.log(`[SETTINGS] Updated ${key}: ${oldVal} → ${value}`);
+      clog.log(`[SETTINGS] Updated ${key}: ${oldVal} → ${value}`);
     }
   }
   SETTINGS_CACHE = newCache;

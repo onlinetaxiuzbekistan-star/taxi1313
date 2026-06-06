@@ -1,4 +1,5 @@
 import https from "https";
+import { clog } from "./logger.js";
 import { config } from "./config.js";
 
 // Required in production (validated in config.ts); empty in dev/test.
@@ -51,7 +52,7 @@ async function getChatIdFromSmsGateway(phone: string): Promise<string | null> {
     const data = await res.json() as { chatId?: string };
     return data.chatId ?? null;
   } catch (err) {
-    console.error("[TG-DIRECT] Failed to get chat_id from SMS gateway:", err);
+    clog.error("[TG-DIRECT] Failed to get chat_id from SMS gateway:", err);
     return null;
   }
 }
@@ -60,7 +61,7 @@ export async function sendTelegramVerification(phone: string, code: string): Pro
   try {
     const chatId = await getChatIdFromSmsGateway(phone);
     if (!chatId) {
-      console.log("[TG-DIRECT] No Telegram chat_id for " + phone + ", skipping");
+      clog.log("[TG-DIRECT] No Telegram chat_id for " + phone + ", skipping");
       return false;
     }
 
@@ -77,14 +78,14 @@ export async function sendTelegramVerification(phone: string, code: string): Pro
     });
 
     if (result.ok) {
-      console.log("[TG-DIRECT] Verification code sent to " + phone + " via Telegram (chat_id: " + chatId + ")");
+      clog.log("[TG-DIRECT] Verification code sent to " + phone + " via Telegram (chat_id: " + chatId + ")");
       return true;
     } else {
-      console.error("[TG-DIRECT] Failed to send to " + phone + ": " + result.description);
+      clog.error("[TG-DIRECT] Failed to send to " + phone + ": " + result.description);
       return false;
     }
   } catch (err) {
-    console.error("[TG-DIRECT] Error sending to " + phone + ":", err);
+    clog.error("[TG-DIRECT] Error sending to " + phone + ":", err);
     return false;
   }
 }

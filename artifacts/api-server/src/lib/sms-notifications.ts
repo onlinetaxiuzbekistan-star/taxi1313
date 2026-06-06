@@ -1,4 +1,5 @@
 import { db, ridesTable, usersTable } from "@workspace/db";
+import { clog } from "./logger.js";
 import { eq } from "drizzle-orm";
 import { sendSms, getNotificationSettings } from "./sms.js";
 import { enqueueSms } from "./queues/sms.queue.js";
@@ -61,7 +62,7 @@ export async function notifyRideStatusChange(rideId: number, newStatus: string) 
     const message = interpolate(template, vars);
     await sendSms(ride.riderPhone, message);
   } catch (err) {
-    console.error("[SMS-NOTIF] Error for ride " + rideId + ", status=" + newStatus + ":", err);
+    clog.error("[SMS-NOTIF] Error for ride " + rideId + ", status=" + newStatus + ":", err);
   }
 }
 
@@ -73,15 +74,15 @@ export async function sendVerificationSms(phone: string, code: string) {
     const telegramSent = await sendTelegramVerification(phone, code);
 
     if (telegramSent) {
-      console.log("[VERIFY] Code delivered via Telegram to " + phone + ", sending SMS as backup");
+      clog.log("[VERIFY] Code delivered via Telegram to " + phone + ", sending SMS as backup");
     } else {
-      console.log("[VERIFY] Telegram not available for " + phone + ", sending SMS only");
+      clog.log("[VERIFY] Telegram not available for " + phone + ", sending SMS only");
     }
 
     const template = notif["sms_text_verification"] || "Такси 1313: Ваш код подтверждения: {code}";
     const message = interpolate(template, { code });
     await enqueueSms(phone, message);
   } catch (err) {
-    console.error("[SMS-NOTIF] Verification SMS error for " + phone + ":", err);
+    clog.error("[SMS-NOTIF] Verification SMS error for " + phone + ":", err);
   }
 }

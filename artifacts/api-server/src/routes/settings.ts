@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { clog } from "../lib/logger.js";
 import { db, settingsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { authMiddleware, requireRole, AuthRequest } from "../middlewares/auth.js";
@@ -189,7 +190,7 @@ router.patch("/batch", authMiddleware, requireRole("admin", "dispatcher"), async
     }
     if (results.length > 0) {
       refreshCache(results.map(s => ({ key: s.key, value: s.value })));
-      console.log(`[SETTINGS] Batch update: ${results.length} settings refreshed in cache`);
+      clog.log(`[SETTINGS] Batch update: ${results.length} settings refreshed in cache`);
       broadcastToAll({
         type: "settings_updated",
         keys: results.map(s => s.key),
@@ -240,7 +241,7 @@ router.patch("/:key", authMiddleware, requireRole("admin", "dispatcher"), async 
       .returning();
     if (!setting) { res.status(404).json({ error: "not_found" }); return; }
     refreshCache([{ key: setting.key, value: setting.value }]);
-    console.log(`[SETTINGS] Single update: ${setting.key} refreshed in cache`);
+    clog.log(`[SETTINGS] Single update: ${setting.key} refreshed in cache`);
     const logValSingle = SECRET_SETTING_KEYS.has(key) ? "***" : strVal;
     await logActivity(req.userId!, "", "update", "setting", setting.id, `Настройка "${setting.label}": ${logValSingle}`);
     const [redacted] = redactSecrets([setting]);

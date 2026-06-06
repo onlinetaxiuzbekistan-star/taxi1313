@@ -1,4 +1,5 @@
 import os from "os";
+import { clog } from "./logger.js";
 
 const RSS_LIMIT_MB = 400;
 const HEAP_WARN_PCT = 70;
@@ -27,7 +28,7 @@ function tryGC(reason: string): boolean {
     global.gc();
     gcCount++;
     lastGcTs = Date.now();
-    console.log(`[MEM GUARDIAN] GC triggered: ${reason} (total GC calls: ${gcCount})`);
+    clog.log(`[MEM GUARDIAN] GC triggered: ${reason} (total GC calls: ${gcCount})`);
     return true;
   }
   return false;
@@ -43,11 +44,11 @@ function clearAllCaches(reason: string) {
       totalCleared += r.cleared;
       if (r.cleared > 0) results.push(`${r.name}:${r.cleared}`);
     } catch (err) {
-      console.warn(`[MEM GUARDIAN] cache clear error:`, (err as Error).message);
+      clog.warn(`[MEM GUARDIAN] cache clear error:`, (err as Error).message);
     }
   }
   if (totalCleared > 0) {
-    console.log(`[MEM GUARDIAN] Caches cleared (${reason}): ${results.join(", ")} (total: ${totalCleared} entries)`);
+    clog.log(`[MEM GUARDIAN] Caches cleared (${reason}): ${results.join(", ")} (total: ${totalCleared} entries)`);
   }
 }
 
@@ -62,7 +63,7 @@ function checkMemory() {
 
   if (rssMB > RSS_LIMIT_MB) {
     if (!rssWarningActive) {
-      console.warn(`[MEM GUARDIAN] RSS ${Math.round(rssMB)}MB exceeds ${RSS_LIMIT_MB}MB limit!`);
+      clog.warn(`[MEM GUARDIAN] RSS ${Math.round(rssMB)}MB exceeds ${RSS_LIMIT_MB}MB limit!`);
       rssWarningActive = true;
     }
     tryGC(`RSS ${Math.round(rssMB)}MB > ${RSS_LIMIT_MB}MB`);
@@ -88,14 +89,14 @@ function checkMemory() {
 
     if (heapGrowing >= LEAK_WINDOW - 1 && heapDelta > 5 * 1024 * 1024) {
       if (!leakWarningActive) {
-        console.warn(`[MEM GUARDIAN] Possible memory leak detected! Heap grew +${Math.round(heapDelta / 1024 / 1024)}MB over ${LEAK_WINDOW} cycles`);
+        clog.warn(`[MEM GUARDIAN] Possible memory leak detected! Heap grew +${Math.round(heapDelta / 1024 / 1024)}MB over ${LEAK_WINDOW} cycles`);
         leakWarningActive = true;
       }
       tryGC("leak detected");
       clearAllCaches("suspected leak");
     } else if (rssGrowing >= LEAK_WINDOW - 1 && rssDelta > 10 * 1024 * 1024) {
       if (!leakWarningActive) {
-        console.warn(`[MEM GUARDIAN] RSS growing continuously! +${Math.round(rssDelta / 1024 / 1024)}MB over ${LEAK_WINDOW} cycles`);
+        clog.warn(`[MEM GUARDIAN] RSS growing continuously! +${Math.round(rssDelta / 1024 / 1024)}MB over ${LEAK_WINDOW} cycles`);
         leakWarningActive = true;
       }
       tryGC("RSS growth");
@@ -112,7 +113,7 @@ function logMemory() {
   const rssMB = Math.round(mem.rss / 1024 / 1024 * 10) / 10;
   const extMB = Math.round(mem.external / 1024 / 1024 * 10) / 10;
   const heapPct = mem.heapTotal > 0 ? Math.round((mem.heapUsed / mem.heapTotal) * 10) / 10 : 0;
-  console.log(`[MEM] heap=${heapMB}MB (${heapPct}%) rss=${rssMB}MB ext=${extMB}MB gc=${gcCount}`);
+  clog.log(`[MEM] heap=${heapMB}MB (${heapPct}%) rss=${rssMB}MB ext=${extMB}MB gc=${gcCount}`);
 }
 
 function autoGC() {
@@ -156,7 +157,7 @@ export function startMemoryGuardian() {
   logMemory();
 
   const gcStatus = typeof global.gc === "function" ? "enabled" : "unavailable (add --expose-gc)";
-  console.log(`[MEM GUARDIAN] Started: GC=${gcStatus}, RSS limit=${RSS_LIMIT_MB}MB, heap warn=${HEAP_WARN_PCT}%, log every 30s, check every 10s, auto-GC every 2min`);
+  clog.log(`[MEM GUARDIAN] Started: GC=${gcStatus}, RSS limit=${RSS_LIMIT_MB}MB, heap warn=${HEAP_WARN_PCT}%, log every 30s, check every 10s, auto-GC every 2min`);
 }
 
 export function stopMemoryGuardian() {

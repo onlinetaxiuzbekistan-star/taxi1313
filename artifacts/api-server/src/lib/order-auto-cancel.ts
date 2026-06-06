@@ -1,4 +1,5 @@
 import { db, ridesTable, settingsTable, orderOffersTable } from "@workspace/db";
+import { clog } from "./logger.js";
 import { eq, and, inArray, lt, sql, isNotNull } from "drizzle-orm";
 import { sendSms, getNotificationSettings } from "./sms.js";
 import { broadcastToAll } from "./websocket.js";
@@ -75,7 +76,7 @@ async function autoCancelStaleOrders() {
 
     if (stale.length === 0) return;
 
-    console.log(`[AUTO-CANCEL] Found ${stale.length} stale orders (grace=${config.graceMinutes}m, fallback=${config.fallbackMinutes}m)`);
+    clog.log(`[AUTO-CANCEL] Found ${stale.length} stale orders (grace=${config.graceMinutes}m, fallback=${config.fallbackMinutes}m)`);
 
     const notifSettings = await getNotificationSettings();
     const smsText = notifSettings["sms_text_auto_cancelled"] ||
@@ -107,19 +108,19 @@ async function autoCancelStaleOrders() {
         if (order.riderPhone && shouldSend) {
           try {
             const result = await sendSms(order.riderPhone, smsText);
-            console.log(`[AUTO-CANCEL] SMS to ${order.riderPhone} for ride #${order.id}: ${result.success ? "OK" : "FAIL " + (result.error || "")}`);
+            clog.log(`[AUTO-CANCEL] SMS to ${order.riderPhone} for ride #${order.id}: ${result.success ? "OK" : "FAIL " + (result.error || "")}`);
           } catch (e) {
-            console.error(`[AUTO-CANCEL] SMS error for #${order.id}:`, e);
+            clog.error(`[AUTO-CANCEL] SMS error for #${order.id}:`, e);
           }
         }
 
-        console.log(`[AUTO-CANCEL] Cancelled #${order.id} sched=${order.scheduledAt} slot=${(order as any).timeSlot || "—"} phone=${order.riderPhone || "—"}`);
+        clog.log(`[AUTO-CANCEL] Cancelled #${order.id} sched=${order.scheduledAt} slot=${(order as any).timeSlot || "—"} phone=${order.riderPhone || "—"}`);
       } catch (err) {
-        console.error(`[AUTO-CANCEL] Error cancelling #${order.id}:`, err);
+        clog.error(`[AUTO-CANCEL] Error cancelling #${order.id}:`, err);
       }
     }
   } catch (err) {
-    console.error("[AUTO-CANCEL] Scheduler error:", err);
+    clog.error("[AUTO-CANCEL] Scheduler error:", err);
   }
 }
 
@@ -143,25 +144,25 @@ async function cleanupExpiredRides() {
     `);
     const rows = (cancelled as any).rows || cancelled || [];
     if (rows.length > 0) {
-      console.log(`[RIDE-CLEANUP] Cancelled ${rows.length} expired empty rides: ${rows.map((r: any) => '#' + r.id).join(', ')}`);
+      clog.log(`[RIDE-CLEANUP] Cancelled ${rows.length} expired empty rides: ${rows.map((r: any) => '#' + r.id).join(', ')}`);
       for (const r of rows) {
         broadcastToAll({ type: "ride_updated", ride: { id: r.id, status: "cancelled" } });
       }
     }
   } catch (err) {
-    console.error("[RIDE-CLEANUP] Error:", err);
+    clog.error("[RIDE-CLEANUP] Error:", err);
   }
 }
 
 export function startAutoCancelScheduler() {
   if (intervalId) return;
-  console.log(`[AUTO-CANCEL] Scheduler started (every ${CHECK_INTERVAL_MS / 1000}s, by scheduledAt+grace)`);
+  clog.log(`[AUTO-CANCEL] Scheduler started (every ${CHECK_INTERVAL_MS / 1000}s, by scheduledAt+grace)`);
   intervalId = setInterval(autoCancelStaleOrders, CHECK_INTERVAL_MS);
   bootTimeouts.push(setTimeout(autoCancelStaleOrders, 15_000));
 
   rideCleanupIntervalId = setInterval(cleanupExpiredRides, RIDE_CLEANUP_INTERVAL_MS);
   bootTimeouts.push(setTimeout(cleanupExpiredRides, 30_000));
-  console.log(`[RIDE-CLEANUP] Scheduler started (every ${RIDE_CLEANUP_INTERVAL_MS / 1000}s, grace=1h after expiry)`);
+  clog.log(`[RIDE-CLEANUP] Scheduler started (every ${RIDE_CLEANUP_INTERVAL_MS / 1000}s, grace=1h after expiry)`);
 }
 
 export function stopAutoCancelScheduler() {

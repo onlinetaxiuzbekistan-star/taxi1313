@@ -1,4 +1,5 @@
 import { db, settingsTable } from "@workspace/db";
+import { clog } from "./logger.js";
 import { eq } from "drizzle-orm";
 
 const SMS_GATEWAY_URL = "http://217.30.171.176:3000/api/messages/send";
@@ -26,7 +27,7 @@ export async function sendSms(phone: string, message: string): Promise<{ success
   try {
     const settings = await getSmsSettings();
     if (!settings.enabled) {
-      console.log(`[SMS] Disabled, skipping: ${phone} — ${message.substring(0, 50)}...`);
+      clog.log(`[SMS] Disabled, skipping: ${phone} — ${message.substring(0, 50)}...`);
       return { success: false, error: "sms_disabled" };
     }
 
@@ -39,7 +40,7 @@ export async function sendSms(phone: string, message: string): Promise<{ success
       }
     }
 
-    console.log(`[SMS] Sending via local gateway to ${cleanPhone}`);
+    clog.log(`[SMS] Sending via local gateway to ${cleanPhone}`);
 
     // Auto-detect non-ASCII (cyrillic, etc) → force UCS-2/Unicode encoding
     // so gateway doesn't strip to "???" via GSM-7 default alphabet.
@@ -53,7 +54,7 @@ export async function sendSms(phone: string, message: string): Promise<{ success
       dcs: isUnicode ? 8 : 0,
       datacoding: isUnicode ? 8 : 0,
     };
-    console.log(`[SMS] payload: phone=${cleanPhone} unicode=${isUnicode} len=${message.length}`);
+    clog.log(`[SMS] payload: phone=${cleanPhone} unicode=${isUnicode} len=${message.length}`);
 
     const res = await fetch(SMS_GATEWAY_URL, {
       method: "POST",
@@ -65,20 +66,20 @@ export async function sendSms(phone: string, message: string): Promise<{ success
 
     if (!res.ok) {
       const text = await res.text();
-      console.error(`[SMS] Gateway error: ${res.status} ${text}`);
+      clog.error(`[SMS] Gateway error: ${res.status} ${text}`);
       return { success: false, error: text };
     }
 
     const data = await res.json() as { success: boolean; messageId?: string; error?: string };
     if (data.success) {
-      console.log(`[SMS] Sent to ${cleanPhone} via local gateway, id=${data.messageId}`);
+      clog.log(`[SMS] Sent to ${cleanPhone} via local gateway, id=${data.messageId}`);
       return { success: true, id: data.messageId };
     } else {
-      console.error(`[SMS] Gateway returned error: ${data.error}`);
+      clog.error(`[SMS] Gateway returned error: ${data.error}`);
       return { success: false, error: data.error };
     }
   } catch (err: any) {
-    console.error(`[SMS] Error:`, err.message);
+    clog.error(`[SMS] Error:`, err.message);
     return { success: false, error: err.message };
   }
 }

@@ -1,4 +1,5 @@
 import { db, settingsTable } from "@workspace/db";
+import { clog } from "./logger.js";
 import { eq } from "drizzle-orm";
 
 const ATMOS_BASE = "https://apigw.atmos.uz";
@@ -14,7 +15,7 @@ async function atmosFetch(url: string, init: RequestInit, timeoutMs = 8000): Pro
     ? (init.body.length > 500 ? init.body.slice(0, 500) + "...[trunc]" : init.body)
     : init.body ? "[non-string]" : "";
   // eslint-disable-next-line no-console
-  console.log(`[ATMOS-REQ ${reqId}] ${init.method || "GET"} ${url} body=${safeBody}`);
+  clog.log(`[ATMOS-REQ ${reqId}] ${init.method || "GET"} ${url} body=${safeBody}`);
   try {
     const resp = await fetch(url, { ...init, signal: ctrl.signal });
     const ms = Date.now() - startedAt;
@@ -25,12 +26,12 @@ async function atmosFetch(url: string, init: RequestInit, timeoutMs = 8000): Pro
       bodyPreview = txt.length > 800 ? txt.slice(0, 800) + "...[trunc]" : txt;
     } catch {}
     // eslint-disable-next-line no-console
-    console.log(`[ATMOS-RES ${reqId}] HTTP ${resp.status} (${ms}ms) body=${bodyPreview}`);
+    clog.log(`[ATMOS-RES ${reqId}] HTTP ${resp.status} (${ms}ms) body=${bodyPreview}`);
     return resp;
   } catch (err: any) {
     const ms = Date.now() - startedAt;
     // eslint-disable-next-line no-console
-    console.error(`[ATMOS-ERR ${reqId}] ${ms}ms name=${err?.name} code=${err?.code} cause=${err?.cause?.code} message=${err?.message}`);
+    clog.error(`[ATMOS-ERR ${reqId}] ${ms}ms name=${err?.name} code=${err?.code} cause=${err?.cause?.code} message=${err?.message}`);
     if (err?.name === "AbortError" || err?.code === "UND_ERR_CONNECT_TIMEOUT" || err?.code === "ECONNREFUSED" || err?.cause?.code === "UND_ERR_CONNECT_TIMEOUT") {
       throw new Error("Платёжная система Atmos временно недоступна. Обратитесь к диспетчеру.");
     }

@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { clog } from "../lib/logger.js";
 import multer from "multer";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -479,7 +480,7 @@ router.get("/dispatcher-info", authMiddleware, async (req: AuthRequest, res) => 
       res.json({ id: null, name: null, error: "no_dispatchers" });
     }
   } catch (err: any) {
-    console.error("[dispatcher-info] error:", err?.message);
+    clog.error("[dispatcher-info] error:", err?.message);
     res.json({ id: null, name: null, error: "server_error" });
   }
 });

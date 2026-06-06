@@ -1,4 +1,5 @@
 import { WebSocketServer, WebSocket } from "ws";
+import { clog } from "./logger.js";
 import { Server } from "http";
 import jwt from "jsonwebtoken";
 import { db, orderOffersTable, ridesTable } from "@workspace/db";
@@ -78,7 +79,7 @@ const callTimeoutSweep = setInterval(() => {
   const now = Date.now();
   for (const c of Array.from(activeCalls.values())) {
     if (c.state === "ringing" && now - c.startedAt > CALL_RING_TIMEOUT_MS) {
-      console.log(`[WS CALL] ringing TIMEOUT callId=${c.callId} caller=${c.callerId} callee=${c.calleeId}`);
+      clog.log(`[WS CALL] ringing TIMEOUT callId=${c.callId} caller=${c.callerId} callee=${c.calleeId}`);
       try { broadcastToUser(c.callerId, { type: "call_reject", fromUserId: c.calleeId, reason: "no_answer", callId: c.callId }); } catch {}
       try { broadcastToUser(c.calleeId, { type: "call_end", fromUserId: c.callerId, reason: "no_answer", callId: c.callId }); } catch {}
       cleanupCall(c.callId);
@@ -156,7 +157,7 @@ function markUserOnline(userId: number, role: string) {
   } else {
     onlineUsers.set(userId, { role, count: 1 });
     broadcastToAll({ type: "user_online", userId, role });
-    console.log(`[WS] CONNECT: userId=${userId} role=${role}`);
+    clog.log(`[WS] CONNECT: userId=${userId} role=${role}`);
   }
 }
 
@@ -171,7 +172,7 @@ function markUserOffline(userId: number) {
       if (stillOnline && stillOnline.count <= 0) {
         onlineUsers.delete(userId);
         broadcastToAll({ type: "user_offline", userId });
-        console.log(`[WS] DISCONNECT: userId=${userId} (after ${OFFLINE_GRACE_MS / 1000}s grace)`);
+        clog.log(`[WS] DISCONNECT: userId=${userId} (after ${OFFLINE_GRACE_MS / 1000}s grace)`);
       }
     }, OFFLINE_GRACE_MS);
     offlineGraceTimers.set(userId, graceTimer);
@@ -204,7 +205,7 @@ async function deliverPendingOffers(driverId: number, ws: AuthenticatedWS) {
       if (!ride) continue;
 
       const remainingMs = expiresAt > 0 ? expiresAt - now : 30000;
-      console.log(`[WS PENDING] delivering pending offer ${offer.id} to driver ${driverId}, ride=${offer.rideId}, remainingMs=${remainingMs}`);
+      clog.log(`[WS PENDING] delivering pending offer ${offer.id} to driver ${driverId}, ride=${offer.rideId}, remainingMs=${remainingMs}`);
       ws.send(JSON.stringify({
         type: "new_order",
         offerId: offer.id,
@@ -213,7 +214,7 @@ async function deliverPendingOffers(driverId: number, ws: AuthenticatedWS) {
       }));
     }
   } catch (err) {
-    console.warn(`[WS PENDING] error delivering pending offers to driver ${driverId}:`, err);
+    clog.warn(`[WS PENDING] error delivering pending offers to driver ${driverId}:`, err);
   }
 }
 
@@ -284,13 +285,13 @@ export function setupWebSocket(server: Server) {
               }
               ws.sessionId = decoded.sid;
               driverSessions.set(ws.userId!, decoded.sid);
-              console.log(`[WS SESSION] driverId=${ws.userId} sessionId=${ws.sessionId}`);
+              clog.log(`[WS SESSION] driverId=${ws.userId} sessionId=${ws.sessionId}`);
             }
             if (!(ws as any)._presenceMarked) {
               (ws as any)._presenceMarked = true;
               markUserOnline(ws.userId, decoded.role);
             }
-            console.log(`[WS] Auth OK: userId=${ws.userId} (type=${typeof ws.userId}), role=${decoded.role}`);
+            clog.log(`[WS] Auth OK: userId=${ws.userId} (type=${typeof ws.userId}), role=${decoded.role}`);
             ws.send(JSON.stringify({
               type: "auth_ok",
               userId: ws.userId,
@@ -330,7 +331,7 @@ export function setupWebSocket(server: Server) {
         } else if (msg.type === "offer_ack" && ws.userId && ws.userRole === "driver") {
           const currentSession = driverSessions.get(ws.userId);
           if (currentSession && currentSession !== msg.sessionId) {
-            console.log(`[WS SESSION STALE] offer_ack driverId=${ws.userId} active=${currentSession} got=${msg.sessionId}`);
+            clog.log(`[WS SESSION STALE] offer_ack driverId=${ws.userId} active=${currentSession} got=${msg.sessionId}`);
             return;
           }
           if (typeof msg.offerId === "number") {
@@ -341,7 +342,7 @@ export function setupWebSocket(server: Server) {
               const { markOfferAcked } = await import("./autodispatch.js");
               markOfferAcked(msg.offerId);
             } else {
-              console.log(`[WS ACK REJECTED] offerId=${msg.offerId} not owned by driverId=${ws.userId}`);
+              clog.log(`[WS ACK REJECTED] offerId=${msg.offerId} not owned by driverId=${ws.userId}`);
             }
           }
         } else if (
@@ -353,24 +354,24 @@ export function setupWebSocket(server: Server) {
           if (msg.type === "call_offer") {
             const targetUserId = Number(msg.targetUserId);
             if (!targetUserId) {
-              console.warn(`[WS CALL] call_offer DROPPED: invalid targetUserId`);
+              clog.warn(`[WS CALL] call_offer DROPPED: invalid targetUserId`);
               return;
             }
             // Rate limit
             if (!checkCallRateLimit(fromId)) {
-              console.log(`[WS CALL] call_offer RATE LIMITED: userId=${fromId}`);
+              clog.log(`[WS CALL] call_offer RATE LIMITED: userId=${fromId}`);
               broadcastToUser(fromId, { type: "call_reject", fromUserId: targetUserId, reason: "rate_limited" });
               return;
             }
             // Caller already in a call?
             if (userInCall.has(fromId)) {
-              console.log(`[WS CALL] call_offer REJECTED: caller ${fromId} already in callId=${userInCall.get(fromId)}`);
+              clog.log(`[WS CALL] call_offer REJECTED: caller ${fromId} already in callId=${userInCall.get(fromId)}`);
               broadcastToUser(fromId, { type: "call_reject", fromUserId: targetUserId, reason: "caller_busy" });
               return;
             }
             // Callee already in a call?
             if (userInCall.has(targetUserId)) {
-              console.log(`[WS CALL] call_offer REJECTED: callee ${targetUserId} busy in callId=${userInCall.get(targetUserId)}`);
+              clog.log(`[WS CALL] call_offer REJECTED: callee ${targetUserId} busy in callId=${userInCall.get(targetUserId)}`);
               broadcastToUser(fromId, { type: "call_reject", fromUserId: targetUserId, reason: "busy" });
               return;
             }
@@ -389,19 +390,19 @@ export function setupWebSocket(server: Server) {
                 return;
               }
               if (target.acceptsCalls === false) {
-                console.log(`[WS CALL] call_offer REJECTED: targetUserId=${targetUserId} has acceptsCalls=false`);
+                clog.log(`[WS CALL] call_offer REJECTED: targetUserId=${targetUserId} has acceptsCalls=false`);
                 broadcastToUser(fromId, { type: "call_reject", fromUserId: targetUserId, reason: "calls_disabled" });
                 return;
               }
               calleeRole = target.role || "";
             } catch (err: any) {
-              console.error(`[WS CALL] target lookup error:`, err?.message);
+              clog.error(`[WS CALL] target lookup error:`, err?.message);
               broadcastToUser(fromId, { type: "call_reject", fromUserId: targetUserId, reason: "server_error" });
               return;
             }
             // ACL: roles allowed to call each other
             if (!canCall(fromRole, calleeRole)) {
-              console.log(`[WS CALL] call_offer FORBIDDEN by ACL: ${fromRole}(${fromId}) -> ${calleeRole}(${targetUserId})`);
+              clog.log(`[WS CALL] call_offer FORBIDDEN by ACL: ${fromRole}(${fromId}) -> ${calleeRole}(${targetUserId})`);
               broadcastToUser(fromId, { type: "call_reject", fromUserId: targetUserId, reason: "forbidden" });
               return;
             }
@@ -419,7 +420,7 @@ export function setupWebSocket(server: Server) {
             activeCalls.set(callId, rec);
             userInCall.set(fromId, callId);
             userInCall.set(targetUserId, callId);
-            console.log(`[WS CALL] call_offer ACCEPTED callId=${callId} ${fromRole}(${fromId}) -> ${calleeRole}(${targetUserId})`);
+            clog.log(`[WS CALL] call_offer ACCEPTED callId=${callId} ${fromRole}(${fromId}) -> ${calleeRole}(${targetUserId})`);
             const delivered = broadcastToUser(targetUserId, {
               type: "call_offer",
               fromUserId: fromId,
@@ -430,7 +431,7 @@ export function setupWebSocket(server: Server) {
               callId,
             });
             if (!delivered) {
-              console.log(`[WS CALL] call_offer NOT DELIVERED: target offline. cleanup callId=${callId}`);
+              clog.log(`[WS CALL] call_offer NOT DELIVERED: target offline. cleanup callId=${callId}`);
               cleanupCall(callId);
               broadcastToUser(fromId, { type: "call_reject", fromUserId: targetUserId, reason: "user_offline" });
             }
@@ -440,18 +441,18 @@ export function setupWebSocket(server: Server) {
           // For call_answer / ice_candidate / call_end / call_reject: route via active call FSM
           const call = getActiveCallFor(fromId);
           if (!call) {
-            console.warn(`[WS CALL] ${msg.type} DROPPED: no active call for fromId=${fromId}`);
+            clog.warn(`[WS CALL] ${msg.type} DROPPED: no active call for fromId=${fromId}`);
             return;
           }
           const peerId = call.callerId === fromId ? call.calleeId : call.callerId;
 
           if (msg.type === "call_answer") {
             if (call.calleeId !== fromId) {
-              console.warn(`[WS CALL] call_answer DROPPED: ${fromId} is not callee of callId=${call.callId}`);
+              clog.warn(`[WS CALL] call_answer DROPPED: ${fromId} is not callee of callId=${call.callId}`);
               return;
             }
             call.state = "active";
-            console.log(`[WS CALL] call_answer callId=${call.callId} from callee=${fromId}`);
+            clog.log(`[WS CALL] call_answer callId=${call.callId} from callee=${fromId}`);
             broadcastToUser(peerId, {
               type: "call_answer",
               fromUserId: fromId,
@@ -473,7 +474,7 @@ export function setupWebSocket(server: Server) {
           }
 
           if (msg.type === "call_end" || msg.type === "call_reject") {
-            console.log(`[WS CALL] ${msg.type} callId=${call.callId} from=${fromId} -> peer=${peerId}`);
+            clog.log(`[WS CALL] ${msg.type} callId=${call.callId} from=${fromId} -> peer=${peerId}`);
             broadcastToUser(peerId, {
               type: msg.type,
               fromUserId: fromId,
@@ -505,7 +506,7 @@ export function setupWebSocket(server: Server) {
           const c = activeCalls.get(cid);
           if (c) {
             const peerId = c.callerId === ws.userId ? c.calleeId : c.callerId;
-            console.log(`[WS CALL] disconnect cleanup callId=${cid} userId=${ws.userId} -> notify peer=${peerId}`);
+            clog.log(`[WS CALL] disconnect cleanup callId=${cid} userId=${ws.userId} -> notify peer=${peerId}`);
             try { broadcastToUser(peerId, { type: "call_end", fromUserId: ws.userId, reason: "peer_disconnected", callId: cid }); } catch {}
             cleanupCall(cid);
           }
@@ -516,7 +517,7 @@ export function setupWebSocket(server: Server) {
         const current = driverSessions.get(ws.userId);
         if (current === ws.sessionId) {
           driverSessions.delete(ws.userId);
-          console.log(`[WS SESSION] driverId=${ws.userId} session ${ws.sessionId} cleared on close`);
+          clog.log(`[WS SESSION] driverId=${ws.userId} session ${ws.sessionId} cleared on close`);
         }
       }
       if (ws.userId && (ws as any)._presenceMarked) {
@@ -585,13 +586,13 @@ export function broadcastToAll(data: object) {
 
 export function broadcastToUser(userId: number, data: object): boolean {
   if (!wss) {
-    console.warn(`[WS] broadcastToUser(${userId}): WSS not initialized`);
+    clog.warn(`[WS] broadcastToUser(${userId}): WSS not initialized`);
     return false;
   }
   const numId = Number(userId);
   const sockets = userSockets.get(numId);
   if (!sockets || sockets.size === 0) {
-    console.warn(`[WS] broadcastToUser(${numId}): NO connection found (${wss.clients.size} total clients)`);
+    clog.warn(`[WS] broadcastToUser(${numId}): NO connection found (${wss.clients.size} total clients)`);
     return false;
   }
   const message = JSON.stringify(injectVersion(data as Record<string, any>));
@@ -603,11 +604,11 @@ export function broadcastToUser(userId: number, data: object): boolean {
     }
   }
   if (sentCount === 0) {
-    console.warn(`[WS] broadcastToUser(${numId}): sockets tracked but none OPEN`);
+    clog.warn(`[WS] broadcastToUser(${numId}): sockets tracked but none OPEN`);
     return false;
   }
   const msgType = (data as any)?.type || "unknown";
-  console.log(`[WS] broadcastToUser(${numId}): sent ${msgType} to ${sentCount} socket(s)`);
+  clog.log(`[WS] broadcastToUser(${numId}): sent ${msgType} to ${sentCount} socket(s)`);
   return true;
 }
 
@@ -633,7 +634,7 @@ export function forceLogoutDriver(driverId: number, reason: string) {
     }
   });
   driverSessions.delete(numId);
-  console.log(`[WS] Force logout driver ${numId}: ${reason}`);
+  clog.log(`[WS] Force logout driver ${numId}: ${reason}`);
 }
 
 export function getWsStats() {

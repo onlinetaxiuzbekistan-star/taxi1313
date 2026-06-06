@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { clog } from "../lib/logger.js";
 import { db, usersTable, paymentsTable, transactionsTable, paymeTransactionsTable, settingsTable } from "@workspace/db";
 import { eq, and, gte, lte, sql } from "drizzle-orm";
 
@@ -214,7 +215,7 @@ async function handlePerformTransaction(id: number | null, params: any) {
     description: `Пополнение через Payme: ${amountSom.toLocaleString("ru-RU")} сум`,
   });
 
-  console.log(`[PAYME] PerformTransaction: driver ${tx.driverId}, +${amountSom} сум, payme_id=${tx.paymeId}`);
+  clog.log(`[PAYME] PerformTransaction: driver ${tx.driverId}, +${amountSom} сум, payme_id=${tx.paymeId}`);
 
   return jsonRpcResult(id, {
     transaction: String(updated.id),
@@ -298,7 +299,7 @@ async function handleCancelTransaction(id: number | null, params: any) {
       updatedAt: new Date(),
     }).where(eq(usersTable.id, tx.driverId));
 
-    console.log(`[PAYME] CancelTransaction (refund): driver ${tx.driverId}, -${amountSom} сум, payme_id=${tx.paymeId}`);
+    clog.log(`[PAYME] CancelTransaction (refund): driver ${tx.driverId}, -${amountSom} сум, payme_id=${tx.paymeId}`);
 
     return jsonRpcResult(id, {
       transaction: String(updated.id),
@@ -399,7 +400,7 @@ router.post("/", async (req, res) => {
 
     res.json(result);
   } catch (err: any) {
-    console.error("[PAYME] Error:", err);
+    clog.error("[PAYME] Error:", err);
     res.json(jsonRpcError(rpcId, { code: -32400, message: { ru: "Внутренняя ошибка", uz: "Ichki xato", en: "Internal error" } }));
   }
 });

@@ -1,4 +1,5 @@
 import { isUserOnline } from "./websocket.js";
+import { clog } from "./logger.js";
 import { getCachedDriver, type CachedDriver } from "./driver-cache.js";
 import { registerCache } from "./memory-guardian.js";
 import { db, ridesTable, ridePassengersTable } from "@workspace/db";
@@ -39,7 +40,7 @@ export function enqueueDriver(driverId: number) {
     skippedCount: 0,
   });
   metrics.totalEnqueued++;
-  console.log(`[QUEUE] driver ${driverId} added to queue (pos=${queue.length}), total=${queue.length}`);
+  clog.log(`[QUEUE] driver ${driverId} added to queue (pos=${queue.length}), total=${queue.length}`);
 }
 
 export function removeFromQueue(driverId: number) {
@@ -47,7 +48,7 @@ export function removeFromQueue(driverId: number) {
   if (idx !== -1) {
     queue.splice(idx, 1);
     metrics.totalDequeued++;
-    console.log(`[QUEUE] driver ${driverId} removed from queue, total=${queue.length}`);
+    clog.log(`[QUEUE] driver ${driverId} removed from queue, total=${queue.length}`);
   }
 }
 
@@ -59,7 +60,7 @@ export function moveToEnd(driverId: number) {
   entry.lastOfferedAt = Date.now();
   queue.push(entry);
   metrics.totalRotated++;
-  console.log(`[QUEUE] driver ${driverId} rotated to end (skips=${entry.skippedCount}), total=${queue.length}`);
+  clog.log(`[QUEUE] driver ${driverId} rotated to end (skips=${entry.skippedCount}), total=${queue.length}`);
 }
 
 export function markAssigned(driverId: number, assignTimeMs: number) {
@@ -69,7 +70,7 @@ export function markAssigned(driverId: number, assignTimeMs: number) {
   if (metrics.assignTimes.length > 200) metrics.assignTimes = metrics.assignTimes.slice(-200);
   const sum = metrics.assignTimes.reduce((a, b) => a + b, 0);
   metrics.avgAssignTimeMs = Math.round(sum / metrics.assignTimes.length);
-  console.log(`[QUEUE] driver ${driverId} assigned (time=${assignTimeMs}ms, avg=${metrics.avgAssignTimeMs}ms)`);
+  clog.log(`[QUEUE] driver ${driverId} assigned (time=${assignTimeMs}ms, avg=${metrics.avgAssignTimeMs}ms)`);
 }
 
 export function returnToQueue(driverId: number) {
@@ -80,7 +81,7 @@ export function returnToQueue(driverId: number) {
     lastOfferedAt: 0,
     skippedCount: 0,
   });
-  console.log(`[QUEUE] driver ${driverId} returned to queue end (ride complete), total=${queue.length}`);
+  clog.log(`[QUEUE] driver ${driverId} returned to queue end (ride complete), total=${queue.length}`);
 }
 
 export function getQueuePosition(driverId: number): number {
@@ -148,7 +149,7 @@ export async function refreshOccupiedSeats(): Promise<void> {
       driverOccupiedSeats.set(driverId, totalOccupied);
     }
   } catch (err) {
-    console.error("[QUEUE] refreshOccupiedSeats failed:", (err as Error).message);
+    clog.error("[QUEUE] refreshOccupiedSeats failed:", (err as Error).message);
   }
 }
 
@@ -182,34 +183,34 @@ export function takeNextBatch(
     if (excludeDriverIds.has(entry.driverId)) continue;
 
     if (entry.lastOfferedAt > 0 && (now - entry.lastOfferedAt) < OFFER_COOLDOWN_MS) {
-      console.log(`[QUEUE FILTER] driver ${entry.driverId}: cooldown ${Math.round((OFFER_COOLDOWN_MS - (now - entry.lastOfferedAt)) / 1000)}s remaining → skip`);
+      clog.log(`[QUEUE FILTER] driver ${entry.driverId}: cooldown ${Math.round((OFFER_COOLDOWN_MS - (now - entry.lastOfferedAt)) / 1000)}s remaining → skip`);
       continue;
     }
 
     const cached = getCachedDriver(entry.driverId);
     if (!cached) {
-      console.log(`[QUEUE FILTER] driver ${entry.driverId}: no cache → skip`);
+      clog.log(`[QUEUE FILTER] driver ${entry.driverId}: no cache → skip`);
       continue;
     }
 
     if (cached.status !== "online" && cached.status !== "busy") {
-      console.log(`[QUEUE FILTER] driver ${entry.driverId}: status=${cached.status} → skip`);
+      clog.log(`[QUEUE FILTER] driver ${entry.driverId}: status=${cached.status} → skip`);
       continue;
     }
 
     const wsOnline = isUserOnline(entry.driverId);
     if (!wsOnline) {
-      console.log(`[QUEUE FILTER] driver ${entry.driverId}: not connected via WS → allowing with -20 penalty`);
+      clog.log(`[QUEUE FILTER] driver ${entry.driverId}: not connected via WS → allowing with -20 penalty`);
     }
 
     const freeSeats = getDriverFreeSeats(entry.driverId);
     if (freeSeats < requiredSeats) {
-      console.log(`[QUEUE FILTER] driver ${entry.driverId}: freeSeats=${freeSeats} < required=${requiredSeats} → skip`);
+      clog.log(`[QUEUE FILTER] driver ${entry.driverId}: freeSeats=${freeSeats} < required=${requiredSeats} → skip`);
       continue;
     }
 
     if (requiredGroupLevel > 0 && cached.groupLevel < requiredGroupLevel) {
-      console.log(`[QUEUE FILTER] driver ${entry.driverId}: groupLevel=${cached.groupLevel} < required=${requiredGroupLevel} → skip`);
+      clog.log(`[QUEUE FILTER] driver ${entry.driverId}: groupLevel=${cached.groupLevel} < required=${requiredGroupLevel} → skip`);
       continue;
     }
 
@@ -230,7 +231,7 @@ export function takeNextBatch(
     score -= entry.skippedCount * 5;
     score += occupiedSeats * 25;
 
-    console.log(`[QUEUE FILTER] driver ${entry.driverId}: INCLUDED | freeSeats=${freeSeats} dist=${Math.round(distKm)}km hasLoc=${hasLocation} isNew=${isNew} isIdle=${isIdle} score=${Math.round(score)}`);
+    clog.log(`[QUEUE FILTER] driver ${entry.driverId}: INCLUDED | freeSeats=${freeSeats} dist=${Math.round(distKm)}km hasLoc=${hasLocation} isNew=${isNew} isIdle=${isIdle} score=${Math.round(score)}`);
 
     candidates.push({
       driver: cached,
@@ -259,7 +260,7 @@ export function cleanupStaleEntries() {
     removeFromQueue(id);
   }
   if (unique.length > 0) {
-    console.log(`[QUEUE] cleaned ${unique.length} stale entries, remaining=${queue.length}`);
+    clog.log(`[QUEUE] cleaned ${unique.length} stale entries, remaining=${queue.length}`);
   }
 }
 
@@ -284,7 +285,7 @@ export async function initQueueFromCache() {
     }
   }
   if (added > 0) {
-    console.log(`[QUEUE] initialized ${added} drivers from cache (online+busy), total=${queue.length}`);
+    clog.log(`[QUEUE] initialized ${added} drivers from cache (online+busy), total=${queue.length}`);
   }
 
   await refreshOccupiedSeats();

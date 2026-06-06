@@ -1,4 +1,5 @@
 import { Router, type IRouter, type Request, type Response } from "express";
+import { clog } from "../lib/logger.js";
 
 import { db, usersTable, driverLoginCodesTable, driverSessionsTable, loginAuditLogsTable, driverAuditLogsTable } from "@workspace/db";
 import { and, desc, eq, gt, inArray, lt, sql } from "drizzle-orm";
@@ -549,10 +550,10 @@ router.post("/driver-code/send-sms", async (req, res) => {
 
     const { sendVerificationSms } = await import("../lib/sms-notifications.js");
     sendVerificationSms(phone, code).catch(err => {
-      console.error(`[SMS OTP] Failed to send SMS to ${phone}:`, err);
+      clog.error(`[SMS OTP] Failed to send SMS to ${phone}:`, err);
     });
 
-    console.log(`[SMS OTP] Code sent to ${phone} for driver ${user.id}`);
+    clog.log(`[SMS OTP] Code sent to ${phone} for driver ${user.id}`);
 
     res.json({
       success: true,
@@ -627,7 +628,7 @@ router.post("/driver-code/verify", loginRateLimit, async (req, res) => {
 
     const { passwordHash: _, ...userWithoutPassword } = user;
 
-    console.log(`[LOGIN CODE] Driver ${user.id} logged in via ${loginCode.type} code`);
+    clog.log(`[LOGIN CODE] Driver ${user.id} logged in via ${loginCode.type} code`);
 
     res.json({ user: userWithoutPassword, token, sessionToken });
   } catch (err) {
@@ -683,7 +684,7 @@ router.post("/driver-code/verify-code-only", codeOnlyRateLimit, async (req, res)
     await logAudit(user.id, loginCode.type, ip, deviceId);
 
     const { passwordHash: _, ...userWithoutPassword } = user;
-    console.log(`[LOGIN CODE-ONLY] Driver ${user.id} logged in via code-only`);
+    clog.log(`[LOGIN CODE-ONLY] Driver ${user.id} logged in via code-only`);
 
     res.json({ user: userWithoutPassword, token, sessionToken });
   } catch (err) {

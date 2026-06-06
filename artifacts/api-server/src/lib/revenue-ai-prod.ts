@@ -1,4 +1,5 @@
 import { db, usersTable, ridesTable } from "@workspace/db";
+import { clog } from "./logger.js";
 import { eq, and, desc, sql, gte } from "drizzle-orm";
 import { getSettingBool, getSettingNum } from "./settingsCache.js";
 
@@ -140,21 +141,21 @@ function prodLog(msg: string) {
   const entry = `[${new Date().toISOString().slice(11, 19)}] ${msg}`;
   prodLogs.push(entry);
   if (prodLogs.length > LOG_MAX) prodLogs.splice(0, prodLogs.length - LOG_MAX);
-  console.log(`[REVENUE AI PROD] ${msg}`);
+  clog.log(`[REVENUE AI PROD] ${msg}`);
 }
 
 function safetyLog(msg: string) {
   const entry = `[${new Date().toISOString().slice(11, 19)}] ${msg}`;
   prodLogs.push(entry);
   if (prodLogs.length > LOG_MAX) prodLogs.splice(0, prodLogs.length - LOG_MAX);
-  console.log(`[SAFETY] ${msg}`);
+  clog.log(`[SAFETY] ${msg}`);
 }
 
 function shadowLog(msg: string) {
   const entry = `[${new Date().toISOString().slice(11, 19)}] ${msg}`;
   shadowLogs.push(entry);
   if (shadowLogs.length > SHADOW_LOG_MAX) shadowLogs.splice(0, shadowLogs.length - SHADOW_LOG_MAX);
-  console.log(`[SHADOW] ${msg}`);
+  clog.log(`[SHADOW] ${msg}`);
 }
 
 export function isRevenueAIProdEnabled(): boolean {

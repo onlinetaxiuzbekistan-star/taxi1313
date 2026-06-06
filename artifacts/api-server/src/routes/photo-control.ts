@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { clog } from "../lib/logger.js";
 import { db, photoTasksTable, photoRequestsTable, photoHistoryTable, usersTable, driverGroupsTable } from "@workspace/db";
 import { eq, and, desc, inArray, sql, or, ilike } from "drizzle-orm";
 import { authMiddleware, requireRole } from "../middlewares/auth.js";
@@ -266,7 +267,7 @@ router.get("/requests", authMiddleware, requireRole("admin", "dispatcher"), asyn
       perPage,
     });
   } catch (err) {
-    console.error("[PHOTO-CONTROL] /requests error:", err);
+    clog.error("[PHOTO-CONTROL] /requests error:", err);
     res.status(500).json({ error: "server_error" });
   }
 });
@@ -498,7 +499,7 @@ router.post("/upload-photo", authMiddleware, (req, res, next) => {
         fs.unlinkSync(optimizedPath);
       }
     } catch (compErr) {
-      console.warn("[PHOTO COMPRESS] Failed, using original:", (compErr as Error)?.message);
+      clog.warn("[PHOTO COMPRESS] Failed, using original:", (compErr as Error)?.message);
     }
 
     const url = `/api/uploads/photo-control/${file.filename}`;
@@ -580,7 +581,7 @@ router.get("/history/:driverId", authMiddleware, requireRole("admin", "dispatche
 
     res.json({ history: result.rows });
   } catch (err) {
-    console.error("[PHOTO-CONTROL] history error:", err);
+    clog.error("[PHOTO-CONTROL] history error:", err);
     res.status(500).json({ error: "server_error" });
   }
 });
@@ -606,7 +607,7 @@ router.get("/stats", authMiddleware, requireRole("admin", "dispatcher"), async (
     `);
     res.json({ stats: result.rows[0] || {} });
   } catch (err) {
-    console.error("[PHOTO-CONTROL] stats error:", err);
+    clog.error("[PHOTO-CONTROL] stats error:", err);
     res.status(500).json({ error: "server_error" });
   }
 });
@@ -652,7 +653,7 @@ router.post("/requests/:id/unblock", authMiddleware, requireRole("admin", "dispa
 
     res.json({ success: true });
   } catch (err) {
-    console.error("[PHOTO-CONTROL] unblock error:", err);
+    clog.error("[PHOTO-CONTROL] unblock error:", err);
     res.status(500).json({ error: "server_error" });
   }
 });
@@ -691,7 +692,7 @@ router.post("/request-driver/:driverId", authMiddleware, requireRole("admin", "d
 
     res.json({ created: true, requestId: created.id });
   } catch (err) {
-    console.error("[PHOTO-CONTROL] request-driver error:", err);
+    clog.error("[PHOTO-CONTROL] request-driver error:", err);
     res.status(500).json({ error: "server_error" });
   }
 });
@@ -715,7 +716,7 @@ router.get("/request-driver/:driverId/status", authMiddleware, requireRole("admi
 
     res.json(active ? { hasActive: true, requestId: active.id, status: active.status, createdAt: active.createdAt } : { hasActive: false });
   } catch (err) {
-    console.error("[PHOTO-CONTROL] status error:", err);
+    clog.error("[PHOTO-CONTROL] status error:", err);
     res.status(500).json({ error: "server_error" });
   }
 });
@@ -740,7 +741,7 @@ router.delete("/request-driver/:driverId", authMiddleware, requireRole("admin", 
 
     res.json({ cancelled: cancelled.length });
   } catch (err) {
-    console.error("[PHOTO-CONTROL] cancel error:", err);
+    clog.error("[PHOTO-CONTROL] cancel error:", err);
     res.status(500).json({ error: "server_error" });
   }
 });

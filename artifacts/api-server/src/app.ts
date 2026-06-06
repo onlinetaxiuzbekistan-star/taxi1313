@@ -1,4 +1,5 @@
 import express, { type Express } from "express";
+import { clog } from "./lib/logger.js";
 import cors from "cors";
 import helmet from "helmet";
 import pinoHttp from "pino-http";
@@ -113,7 +114,7 @@ if (isProduction && existsSync(indexHtml)) {
       let content = readFileSync(indexHtml, "utf-8");
       content = content.replace(
         "</head>",
-        `<script>console.log("FRONT VERSION: ${new Date().toISOString()} (built: ${new Date(mtime).toISOString()})");</script></head>`
+        `<script>clog.log("FRONT VERSION: ${new Date().toISOString()} (built: ${new Date(mtime).toISOString()})");</script></head>`
       );
       _htmlCache = { mtime, content };
       logger.info({ mtime: new Date(mtime).toISOString() }, "index.html reloaded from disk");

@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { clog } from "../lib/logger.js";
 import { authMiddleware, requireRole, AuthRequest } from "../middlewares/auth.js";
 import { db, ridesTable, usersTable, driverGroupsTable } from "@workspace/db";
 import { eq, gte, lte, and, sql, inArray, desc, asc } from "drizzle-orm";
@@ -18,7 +19,7 @@ function parseDateRange(from?: string, to?: string) {
 
 function handleErr(res: any, e: any) {
   if (e?.status === 400) return res.status(400).json({ error: e.msg });
-  console.error("[REPORTS]", e?.message || e);
+  clog.error("[REPORTS]", e?.message || e);
   res.status(500).json({ error: "Internal server error" });
 }
 
