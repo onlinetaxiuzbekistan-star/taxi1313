@@ -5,8 +5,15 @@ import { liveMetrics, liveAlerts, liveIncidents, recoveryActions, getRideInterva
 import { getRevenueAIProdState, getRevenueAIProdLogs, enableRevenueAIProd, disableRevenueAIProd, isRevenueAIProdEnabled, getSafetyGuardState, toggleShadowMode } from "../lib/revenue-ai-prod.js";
 import { authMiddleware, requireRole } from "../middlewares/auth.js";
 import { config } from "../lib/config.js";
+import { validateBody } from "../middlewares/validate.js";
+import { z } from "zod";
 
 const router: IRouter = Router();
+
+// These are admin-only, SIMULATION_ENABLED-gated diagnostic endpoints. Validate
+// that the body is a JSON object; the handlers enforce field-level rules
+// (mode ∈ {safe,aggressive}, generation:number, action required, …).
+const simBodySchema = z.object({}).passthrough();
 router.use(authMiddleware, requireRole("admin"));
 
 // Simulation/stress endpoints are dev/diagnostic tooling, not production features.
@@ -39,7 +46,7 @@ router.get("/stress/alerts", (req, res) => {
   }
 });
 
-router.post("/stress/alerts/:id/ack", (req, res) => {
+router.post("/stress/alerts/:id/ack", validateBody(simBodySchema), (req, res) => {
   const alert = liveAlerts.find(a => a.id === req.params.id);
   if (alert) {
     alert.acknowledged = true;
@@ -49,7 +56,7 @@ router.post("/stress/alerts/:id/ack", (req, res) => {
   }
 });
 
-router.post("/stress/alerts/ack-all", (_req, res) => {
+router.post("/stress/alerts/ack-all", validateBody(simBodySchema), (_req, res) => {
   for (const a of liveAlerts) {
     a.acknowledged = true;
   }
@@ -105,13 +112,13 @@ router.get("/stress/auto-exec", (_req, res) => {
   res.json(getAutoExecState());
 });
 
-router.post("/stress/auto-exec/toggle", (req, res) => {
+router.post("/stress/auto-exec/toggle", validateBody(simBodySchema), (req, res) => {
   const { enabled } = req.body;
   setAutoExecEnabled(!!enabled);
   res.json({ ok: true, enabled: !!enabled });
 });
 
-router.post("/stress/auto-exec/mode", (req, res) => {
+router.post("/stress/auto-exec/mode", validateBody(simBodySchema), (req, res) => {
   const { mode } = req.body;
   if (mode !== "safe" && mode !== "aggressive") {
     res.status(400).json({ ok: false, message: "mode must be 'safe' or 'aggressive'" });
@@ -121,7 +128,7 @@ router.post("/stress/auto-exec/mode", (req, res) => {
   res.json({ ok: true, mode });
 });
 
-router.post("/stress/recovery/apply", async (req, res) => {
+router.post("/stress/recovery/apply", validateBody(simBodySchema), async (req, res) => {
   const { action } = req.body;
   if (!action) {
     res.status(400).json({ ok: false, message: "action is required" });
@@ -135,7 +142,7 @@ router.get("/stress/optimizer", (_req, res) => {
   res.json(getOptimizationState());
 });
 
-router.post("/stress/optimizer/rollback", (req, res) => {
+router.post("/stress/optimizer/rollback", validateBody(simBodySchema), (req, res) => {
   const { generation } = req.body || {};
   if (typeof generation !== "number") {
     res.status(400).json({ error: "generation required" });
@@ -169,7 +176,7 @@ router.get("/stress/revenue-ai-prod", (_req, res) => {
   });
 });
 
-router.post("/stress/revenue-ai-prod/toggle", (req, res) => {
+router.post("/stress/revenue-ai-prod/toggle", validateBody(simBodySchema), (req, res) => {
   const { enabled } = req.body || {};
   if (enabled === true) {
     enableRevenueAIProd();
@@ -179,7 +186,7 @@ router.post("/stress/revenue-ai-prod/toggle", (req, res) => {
   res.json({ success: true, enabled: isRevenueAIProdEnabled() });
 });
 
-router.post("/stress/revenue-ai-prod/shadow", (req, res) => {
+router.post("/stress/revenue-ai-prod/shadow", validateBody(simBodySchema), (req, res) => {
   const { enabled } = req.body || {};
   toggleShadowMode(enabled === true);
   res.json({ success: true, shadow_mode: enabled === true });

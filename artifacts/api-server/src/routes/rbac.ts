@@ -3,6 +3,11 @@ import { db, rolesTable, permissionsTable, rolePermissionsTable, usersTable } fr
 import { eq, inArray } from "drizzle-orm";
 import { authMiddleware, requireRole, AuthRequest, invalidatePermCache } from "../middlewares/auth.js";
 import { logActivity } from "../lib/activity.js";
+import { z } from "zod";
+import { validateBody } from "../middlewares/validate.js";
+
+const createRoleBodySchema = z.object({ name: z.string() }).passthrough();
+const updateRoleBodySchema = z.object({}).passthrough();
 
 const router: IRouter = Router();
 
@@ -35,7 +40,7 @@ async function validatePermissionIds(ids: number[]): Promise<boolean> {
   return existing.length === ids.length;
 }
 
-router.post("/roles", authMiddleware, requireRole("admin"), async (req: AuthRequest, res) => {
+router.post("/roles", authMiddleware, requireRole("admin"), validateBody(createRoleBodySchema), async (req: AuthRequest, res) => {
   try {
     const { name, description, permissionIds } = req.body;
     if (!name?.trim()) {
@@ -73,7 +78,7 @@ router.post("/roles", authMiddleware, requireRole("admin"), async (req: AuthRequ
   }
 });
 
-router.patch("/roles/:id", authMiddleware, requireRole("admin"), async (req: AuthRequest, res) => {
+router.patch("/roles/:id", authMiddleware, requireRole("admin"), validateBody(updateRoleBodySchema), async (req: AuthRequest, res) => {
   try {
     const id = parseInt(req.params.id);
     if (isNaN(id)) { res.status(400).json({ error: "validation_error", message: "Неверный ID роли" }); return; }

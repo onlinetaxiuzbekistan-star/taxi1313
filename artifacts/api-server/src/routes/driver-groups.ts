@@ -1,8 +1,18 @@
+import { z } from "zod";
 import { Router } from "express";
+import { validateBody } from "../middlewares/validate.js";
 import { db, driverGroupsTable } from "@workspace/db";
 import { eq, asc } from "drizzle-orm";
 import { authMiddleware, requireRole } from "../middlewares/auth.js";
 import type { AuthRequest } from "../middlewares/auth.js";
+
+const driverGroupCreateBodySchema = z.object({
+  name: z.string(),
+  label: z.string(),
+  level: z.union([z.number(), z.string()]),
+}).passthrough();
+
+const driverGroupUpdateBodySchema = z.object({}).passthrough();
 
 const router = Router();
 
@@ -15,7 +25,7 @@ router.get("/", authMiddleware, async (_req, res) => {
   }
 });
 
-router.post("/", authMiddleware, requireRole("admin"), async (req: AuthRequest, res) => {
+router.post("/", authMiddleware, requireRole("admin"), validateBody(driverGroupCreateBodySchema), async (req: AuthRequest, res) => {
   try {
     const { name, label, level, isActive } = req.body;
     if (!name || !label || level == null) {
@@ -36,7 +46,7 @@ router.post("/", authMiddleware, requireRole("admin"), async (req: AuthRequest, 
   }
 });
 
-router.patch("/:id", authMiddleware, requireRole("admin", "dispatcher"), async (req: AuthRequest, res) => {
+router.patch("/:id", authMiddleware, requireRole("admin", "dispatcher"), validateBody(driverGroupUpdateBodySchema), async (req: AuthRequest, res) => {
   try {
     const id = parseInt(req.params.id);
     if (isNaN(id)) return res.status(400).json({ error: "invalid_id" });

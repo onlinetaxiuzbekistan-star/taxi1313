@@ -12,6 +12,7 @@ import { onSlowQuery } from "@workspace/db";
 import { Sentry } from "./lib/sentry.js";
 import { config } from "./lib/config.js";
 import { metricsMiddleware, metricsEndpoint } from "./lib/metrics.js";
+import { apiRateLimit } from "./lib/login-rate-limit.js";
 
 const UPLOADS_DIR = path.resolve(process.cwd(), "artifacts", "uploads");
 
@@ -24,6 +25,13 @@ const FRONTEND_DIR = frontendCandidates.find((d) => existsSync(d)) || frontendCa
 const BUILD_VERSION = new Date().toISOString();
 
 const app: Express = express();
+
+// Trust the X-Forwarded-* headers from the upstream TLS-terminating proxy so
+// req.ip / req.protocol reflect the real client (correct rate-limit keys and
+// HTTPS detection). Only enabled when a proxy is declared (config.trustProxy).
+if (config.trustProxy) {
+  app.set("trust proxy", 1);
+}
 
 // Security headers. CSP and cross-origin resource/embedder policies are disabled because this
 // process also serves the SPA (inline scripts) and exposes an API consumed cross-origin by the
@@ -91,7 +99,7 @@ app.get("/api/build-version", (_req, res) => {
   res.json({ version: BUILD_VERSION });
 });
 
-app.use("/api", router);
+app.use("/api", apiRateLimit, router);
 
 const noCacheHeaders = (_req: any, res: any, next: any) => {
   res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");

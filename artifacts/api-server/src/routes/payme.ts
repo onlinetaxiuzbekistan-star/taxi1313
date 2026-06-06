@@ -4,6 +4,14 @@ import { clog } from "../lib/logger.js";
 import { db, usersTable, paymentsTable, transactionsTable, paymeTransactionsTable, settingsTable } from "@workspace/db";
 import { eq, and, gte, lte, sql } from "drizzle-orm";
 import { timingSafeEqualStr } from "../lib/secure-compare.js";
+import { validateBody } from "../middlewares/validate.js";
+import { z } from "zod";
+
+// Payme posts JSON-RPC 2.0 envelopes ({ method, params, id }). Validate the
+// shape leniently — require a JSON object with a string `method`; per-method
+// param validation and JSON-RPC error replies stay in the handler so we never
+// break the gateway's error-handling contract.
+const paymeRpcBodySchema = z.object({ method: z.string().min(1) }).passthrough();
 
 const router: IRouter = Router();
 
@@ -359,7 +367,7 @@ async function handleGetStatement(id: number | null, params: any) {
   return jsonRpcResult(id, { transactions });
 }
 
-router.post("/", async (req, res) => {
+router.post("/", validateBody(paymeRpcBodySchema), async (req, res) => {
   const { method, params, id: rpcId } = req.body || {};
 
   try {

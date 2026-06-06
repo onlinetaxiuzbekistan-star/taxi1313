@@ -2,6 +2,16 @@ import { Router, type IRouter } from "express";
 import { db, routesTable, routeOptionsTable } from "@workspace/db";
 import { eq, asc, desc, and, sql, max, or } from "drizzle-orm";
 import { authMiddleware, requireRole, AuthRequest } from "../middlewares/auth.js";
+import { z } from "zod";
+import { validateBody } from "../middlewares/validate.js";
+
+const createRouteBodySchema = z.object({
+  fromCity: z.string(),
+  toCity: z.string(),
+  distanceKm: z.union([z.number(), z.string()]),
+  durationMin: z.union([z.number(), z.string()]),
+}).passthrough();
+const updateRouteBodySchema = z.object({}).passthrough();
 
 const router: IRouter = Router();
 
@@ -73,7 +83,7 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-router.post("/", authMiddleware, requireRole("dispatcher", "admin"), async (req: AuthRequest, res) => {
+router.post("/", authMiddleware, requireRole("dispatcher", "admin"), validateBody(createRouteBodySchema), async (req: AuthRequest, res) => {
   try {
     const { fromCity, toCity, distanceKm, durationMin, priceEconomy, priceComfort, priceBusiness, priceMail, priceFrontEconomy, priceFrontComfort, priceFrontBusiness, roundTripDiscountPercent, isActive, sortOrder } = req.body;
 
@@ -146,7 +156,7 @@ router.post("/", authMiddleware, requireRole("dispatcher", "admin"), async (req:
   }
 });
 
-router.patch("/:id", authMiddleware, requireRole("dispatcher", "admin"), async (req: AuthRequest, res) => {
+router.patch("/:id", authMiddleware, requireRole("dispatcher", "admin"), validateBody(updateRouteBodySchema), async (req: AuthRequest, res) => {
   try {
     const routeId = parseInt(req.params.id);
     const { fromCity, toCity, distanceKm, durationMin, priceEconomy, priceComfort, priceBusiness, priceMail, priceFrontEconomy, priceFrontComfort, priceFrontBusiness, roundTripDiscountPercent, isActive, sortOrder, options, tariffOptions } = req.body;

@@ -25,6 +25,15 @@ import { generateReferralCode } from "../../lib/bonuses.js";
 import { getSettingNum } from "../../lib/settingsCache.js";
 import { parseBranchIdFromBody, checkMinBalance, PHOTOS_DIR, photoStorage, photoUpload, enrichPassengersWithRouteInfo, nearestNeighborPickup, totalRouteDistance, permutations, optimizePickupOrder } from "./shared.js";
 import { getActiveRides } from "../../lib/services/dispatch.service.js";
+import { z } from "zod";
+
+const financeAdjustBodySchema = z.object({
+  amount: z.union([z.number(), z.string()]),
+}).passthrough();
+
+const financeWithdrawBodySchema = z.object({
+  amount: z.union([z.number(), z.string()]),
+}).passthrough();
 
 const router: IRouter = Router();
 
@@ -421,7 +430,7 @@ router.get("/:id/finance", authMiddleware, requireRole("dispatcher", "admin"), a
 });
 
 
-router.post("/:id/finance/adjust", authMiddleware, requireRole("dispatcher", "admin"), async (req: AuthRequest, res) => {
+router.post("/:id/finance/adjust", authMiddleware, requireRole("dispatcher", "admin"), validateBody(financeAdjustBodySchema), async (req: AuthRequest, res) => {
   try {
     const driverId = parseInt(req.params.id);
     if (isNaN(driverId) || driverId <= 0) return res.status(400).json({ error: "invalid_id" });
@@ -470,7 +479,7 @@ router.post("/:id/finance/adjust", authMiddleware, requireRole("dispatcher", "ad
 });
 
 
-router.post("/:id/finance/withdraw", authMiddleware, requireRole("dispatcher", "admin"), async (req: AuthRequest, res) => {
+router.post("/:id/finance/withdraw", authMiddleware, requireRole("dispatcher", "admin"), validateBody(financeWithdrawBodySchema), async (req: AuthRequest, res) => {
   try {
     const driverId = parseInt(req.params.id);
     if (isNaN(driverId) || driverId <= 0) return res.status(400).json({ error: "invalid_id" });

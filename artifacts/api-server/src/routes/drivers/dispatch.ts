@@ -24,6 +24,18 @@ import { hashPassword } from "../auth.js";
 import { generateReferralCode } from "../../lib/bonuses.js";
 import { getSettingNum } from "../../lib/settingsCache.js";
 import { parseBranchIdFromBody, checkMinBalance, PHOTOS_DIR, photoStorage, photoUpload, enrichPassengersWithRouteInfo, nearestNeighborPickup, totalRouteDistance, permutations, optimizePickupOrder } from "./shared.js";
+import { z } from "zod";
+
+const rideIdBodySchema = z.object({
+  rideId: z.union([z.number(), z.string()]),
+}).passthrough();
+
+const acceptRideLegacyBodySchema = z.object({}).passthrough();
+
+const createDriverRideBodySchema = z.object({
+  fromCity: z.string(),
+  toCity: z.string(),
+}).passthrough();
 
 const router: IRouter = Router();
 
@@ -76,7 +88,7 @@ router.get("/my-rides", authMiddleware, async (req: AuthRequest, res) => {
 });
 
 
-router.post("/accept", authMiddleware, async (req: AuthRequest, res) => {
+router.post("/accept", authMiddleware, validateBody(rideIdBodySchema), async (req: AuthRequest, res) => {
   try {
     const { rideId } = req.body;
     const driverId = req.userId!;
@@ -538,7 +550,7 @@ router.post("/accept", authMiddleware, async (req: AuthRequest, res) => {
 });
 
 
-router.post("/:id/accept-ride/:rideId", authMiddleware, async (req: AuthRequest, res) => {
+router.post("/:id/accept-ride/:rideId", authMiddleware, validateBody(acceptRideLegacyBodySchema), async (req: AuthRequest, res) => {
   // [LEGACY REDIRECT] заменено: дублирующая логика удалена, форвард на /accept
   try {
     const { rideId } = req.params;
@@ -554,7 +566,7 @@ router.post("/:id/accept-ride/:rideId", authMiddleware, async (req: AuthRequest,
 });
 
 
-router.post("/start", authMiddleware, async (req: AuthRequest, res) => {
+router.post("/start", authMiddleware, validateBody(rideIdBodySchema), async (req: AuthRequest, res) => {
   try {
     const { rideId } = req.body;
     const driverId = req.userId!;
@@ -620,7 +632,7 @@ router.post("/start", authMiddleware, async (req: AuthRequest, res) => {
 });
 
 
-router.post("/complete", authMiddleware, async (req: AuthRequest, res) => {
+router.post("/complete", authMiddleware, validateBody(rideIdBodySchema), async (req: AuthRequest, res) => {
   try {
     const { rideId } = req.body;
     const driverId = req.userId!;
@@ -731,7 +743,7 @@ router.post("/complete", authMiddleware, async (req: AuthRequest, res) => {
 });
 
 
-router.post("/cancel", authMiddleware, async (req: AuthRequest, res) => {
+router.post("/cancel", authMiddleware, validateBody(rideIdBodySchema), async (req: AuthRequest, res) => {
   try {
     const { rideId } = req.body;
     const driverId = req.userId!;
@@ -808,7 +820,7 @@ router.post("/cancel", authMiddleware, async (req: AuthRequest, res) => {
 });
 
 
-router.post("/create-ride", authMiddleware, async (req: AuthRequest, res) => {
+router.post("/create-ride", authMiddleware, validateBody(createDriverRideBodySchema), async (req: AuthRequest, res) => {
   try {
     const driverId = req.userId!;
     const { fromCity, toCity, departureTime, urgent, timeSlot: bodyTimeSlot } = req.body;
@@ -1110,7 +1122,7 @@ router.get("/by-route", authMiddleware, async (req: AuthRequest, res) => {
 });
 
 
-router.post("/extend-ride", authMiddleware, async (req: AuthRequest, res) => {
+router.post("/extend-ride", authMiddleware, validateBody(rideIdBodySchema), async (req: AuthRequest, res) => {
   try {
     const driverId = req.userId!;
     const { rideId } = req.body;
@@ -1142,7 +1154,7 @@ router.post("/extend-ride", authMiddleware, async (req: AuthRequest, res) => {
 });
 
 
-router.post("/reject", authMiddleware, async (req: AuthRequest, res) => {
+router.post("/reject", authMiddleware, validateBody(rideIdBodySchema), async (req: AuthRequest, res) => {
   try {
     const { rideId } = req.body;
     const driverId = req.userId!;

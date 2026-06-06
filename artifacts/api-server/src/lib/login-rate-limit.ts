@@ -19,15 +19,15 @@ function getLoginKeyPart(req: Request): string {
   return value || "_anon_";
 }
 
-async function bumpAndCheck(key: string, limit: number): Promise<{ allowed: boolean; retryAfter: number; count: number }> {
+async function bumpAndCheck(key: string, limit: number, windowSec: number = WINDOW_SEC): Promise<{ allowed: boolean; retryAfter: number; count: number }> {
   try {
     const count = await redis.incr(key);
     if (count === 1) {
-      await redis.expire(key, WINDOW_SEC);
+      await redis.expire(key, windowSec);
     }
     if (count > limit) {
       const ttl = await redis.ttl(key);
-      return { allowed: false, retryAfter: ttl > 0 ? ttl : WINDOW_SEC, count };
+      return { allowed: false, retryAfter: ttl > 0 ? ttl : windowSec, count };
     }
     return { allowed: true, retryAfter: 0, count };
   } catch {
@@ -92,4 +92,27 @@ export async function clearLoginRateLimit(req: Request): Promise<void> {
     const loginPart = getLoginKeyPart(req);
     await redis.del(`rl:login:ip:${ip}`, `rl:login:user:${loginPart}`);
   } catch {}
+}
+
+// ── Global per-IP API rate limit ──────────────────────────────────────────
+// Applied to every /api route as a coarse abuse/scraping/DoS backstop. The
+// limit is deliberately generous so it never trips legitimate dashboard polling
+// or app usage — fine-grained brute-force protection lives in the login/code
+// limiters above. Fails open (allows) if Redis is unavailable.
+const API_WINDOW_SEC = 60;
+const API_MAX_PER_IP = Number(process.env.API_RATE_LIMIT_PER_MIN) || 1000;
+
+export async function apiRateLimit(req: Request, res: Response, next: NextFunction): Promise<void> {
+  const ip = getClientIp(req);
+  const check = await bumpAndCheck(`rl:api:ip:${ip}`, API_MAX_PER_IP, API_WINDOW_SEC);
+  if (!check.allowed) {
+    res.setHeader("Retry-After", String(check.retryAfter));
+    res.status(429).json({
+      error: "rate_limited",
+      message: "Too many requests. Slow down and try again shortly.",
+      retryAfterSeconds: check.retryAfter,
+    });
+    return;
+  }
+  next();
 }

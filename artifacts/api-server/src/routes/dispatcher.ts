@@ -1,4 +1,6 @@
+import { z } from "zod";
 import { Router, type IRouter } from "express";
+import { validateBody } from "../middlewares/validate.js";
 import { clog } from "../lib/logger.js";
 import { db, ridesTable, usersTable, orderOffersTable } from "@workspace/db";
 import { eq, and, desc, sql, inArray } from "drizzle-orm";
@@ -9,6 +11,15 @@ import { applyCancelPenalty } from "../lib/bonuses.js";
 import { authMiddleware, requireRole } from "../middlewares/auth.js";
 import { getSettingNum } from "../lib/settingsCache.js";
 import { resendOfferIfStillPending, scheduleAckTimeout } from "../lib/autodispatch.js";
+
+const dispatcherOfferBodySchema = z.object({
+  rideId: z.union([z.number(), z.string()]),
+  driverId: z.union([z.number(), z.string()]),
+}).passthrough();
+
+const dispatcherRideStatusBodySchema = z.object({
+  status: z.string(),
+}).passthrough();
 
 const router: IRouter = Router();
 
@@ -150,7 +161,7 @@ async function sendOfferToDriver(
   return { success: true, ride: { ...updatedRide, offerSent: true, expiresIn: dispatcherOfferTimeoutMs } };
 }
 
-router.post("/assign", async (req, res) => {
+router.post("/assign", validateBody(dispatcherOfferBodySchema), async (req, res) => {
   try {
     const { rideId, driverId } = req.body;
     if (!rideId || !driverId) {
@@ -172,7 +183,7 @@ router.post("/assign", async (req, res) => {
   }
 });
 
-router.post("/offer", async (req, res) => {
+router.post("/offer", validateBody(dispatcherOfferBodySchema), async (req, res) => {
   try {
     const { rideId, driverId } = req.body;
     if (!rideId || !driverId) {
@@ -194,7 +205,7 @@ router.post("/offer", async (req, res) => {
   }
 });
 
-router.patch("/rides/:id/status", async (req, res) => {
+router.patch("/rides/:id/status", validateBody(dispatcherRideStatusBodySchema), async (req, res) => {
   try {
     const { status } = req.body;
     const rideId = Number(req.params.id);

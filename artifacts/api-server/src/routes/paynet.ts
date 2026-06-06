@@ -12,8 +12,15 @@ import {
   paynetGetStatement,
   paynetChangePassword,
 } from "../lib/paynet.js";
+import { validateBody } from "../middlewares/validate.js";
+import { z } from "zod";
 
 const router: IRouter = Router();
+
+// Paynet posts JSON-RPC 2.0 envelopes. Validate the shape leniently (a JSON
+// object with a string `method`); per-method validation and JSON-RPC error
+// replies remain in the handler so the gateway contract is preserved.
+const paynetRpcBodySchema = z.object({ method: z.string().min(1) }).passthrough();
 
 function rpcResult(id: any, result: any) {
   return { jsonrpc: "2.0", id: id ?? null, result };
@@ -22,7 +29,7 @@ function rpcError(id: any, code: number, message?: string) {
   return { jsonrpc: "2.0", id: id ?? null, error: { code, message: message || PaynetMessages[code] || "Error" } };
 }
 
-router.post("/jsonrpc", async (req: Request, res: Response) => {
+router.post("/jsonrpc", validateBody(paynetRpcBodySchema), async (req: Request, res: Response) => {
   const settings = await getPaynetSettings().catch(() => null);
 
   if (!settings || !settings.enabled) {

@@ -2,6 +2,12 @@ import { Router, type IRouter } from "express";
 import { db, addressesTable, addressGroupsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { authMiddleware, requireRole, AuthRequest } from "../middlewares/auth.js";
+import { validateBody } from "../middlewares/validate.js";
+import { z } from "zod";
+
+const groupBodySchema = z.object({ name: z.string() }).passthrough();
+const addressBodySchema = z.object({ name: z.string() }).passthrough();
+const addressPatchBodySchema = z.object({}).passthrough();
 
 const router: IRouter = Router();
 
@@ -14,7 +20,7 @@ router.get("/groups", async (_req, res) => {
   }
 });
 
-router.post("/groups", authMiddleware, requireRole("dispatcher", "admin"), async (req: AuthRequest, res) => {
+router.post("/groups", authMiddleware, requireRole("dispatcher", "admin"), validateBody(groupBodySchema), async (req: AuthRequest, res) => {
   try {
     const { name, cityId } = req.body;
     if (!name?.trim()) { res.status(400).json({ error: "validation_error", message: "Название обязательно" }); return; }
@@ -45,7 +51,7 @@ router.get("/", async (req, res) => {
   }
 });
 
-router.post("/", authMiddleware, requireRole("dispatcher", "admin"), async (req: AuthRequest, res) => {
+router.post("/", authMiddleware, requireRole("dispatcher", "admin"), validateBody(addressBodySchema), async (req: AuthRequest, res) => {
   try {
     const { name, groupId, cityId, lat, lng, extraPrice } = req.body;
     if (!name?.trim()) { res.status(400).json({ error: "validation_error", message: "Название обязательно" }); return; }
@@ -59,7 +65,7 @@ router.post("/", authMiddleware, requireRole("dispatcher", "admin"), async (req:
   }
 });
 
-router.patch("/:id", authMiddleware, requireRole("dispatcher", "admin"), async (req: AuthRequest, res) => {
+router.patch("/:id", authMiddleware, requireRole("dispatcher", "admin"), validateBody(addressPatchBodySchema), async (req: AuthRequest, res) => {
   try {
     const id = parseInt(req.params.id);
     const { name, groupId, cityId, lat, lng, extraPrice, isActive } = req.body;

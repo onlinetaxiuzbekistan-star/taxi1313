@@ -1,5 +1,7 @@
 import { errorMessage } from "../lib/errors.js";
+import { z } from "zod";
 import { Router, type IRouter, type Response } from "express";
+import { validateBody } from "../middlewares/validate.js";
 import { type AuthRequest, authMiddleware, requireRole } from "../middlewares/auth.js";
 import { db, newsTable, newsReadsTable, usersTable, deviceTokensTable } from "@workspace/db";
 import { eq, desc, and, sql, inArray, notInArray } from "drizzle-orm";
@@ -29,6 +31,8 @@ const newsUpload = multer({
     else cb(new Error("Only image files allowed"));
   },
 });
+
+const newsReadBodySchema = z.object({}).passthrough();
 
 const router: IRouter = Router();
 
@@ -150,6 +154,7 @@ router.get("/:id", authMiddleware, async (req: AuthRequest, res: Response) => {
   }
 });
 
+// multipart upload — body validated post-multer in handler
 router.post("/", authMiddleware, requireRole("admin", "dispatcher"), newsUpload.array("photos", 10), async (req: AuthRequest, res: Response) => {
   try {
     const { title, content, videoUrl, audience, cityId, branchId, driverGroupId } = req.body;
@@ -190,6 +195,7 @@ router.post("/", authMiddleware, requireRole("admin", "dispatcher"), newsUpload.
   }
 });
 
+// multipart upload — body validated post-multer in handler
 router.patch("/:id", authMiddleware, requireRole("admin", "dispatcher"), newsUpload.array("photos", 10), async (req: AuthRequest, res: Response) => {
   try {
     const id = parseInt(req.params.id);
@@ -238,7 +244,7 @@ router.delete("/:id", authMiddleware, requireRole("admin", "dispatcher"), async 
   }
 });
 
-router.post("/:id/read", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.post("/:id/read", authMiddleware, validateBody(newsReadBodySchema), async (req: AuthRequest, res: Response) => {
   try {
     const newsId = parseInt(req.params.id);
     if (isNaN(newsId)) { res.status(400).json({ error: "Invalid ID" }); return; }

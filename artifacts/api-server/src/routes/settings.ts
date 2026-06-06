@@ -6,6 +6,11 @@ import { authMiddleware, requireRole, AuthRequest } from "../middlewares/auth.js
 import { logActivity } from "../lib/activity.js";
 import { refreshCache } from "../lib/settingsCache.js";
 import { broadcastToAll } from "../lib/websocket.js";
+import { z } from "zod";
+import { validateBody } from "../middlewares/validate.js";
+
+const batchSettingsBodySchema = z.object({ settings: z.array(z.any()) }).passthrough();
+const updateSettingBodySchema = z.object({}).passthrough();
 
 const router: IRouter = Router();
 
@@ -161,7 +166,7 @@ const TIME_SETTINGS = new Set([
   "night_start", "night_end",
 ]);
 
-router.patch("/batch", authMiddleware, requireRole("admin", "dispatcher"), async (req: AuthRequest, res) => {
+router.patch("/batch", authMiddleware, requireRole("admin", "dispatcher"), validateBody(batchSettingsBodySchema), async (req: AuthRequest, res) => {
   try {
     const { settings: items } = req.body as { settings: { key: string; value: string }[] };
     if (!Array.isArray(items) || items.length === 0) {
@@ -203,7 +208,7 @@ router.patch("/batch", authMiddleware, requireRole("admin", "dispatcher"), async
   }
 });
 
-router.patch("/:key", authMiddleware, requireRole("admin", "dispatcher"), async (req: AuthRequest, res) => {
+router.patch("/:key", authMiddleware, requireRole("admin", "dispatcher"), validateBody(updateSettingBodySchema), async (req: AuthRequest, res) => {
   try {
     const { key } = req.params;
     const { value } = req.body;

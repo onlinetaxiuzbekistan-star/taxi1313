@@ -6,6 +6,7 @@ import { redis } from "../lib/redis.js";
 import { getDriverCache } from "../lib/driver-cache.js";
 import { getWsStats } from "../lib/websocket.js";
 import { config } from "../lib/config.js";
+import { timingSafeEqualStr } from "../lib/secure-compare.js";
 import os from "os";
 
 const router: IRouter = Router();
@@ -20,8 +21,9 @@ router.get("/health-deep", async (req, res) => {
   if (healthToken) {
     const provided =
       (typeof req.query.token === "string" && req.query.token) ||
-      (req.headers["x-internal-health-token"] as string | undefined);
-    if (provided !== healthToken) {
+      (req.headers["x-internal-health-token"] as string | undefined) ||
+      "";
+    if (!timingSafeEqualStr(provided, healthToken)) {
       res.status(404).json({ error: "not_found" });
       return;
     }

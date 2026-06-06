@@ -1,4 +1,5 @@
 import { errorMessage } from "../lib/errors.js";
+import { z } from "zod";
 import { validateBody } from "../middlewares/validate.js";
 import { groupChatCreateBodySchema, adminUpdateBodySchema, groupChatMembersBodySchema, groupChatMessageBodySchema } from "../middlewares/request-schemas.js";
 import { Router, type IRouter } from "express";
@@ -37,6 +38,8 @@ const photoUpload = multer({
     else cb(new Error("Only image files allowed"));
   },
 });
+
+const groupChatNoBodySchema = z.object({}).passthrough();
 
 const router: IRouter = Router();
 
@@ -278,7 +281,7 @@ router.get("/join-requests/count", authMiddleware, requireRole("dispatcher", "ad
   }
 });
 
-router.post("/join-requests/:id/approve", authMiddleware, requireRole("dispatcher", "admin"), async (req: AuthRequest, res) => {
+router.post("/join-requests/:id/approve", authMiddleware, requireRole("dispatcher", "admin"), validateBody(groupChatNoBodySchema), async (req: AuthRequest, res) => {
   try {
     const requestId = Number(req.params.id);
     if (!Number.isFinite(requestId) || requestId <= 0) { res.status(400).json({ error: "invalid_id" }); return; }
@@ -301,7 +304,7 @@ router.post("/join-requests/:id/approve", authMiddleware, requireRole("dispatche
   }
 });
 
-router.post("/join-requests/:id/reject", authMiddleware, requireRole("dispatcher", "admin"), async (req: AuthRequest, res) => {
+router.post("/join-requests/:id/reject", authMiddleware, requireRole("dispatcher", "admin"), validateBody(groupChatNoBodySchema), async (req: AuthRequest, res) => {
   try {
     const requestId = Number(req.params.id);
     if (!Number.isFinite(requestId) || requestId <= 0) { res.status(400).json({ error: "invalid_id" }); return; }
@@ -318,7 +321,7 @@ router.post("/join-requests/:id/reject", authMiddleware, requireRole("dispatcher
   }
 });
 
-router.post("/:id/request-join", authMiddleware, async (req: AuthRequest, res) => {
+router.post("/:id/request-join", authMiddleware, validateBody(groupChatNoBodySchema), async (req: AuthRequest, res) => {
   try {
     const chatId = Number(req.params.id);
     if (!Number.isFinite(chatId) || chatId <= 0) { res.status(400).json({ error: "invalid_id" }); return; }
@@ -526,6 +529,7 @@ router.post("/:id/messages", authMiddleware, validateBody(groupChatMessageBodySc
   }
 });
 
+// multipart upload — body validated post-multer in handler
 router.post("/:id/send-photo", authMiddleware, (req, res, next) => {
   photoUpload.single("photo")(req, res, (err: any) => {
     if (err) {
@@ -584,6 +588,7 @@ router.post("/:id/send-photo", authMiddleware, (req, res, next) => {
   }
 });
 
+// multipart upload — body validated post-multer in handler
 router.post("/:id/send-voice", authMiddleware, (req, res, next) => {
   const voiceDir = path.resolve(process.cwd(), "artifacts", "uploads", "voice");
   fs.mkdirSync(voiceDir, { recursive: true });

@@ -8,6 +8,10 @@
 import { Router, type IRouter } from "express";
 import { db, ridesTable, usersTable, transactionsTable, clientsTable, analyticsDailyTable } from "@workspace/db";
 import { eq, gte, lte, and, desc, sql } from "drizzle-orm";
+import { validateBody } from "../middlewares/validate.js";
+import { z } from "zod";
+
+const refreshBodySchema = z.object({}).passthrough();
 
 const router: IRouter = Router();
 
@@ -122,7 +126,7 @@ router.get("/daily", async (req, res) => {
  * Recalculates and upserts today's row in analytics_daily.
  * Call this at end of day, or on demand.
  */
-router.post("/refresh", async (req, res) => {
+router.post("/refresh", validateBody(refreshBodySchema), async (req, res) => {
   try {
     const today = new Date().toISOString().slice(0, 10);
     const { start, end } = dayBounds(new Date());

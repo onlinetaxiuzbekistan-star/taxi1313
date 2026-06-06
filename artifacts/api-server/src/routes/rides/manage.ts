@@ -22,10 +22,30 @@ import { JWT_SECRET as __JWT_SECRET_FOR_BRANCH } from "../../lib/jwt-secret.js";
 import { db as __db_branch, usersTable as __users_branch } from "@workspace/db";
 import { eq as __eq_branch } from "drizzle-orm";
 import { enrichPassengersWithRouteInfo,SURGE_DEFAULTS,parseTime,isInTimeRange,getDemandSupplyRatio,getSurgeMultiplier,CITIES,CITIES_RU_MAP,findCity,__branchOfUserCache,__getRequesterBranchScope,__getRequesterIdentity,calcDistanceFallback,calcRouteDistance,calcPrice,Waypoint,TripMatch,PickupDropoffPair,extractPairs,wpKey,buildPairMap,isValidOrder,generateValidPermutations,estimateRouteDist,calcDetour,optimizeRouteOrder,pointProgressAlongLine,isAlongRoute,perpendicularDistKm,findMatchingTrip } from "./shared.js";
+import { z } from "zod";
+
+const rideTransactionBodySchema = z.object({
+  type: z.string(),
+  amount: z.union([z.number(), z.string()]),
+}).passthrough();
+
+const updateRideTransactionBodySchema = z.object({}).passthrough();
+
+const addPassengerBodySchema = z.object({
+  name: z.string(),
+}).passthrough();
+
+const updatePassengerBodySchema = z.object({}).passthrough();
+
+const cancelRideBodySchema = z.object({}).passthrough();
+
+const unassignDriverBodySchema = z.object({}).passthrough();
+
+const optimizeRouteBodySchema = z.object({}).passthrough();
 
 const router: IRouter = Router();
 
-router.post("/:id/transactions", authMiddleware, requireRole("dispatcher", "admin"), async (req: AuthRequest, res) => {
+router.post("/:id/transactions", authMiddleware, requireRole("dispatcher", "admin"), validateBody(rideTransactionBodySchema), async (req: AuthRequest, res) => {
   try {
     const rideId = parseInt(req.params.id);
     if (isNaN(rideId)) return res.status(400).json({ error: "invalid_ride_id" });
@@ -83,7 +103,7 @@ router.post("/:id/transactions", authMiddleware, requireRole("dispatcher", "admi
 });
 
 
-router.patch("/:rideId/transactions/:txId", authMiddleware, requireRole("dispatcher", "admin"), async (req: AuthRequest, res) => {
+router.patch("/:rideId/transactions/:txId", authMiddleware, requireRole("dispatcher", "admin"), validateBody(updateRideTransactionBodySchema), async (req: AuthRequest, res) => {
   try {
     const rideId = parseInt(req.params.rideId);
     const txId = parseInt(req.params.txId);
@@ -273,7 +293,7 @@ router.patch("/:id", authMiddleware, requireRole("dispatcher", "admin"), validat
 });
 
 
-router.post("/:id/passengers", authMiddleware, requireRole("dispatcher", "admin"), async (req: AuthRequest, res) => {
+router.post("/:id/passengers", authMiddleware, requireRole("dispatcher", "admin"), validateBody(addPassengerBodySchema), async (req: AuthRequest, res) => {
   try {
     const rideId = parseInt(req.params.id);
     const { name, phone, pickupAddress, dropoffAddress, pickupLat, pickupLng, seatNumber, price, baggageType, source } = req.body;
@@ -332,7 +352,7 @@ router.post("/:id/passengers", authMiddleware, requireRole("dispatcher", "admin"
 });
 
 
-router.patch("/:id/passengers/:passengerId", authMiddleware, requireRole("dispatcher", "admin"), async (req: AuthRequest, res) => {
+router.patch("/:id/passengers/:passengerId", authMiddleware, requireRole("dispatcher", "admin"), validateBody(updatePassengerBodySchema), async (req: AuthRequest, res) => {
   try {
     const passengerId = parseInt(req.params.passengerId);
     const { name, phone, pickupAddress, dropoffAddress, pickupLat, pickupLng, seatNumber, price, baggageType } = req.body;
@@ -537,7 +557,7 @@ router.delete("/:id/passengers/:passengerId", authMiddleware, requireRole("dispa
 });
 
 
-router.post("/:id/cancel", authMiddleware, requireRole("dispatcher", "admin"), async (req: AuthRequest, res) => {
+router.post("/:id/cancel", authMiddleware, requireRole("dispatcher", "admin"), validateBody(cancelRideBodySchema), async (req: AuthRequest, res) => {
   try {
     const rideId = parseInt(req.params.id);
     const [existing] = await db.select().from(ridesTable).where(eq(ridesTable.id, rideId));
@@ -630,7 +650,7 @@ router.post("/:id/cancel", authMiddleware, requireRole("dispatcher", "admin"), a
 });
 
 
-router.post("/:id/unassign-driver", authMiddleware, requireRole("dispatcher", "admin"), async (req: AuthRequest, res) => {
+router.post("/:id/unassign-driver", authMiddleware, requireRole("dispatcher", "admin"), validateBody(unassignDriverBodySchema), async (req: AuthRequest, res) => {
   try {
     const rideId = parseInt(req.params.id);
     const [existing] = await db.select().from(ridesTable).where(eq(ridesTable.id, rideId));
@@ -700,7 +720,7 @@ router.post("/:id/unassign-driver", authMiddleware, requireRole("dispatcher", "a
 });
 
 
-router.post("/:id/optimize-route", authMiddleware, requireRole("dispatcher", "admin"), async (req: AuthRequest, res) => {
+router.post("/:id/optimize-route", authMiddleware, requireRole("dispatcher", "admin"), validateBody(optimizeRouteBodySchema), async (req: AuthRequest, res) => {
   try {
     const tripId = parseInt(req.params.id);
     const [trip] = await db.select().from(ridesTable).where(eq(ridesTable.id, tripId));

@@ -8,6 +8,11 @@ import { Router, type IRouter } from "express";
 import { db, callLogsTable, clientsTable } from "@workspace/db";
 import { eq, desc, like, or } from "drizzle-orm";
 import { broadcastToRole } from "../lib/websocket.js";
+import { validateBody } from "../middlewares/validate.js";
+import { z } from "zod";
+
+const incomingCallBodySchema = z.object({ phone: z.string() }).passthrough();
+const markHandledBodySchema = z.object({}).passthrough();
 
 const router: IRouter = Router();
 
@@ -20,7 +25,7 @@ const router: IRouter = Router();
  * 2. Log the call
  * 3. Broadcast incoming_call to all dispatcher WS connections
  */
-router.post("/incoming", async (req, res) => {
+router.post("/incoming", validateBody(incomingCallBodySchema), async (req, res) => {
   try {
     const { phone, note } = req.body;
     if (!phone) {
@@ -104,13 +109,13 @@ router.get("/", async (req, res) => {
  * PATCH /api/calls/:id/mark-handled
  * Mark a call as handled by a dispatcher
  */
-router.patch("/:id/mark-handled", async (req, res) => {
+router.patch("/:id/mark-handled", validateBody(markHandledBodySchema), async (req, res) => {
   try {
     const { handledBy, rideCreated } = req.body;
     const [log] = await db
       .update(callLogsTable)
       .set({ handledBy, rideCreated: !!rideCreated })
-      .where(eq(callLogsTable.id, parseInt(req.params.id)))
+      .where(eq(callLogsTable.id, parseInt(String(req.params.id), 10)))
       .returning();
     res.json(log);
   } catch (err) {

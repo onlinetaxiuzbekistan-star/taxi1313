@@ -68,6 +68,7 @@ router.get("/:kind", async (req, res) => {
   res.json({ url: await getSetting(k.urlKey), name: await getSetting(k.nameKey) });
 });
 
+// multipart upload — body validated post-multer in handler
 router.post("/:kind", authMiddleware, requireRole("dispatcher", "admin"), (req: AuthRequest, res, _next) => {
   const k = KINDS[req.params.kind];
   if (!k) { res.status(404).json({ error: "unknown_kind" }); return; }

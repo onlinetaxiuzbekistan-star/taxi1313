@@ -27,6 +27,7 @@ import { parseBranchIdFromBody, checkMinBalance, PHOTOS_DIR, photoStorage, photo
 
 const router: IRouter = Router();
 
+// multipart upload — body validated post-multer in handler
 router.post("/upload-my-photo", authMiddleware, requireRole("driver"), (req, res, next) => {
   photoUpload.single("photo")(req, res, (err: any) => {
     if (err) {
@@ -92,6 +93,7 @@ router.post("/upload-my-photo", authMiddleware, requireRole("driver"), (req, res
 });
 
 
+// multipart upload — body validated post-multer in handler
 router.post("/admin/upload-photo", authMiddleware, requireRole("dispatcher", "admin"), (req, res, next) => {
   photoUpload.single("photo")(req, res, (err: any) => {
     if (err) {

@@ -2,6 +2,11 @@ import { Router } from "express";
 import { db, blockedAppsTable } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
 import { authMiddleware, requireRole, AuthRequest } from "../middlewares/auth.js";
+import { validateBody } from "../middlewares/validate.js";
+import { z } from "zod";
+
+const blockedAppBodySchema = z.object({ name: z.string(), packageName: z.string() }).passthrough();
+const blockedAppPatchBodySchema = z.object({}).passthrough();
 
 const router = Router();
 
@@ -14,7 +19,7 @@ router.get("/", authMiddleware, async (_req, res) => {
   }
 });
 
-router.post("/", authMiddleware, requireRole("admin", "dispatcher"), async (req: AuthRequest, res) => {
+router.post("/", authMiddleware, requireRole("admin", "dispatcher"), validateBody(blockedAppBodySchema), async (req: AuthRequest, res) => {
   try {
     const { name, packageName, urlScheme } = req.body || {};
     if (!name || typeof name !== "string" || !packageName || typeof packageName !== "string") {
@@ -33,7 +38,7 @@ router.post("/", authMiddleware, requireRole("admin", "dispatcher"), async (req:
   }
 });
 
-router.patch("/:id", authMiddleware, requireRole("admin", "dispatcher"), async (req: AuthRequest, res) => {
+router.patch("/:id", authMiddleware, requireRole("admin", "dispatcher"), validateBody(blockedAppPatchBodySchema), async (req: AuthRequest, res) => {
   try {
     const id = Number(req.params.id);
     if (!Number.isFinite(id) || id <= 0) {

@@ -1,4 +1,5 @@
 import { errorMessage } from "../lib/errors.js";
+import { z } from "zod";
 import { Router, type IRouter } from "express";
 import { validateBody } from "../middlewares/validate.js";
 import { chatJoinBodySchema, chatSendBodySchema } from "../middlewares/request-schemas.js";
@@ -12,6 +13,10 @@ import { eq, and, or, asc, desc, sql, inArray } from "drizzle-orm";
 import { authMiddleware, requireRole, AuthRequest } from "../middlewares/auth.js";
 import { broadcastToUser, broadcastToRole, onChatMessage, onTyping, onMessageRead, onMessageDelivered } from "../lib/websocket.js";
 import { notifyNewChatMessage, notifyChatMessageToRecipients } from "../lib/notifications.js";
+
+const chatReadBodySchema = z.object({
+  messageIds: z.array(z.union([z.number(), z.string()])).optional(),
+}).passthrough();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const VOICE_DIR = path.resolve(process.cwd(), "artifacts", "uploads", "voice");
@@ -228,6 +233,7 @@ router.post("/send", authMiddleware, validateBody(chatSendBodySchema), async (re
   }
 });
 
+// multipart upload — body validated post-multer in handler
 router.post("/send-voice", authMiddleware, (req, res, next) => {
   voiceUpload.single("voice")(req, res, (err: any) => {
     if (err) {
@@ -294,6 +300,7 @@ router.post("/send-voice", authMiddleware, (req, res, next) => {
   }
 });
 
+// multipart upload — body validated post-multer in handler
 router.post("/send-photo", authMiddleware, (req, res, next) => {
   photoUpload.single("photo")(req, res, (err: any) => {
     if (err) {
@@ -360,7 +367,7 @@ router.post("/send-photo", authMiddleware, (req, res, next) => {
   }
 });
 
-router.post("/read", authMiddleware, async (req: AuthRequest, res) => {
+router.post("/read", authMiddleware, validateBody(chatReadBodySchema), async (req: AuthRequest, res) => {
   try {
     const { rideId, messageIds } = req.body;
     if (!messageIds?.length) {

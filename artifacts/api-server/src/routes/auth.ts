@@ -13,7 +13,7 @@ import { hashPassword, verifyPassword, hashOtp, register as registerUser } from 
 import { errorMessage } from "../lib/errors.js";
 import { loginRateLimit, clearLoginRateLimit, codeOnlyRateLimit } from "../lib/login-rate-limit.js";
 import { validateBody } from "../middlewares/validate.js";
-import { loginBodySchema, registerBodySchema } from "../middlewares/request-schemas.js";
+import { loginBodySchema, registerBodySchema, emptyBodySchema, pushSubscribeBodySchema, deviceTokenBodySchema, driverCodeSendSmsBodySchema, driverCodeVerifyBodySchema, driverCodeVerifyCodeOnlyBodySchema } from "../middlewares/request-schemas.js";
 
 const router: IRouter = Router();
 
@@ -308,7 +308,7 @@ router.get("/me", async (req, res) => {
   }
 });
 
-router.post("/logout", async (req, res) => {
+router.post("/logout", validateBody(emptyBodySchema), async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
     if (authHeader?.startsWith("Bearer ")) {
@@ -326,7 +326,7 @@ router.post("/logout", async (req, res) => {
   res.json({ success: true, message: "Logged out" });
 });
 
-router.post("/refresh-token", async (req, res) => {
+router.post("/refresh-token", validateBody(emptyBodySchema), async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -385,7 +385,7 @@ router.get("/vapid-key", (_req, res) => {
   res.json({ publicKey: key });
 });
 
-router.post("/push-subscribe", async (req, res) => {
+router.post("/push-subscribe", validateBody(pushSubscribeBodySchema), async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader?.startsWith("Bearer ")) {
@@ -405,7 +405,7 @@ router.post("/push-subscribe", async (req, res) => {
   }
 });
 
-router.post("/device-token", async (req, res) => {
+router.post("/device-token", validateBody(deviceTokenBodySchema), async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader?.startsWith("Bearer ")) {
@@ -425,7 +425,7 @@ router.post("/device-token", async (req, res) => {
   }
 });
 
-router.post("/driver-code/generate", async (req, res) => {
+router.post("/driver-code/generate", validateBody(emptyBodySchema), async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader?.startsWith("Bearer ")) {
@@ -486,7 +486,7 @@ router.post("/driver-code/generate", async (req, res) => {
   }
 });
 
-router.post("/driver-code/send-sms", async (req, res) => {
+router.post("/driver-code/send-sms", validateBody(driverCodeSendSmsBodySchema), async (req, res) => {
   try {
     const { phone: rawPhone } = req.body;
     if (!rawPhone) {
@@ -550,7 +550,7 @@ router.post("/driver-code/send-sms", async (req, res) => {
   }
 });
 
-router.post("/driver-code/verify", loginRateLimit, async (req, res) => {
+router.post("/driver-code/verify", loginRateLimit, validateBody(driverCodeVerifyBodySchema), async (req, res) => {
   try {
     const { phone: rawPhone, code, deviceId, deviceName } = req.body;
     if (!rawPhone || !code) {
@@ -621,7 +621,7 @@ router.post("/driver-code/verify", loginRateLimit, async (req, res) => {
   }
 });
 
-router.post("/driver-code/verify-code-only", codeOnlyRateLimit, async (req, res) => {
+router.post("/driver-code/verify-code-only", codeOnlyRateLimit, validateBody(driverCodeVerifyCodeOnlyBodySchema), async (req, res) => {
   try {
     const { code, deviceId, deviceName } = req.body;
     if (!code) {
@@ -784,7 +784,7 @@ router.get("/sip-config", async (req, res) => {
   }
 });
 
-router.post("/sip-config", async (req, res) => {
+router.post("/sip-config", validateBody(emptyBodySchema), async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -827,7 +827,7 @@ router.get("/preferences", async (req, res) => {
   }
 });
 
-router.put("/preferences", async (req, res) => {
+router.put("/preferences", validateBody(emptyBodySchema), async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith("Bearer ")) {

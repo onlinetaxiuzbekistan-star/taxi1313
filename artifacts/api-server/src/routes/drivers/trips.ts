@@ -24,6 +24,18 @@ import { hashPassword } from "../auth.js";
 import { generateReferralCode } from "../../lib/bonuses.js";
 import { getSettingNum } from "../../lib/settingsCache.js";
 import { parseBranchIdFromBody, checkMinBalance, PHOTOS_DIR, photoStorage, photoUpload, enrichPassengersWithRouteInfo, nearestNeighborPickup, totalRouteDistance, permutations, optimizePickupOrder } from "./shared.js";
+import { z } from "zod";
+
+const passengerActionBodySchema = z.object({}).passthrough();
+
+const rejectClientBodySchema = z.object({
+  orderId: z.union([z.number(), z.string()]),
+  clientId: z.union([z.number(), z.string()]),
+}).passthrough();
+
+const manualClientBodySchema = z.object({
+  orderId: z.union([z.number(), z.string()]),
+}).passthrough();
 
 const router: IRouter = Router();
 
@@ -204,7 +216,7 @@ router.get("/trip-stops", authMiddleware, requireRole("driver"), async (req: Aut
 });
 
 
-router.post("/passenger/:passengerId/reject", authMiddleware, async (req: AuthRequest, res) => {
+router.post("/passenger/:passengerId/reject", authMiddleware, validateBody(passengerActionBodySchema), async (req: AuthRequest, res) => {
   try {
     const passengerId = parseInt(req.params.passengerId);
     const driverId = req.userId!;
@@ -262,7 +274,7 @@ router.post("/passenger/:passengerId/reject", authMiddleware, async (req: AuthRe
 });
 
 
-router.post("/passenger/:passengerId/pickup", authMiddleware, requireRole("driver"), async (req: AuthRequest, res) => {
+router.post("/passenger/:passengerId/pickup", authMiddleware, requireRole("driver"), validateBody(passengerActionBodySchema), async (req: AuthRequest, res) => {
   try {
     const driverId = req.userId!;
     const rawActionId = req.headers["x-action-id"] as string | undefined;
@@ -375,7 +387,7 @@ router.post("/passenger/:passengerId/pickup", authMiddleware, requireRole("drive
 });
 
 
-router.post("/passenger/:passengerId/dropoff", authMiddleware, requireRole("driver"), async (req: AuthRequest, res) => {
+router.post("/passenger/:passengerId/dropoff", authMiddleware, requireRole("driver"), validateBody(passengerActionBodySchema), async (req: AuthRequest, res) => {
   try {
     const driverId = req.userId!;
     const rawActionId = req.headers["x-action-id"] as string | undefined;
@@ -669,7 +681,7 @@ router.get("/pickup-route", authMiddleware, requireRole("driver"), async (req: A
 });
 
 
-router.post("/reject-client", authMiddleware, requireRole("driver"), async (req: AuthRequest, res) => {
+router.post("/reject-client", authMiddleware, requireRole("driver"), validateBody(rejectClientBodySchema), async (req: AuthRequest, res) => {
   try {
     const driverId = req.userId!;
     const { orderId, clientId, reason } = req.body;
@@ -758,7 +770,7 @@ router.post("/reject-client", authMiddleware, requireRole("driver"), async (req:
 });
 
 
-router.post("/manual-client", authMiddleware, requireRole("driver"), async (req: AuthRequest, res) => {
+router.post("/manual-client", authMiddleware, requireRole("driver"), validateBody(manualClientBodySchema), async (req: AuthRequest, res) => {
   try {
     const driverId = req.userId!;
     const { orderId, name, phone, seatNumber: rawSeatNumber, gender } = req.body;

@@ -10,6 +10,22 @@ import multer from "multer";
 import path from "path";
 import crypto from "crypto";
 import sharp from "sharp";
+import { z } from "zod";
+import { validateBody } from "../middlewares/validate.js";
+
+const createTaskBodySchema = z.object({ name: z.string() }).passthrough();
+const updateTaskBodySchema = z.object({}).passthrough();
+const sendTaskBodySchema = z.object({}).passthrough();
+const reviewRequestBodySchema = z.object({ status: z.string() }).passthrough();
+const bulkReviewBodySchema = z.object({ ids: z.array(z.any()), status: z.string() }).passthrough();
+const submitPendingBodySchema = z.object({
+  selfieUrl: z.string(),
+  carFrontUrl: z.string(),
+  carBackUrl: z.string(),
+  interiorUrl: z.string(),
+}).passthrough();
+const unblockBodySchema = z.object({}).passthrough();
+const requestDriverBodySchema = z.object({}).passthrough();
 
 const UPLOADS_DIR = path.resolve(process.cwd(), "artifacts", "uploads", "photo-control");
 
@@ -62,7 +78,7 @@ router.get("/tasks", authMiddleware, requireRole("admin", "dispatcher"), async (
   }
 });
 
-router.post("/tasks", authMiddleware, requireRole("admin", "dispatcher"), async (req: AuthRequest, res) => {
+router.post("/tasks", authMiddleware, requireRole("admin", "dispatcher"), validateBody(createTaskBodySchema), async (req: AuthRequest, res) => {
   try {
     const { name, groupId, scheduleType, isActive } = req.body;
     if (!name) return res.status(400).json({ error: "name_required" });
@@ -78,7 +94,7 @@ router.post("/tasks", authMiddleware, requireRole("admin", "dispatcher"), async 
   }
 });
 
-router.patch("/tasks/:id", authMiddleware, requireRole("admin", "dispatcher"), async (req: AuthRequest, res) => {
+router.patch("/tasks/:id", authMiddleware, requireRole("admin", "dispatcher"), validateBody(updateTaskBodySchema), async (req: AuthRequest, res) => {
   try {
     const id = parseInt(req.params.id);
     if (isNaN(id)) return res.status(400).json({ error: "invalid_id" });
@@ -108,7 +124,7 @@ router.delete("/tasks/:id", authMiddleware, requireRole("admin"), async (req: Au
   }
 });
 
-router.post("/tasks/:id/send", authMiddleware, requireRole("admin", "dispatcher"), async (req: AuthRequest, res) => {
+router.post("/tasks/:id/send", authMiddleware, requireRole("admin", "dispatcher"), validateBody(sendTaskBodySchema), async (req: AuthRequest, res) => {
   try {
     const taskId = parseInt(req.params.id);
     if (isNaN(taskId)) return res.status(400).json({ error: "invalid_id" });
@@ -272,7 +288,7 @@ router.get("/requests", authMiddleware, requireRole("admin", "dispatcher"), asyn
   }
 });
 
-router.patch("/requests/:id/review", authMiddleware, requireRole("admin", "dispatcher"), async (req: AuthRequest, res) => {
+router.patch("/requests/:id/review", authMiddleware, requireRole("admin", "dispatcher"), validateBody(reviewRequestBodySchema), async (req: AuthRequest, res) => {
   try {
     const id = parseInt(req.params.id);
     if (isNaN(id)) return res.status(400).json({ error: "invalid_id" });
@@ -360,7 +376,7 @@ router.patch("/requests/:id/review", authMiddleware, requireRole("admin", "dispa
   }
 });
 
-router.post("/requests/bulk-review", authMiddleware, requireRole("admin", "dispatcher"), async (req: AuthRequest, res) => {
+router.post("/requests/bulk-review", authMiddleware, requireRole("admin", "dispatcher"), validateBody(bulkReviewBodySchema), async (req: AuthRequest, res) => {
   try {
     const { ids, status, comment } = req.body;
     if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: "ids_required" });
@@ -468,6 +484,7 @@ router.get("/my-pending", authMiddleware, async (req: AuthRequest, res) => {
   }
 });
 
+// multipart upload — body validated post-multer in handler
 router.post("/upload-photo", authMiddleware, (req, res, next) => {
   upload.single("photo")(req, res, (err: any) => {
     if (err) {
@@ -509,7 +526,7 @@ router.post("/upload-photo", authMiddleware, (req, res, next) => {
   }
 });
 
-router.patch("/my-pending/:id/submit", authMiddleware, async (req: AuthRequest, res) => {
+router.patch("/my-pending/:id/submit", authMiddleware, validateBody(submitPendingBodySchema), async (req: AuthRequest, res) => {
   try {
     const driverId = (req as AuthRequest).userId;
     const id = parseInt(req.params.id);
@@ -612,7 +629,7 @@ router.get("/stats", authMiddleware, requireRole("admin", "dispatcher"), async (
   }
 });
 
-router.post("/requests/:id/unblock", authMiddleware, requireRole("admin", "dispatcher"), async (req, res) => {
+router.post("/requests/:id/unblock", authMiddleware, requireRole("admin", "dispatcher"), validateBody(unblockBodySchema), async (req, res) => {
   try {
     const id = Number(req.params.id);
     const [request] = await db.select().from(photoRequestsTable).where(eq(photoRequestsTable.id, id));
@@ -658,7 +675,7 @@ router.post("/requests/:id/unblock", authMiddleware, requireRole("admin", "dispa
   }
 });
 
-router.post("/request-driver/:driverId", authMiddleware, requireRole("admin", "dispatcher"), async (req: AuthRequest, res) => {
+router.post("/request-driver/:driverId", authMiddleware, requireRole("admin", "dispatcher"), validateBody(requestDriverBodySchema), async (req: AuthRequest, res) => {
   try {
     const driverId = parseInt(req.params.driverId);
     if (isNaN(driverId)) return res.status(400).json({ error: "invalid_driver_id" });

@@ -15,6 +15,14 @@ import { depositInitBodySchema, depositConfirmBodySchema } from "../middlewares/
 import { processTopup, getBalance } from "../lib/services/payments.service.js";
 import { recordPaymentFailure } from "../lib/metrics.js";
 import { errorMessage } from "../lib/errors.js";
+import { z } from "zod";
+
+const bindInitBodySchema = z.object({ cardNumber: z.string(), expiry: z.string() }).passthrough();
+const bindConfirmBodySchema = z.object({
+  transactionId: z.union([z.number(), z.string()]),
+  otp: z.union([z.number(), z.string()]),
+}).passthrough();
+const cardRemoveBodySchema = z.object({ cardId: z.union([z.number(), z.string()]) }).passthrough();
 
 const router: IRouter = Router();
 
@@ -37,7 +45,7 @@ router.get("/cards", authMiddleware, async (req: AuthRequest, res) => {
   }
 });
 
-router.post("/cards/bind-init", authMiddleware, async (req: AuthRequest, res) => {
+router.post("/cards/bind-init", authMiddleware, validateBody(bindInitBodySchema), async (req: AuthRequest, res) => {
   try {
     const { cardNumber, expiry } = req.body;
     if (!cardNumber || !expiry) {
@@ -61,7 +69,7 @@ router.post("/cards/bind-init", authMiddleware, async (req: AuthRequest, res) =>
   }
 });
 
-router.post("/cards/bind-confirm", authMiddleware, async (req: AuthRequest, res) => {
+router.post("/cards/bind-confirm", authMiddleware, validateBody(bindConfirmBodySchema), async (req: AuthRequest, res) => {
   try {
     const driverId = req.userId!;
     const { transactionId, otp } = req.body;
@@ -90,7 +98,7 @@ router.post("/cards/bind-confirm", authMiddleware, async (req: AuthRequest, res)
   }
 });
 
-router.post("/cards/remove", authMiddleware, async (req: AuthRequest, res) => {
+router.post("/cards/remove", authMiddleware, validateBody(cardRemoveBodySchema), async (req: AuthRequest, res) => {
   try {
     const driverId = req.userId!;
     const { cardId } = req.body;

@@ -1,8 +1,14 @@
+import { z } from "zod";
 import { Router, type IRouter } from "express";
+import { validateBody } from "../middlewares/validate.js";
 import { db, messagesTable } from "@workspace/db";
 import { eq, asc } from "drizzle-orm";
 import { authMiddleware, AuthRequest } from "../middlewares/auth.js";
 import { broadcastToAll } from "../lib/websocket.js";
+
+const messageCreateBodySchema = z.object({
+  message: z.string(),
+}).passthrough();
 
 const router: IRouter = Router();
 
@@ -18,7 +24,7 @@ router.get("/:rideId/messages", async (req, res) => {
   }
 });
 
-router.post("/:rideId/messages", authMiddleware, async (req: AuthRequest, res) => {
+router.post("/:rideId/messages", authMiddleware, validateBody(messageCreateBodySchema), async (req: AuthRequest, res) => {
   try {
     const { message } = req.body;
     const rideId = parseInt(req.params.rideId);

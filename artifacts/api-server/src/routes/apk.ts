@@ -5,6 +5,10 @@ import { exec } from "child_process";
 import { promisify } from "util";
 import path from "path";
 import fs from "fs";
+import { validateBody } from "../middlewares/validate.js";
+import { z } from "zod";
+
+const apkBuildBodySchema = z.object({}).passthrough();
 
 const execAsync = promisify(exec);
 const router = Router();
@@ -174,7 +178,7 @@ router.get("/apk/download/:filename", authMiddleware, requireRole("admin", "disp
   stream.pipe(res);
 });
 
-router.post("/apk/build", authMiddleware, requireRole("admin", "dispatcher"), async (req: AuthRequest, res: Response) => {
+router.post("/apk/build", authMiddleware, requireRole("admin", "dispatcher"), validateBody(apkBuildBodySchema), async (req: AuthRequest, res: Response) => {
   const tools = checkToolsInstalled();
   if (!tools.ok) {
     res.status(400).json({

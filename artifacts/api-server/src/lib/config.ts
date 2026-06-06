@@ -40,6 +40,28 @@ function resolvePort(): number {
   return p;
 }
 
+/**
+ * HTTPS awareness. This process terminates plain HTTP and is expected to sit
+ * behind a TLS-terminating reverse proxy (nginx/Caddy) in production. We can't
+ * force TLS from inside the app, but we can (a) detect whether an HTTPS proxy
+ * is declared and warn loudly if not, and (b) return whether Express should
+ * trust X-Forwarded-* headers (needed for correct client IPs in rate limiting
+ * and secure-cookie/redirect logic).
+ */
+function resolveTrustProxy(): boolean {
+  const behindProxy =
+    process.env.TRUST_PROXY === "true" || process.env.BEHIND_HTTPS_PROXY === "true";
+  if (isProduction && !behindProxy) {
+    logger.warn(
+      "[config] Running in production but no HTTPS reverse proxy is declared " +
+        "(TRUST_PROXY / BEHIND_HTTPS_PROXY unset). Terminate TLS upstream and set " +
+        "TRUST_PROXY=true so client IPs and secure-cookie handling are correct. " +
+        "Serving plain HTTP directly to clients is insecure.",
+    );
+  }
+  return behindProxy;
+}
+
 function resolveSessionSecret(): string {
   const s = process.env.SESSION_SECRET?.trim();
   if (isProduction) {
@@ -70,6 +92,7 @@ export const config = {
   redisUrl: process.env.REDIS_URL || "redis://127.0.0.1:6379",
 
   sessionSecret: resolveSessionSecret(),
+  trustProxy: resolveTrustProxy(),
   corsOrigins: process.env.CORS_ORIGINS?.trim() || "",
   internalHealthToken: process.env.INTERNAL_HEALTH_TOKEN?.trim() || "",
   simulationEnabled: process.env.SIMULATION_ENABLED === "true",

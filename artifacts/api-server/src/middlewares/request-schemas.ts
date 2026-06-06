@@ -91,6 +91,16 @@ export const pushSendBodySchema = z.object({ title: z.string().min(1) }).passthr
 export const driverStatusBodySchema = z.object({ status: z.string().min(1) }).passthrough();
 export const driverLocationBodySchema = z.object({ lat: numeric, lng: numeric }).passthrough();
 
+// ── Auth (remaining mutating routes) ──
+// Bodies are validated leniently; identity always comes from the verified JWT,
+// never the body. Only fields the handler genuinely requires are enforced.
+export const emptyBodySchema = z.object({}).passthrough();
+export const pushSubscribeBodySchema = z.object({ subscription: z.object({}).passthrough() }).passthrough();
+export const deviceTokenBodySchema = z.object({ token: z.string().min(1) }).passthrough();
+export const driverCodeSendSmsBodySchema = z.object({ phone: numeric }).passthrough();
+export const driverCodeVerifyBodySchema = z.object({ phone: numeric, code: numeric }).passthrough();
+export const driverCodeVerifyCodeOnlyBodySchema = z.object({ code: numeric }).passthrough();
+
 // ── Admin CRUD (cities / districts / branches / tariffs / group-chats) ──
 export const cityCreateBodySchema = z.object({ nameRu: z.string().min(1) }).passthrough();
 export const districtCreateBodySchema = z.object({ name: z.string().min(1), cityId: numeric }).passthrough();

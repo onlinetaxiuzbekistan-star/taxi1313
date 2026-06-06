@@ -24,10 +24,32 @@ import { hashPassword } from "../auth.js";
 import { generateReferralCode } from "../../lib/bonuses.js";
 import { getSettingNum } from "../../lib/settingsCache.js";
 import { parseBranchIdFromBody, checkMinBalance, PHOTOS_DIR, photoStorage, photoUpload, enrichPassengersWithRouteInfo, nearestNeighborPickup, totalRouteDistance, permutations, optimizePickupOrder } from "./shared.js";
+import { z } from "zod";
+
+const adminCreateDriverBodySchema = z.object({
+  firstName: z.string(),
+  lastName: z.string(),
+  phone: z.string(),
+}).passthrough();
+
+const adminQuickCreateDriverBodySchema = z.object({
+  name: z.string(),
+  phone: z.string(),
+}).passthrough();
+
+const adminUpdateDriverBodySchema = z.object({}).passthrough();
+
+const adminPasswordBodySchema = z.object({
+  password: z.string(),
+}).passthrough();
+
+const adminBlockDriverBodySchema = z.object({}).passthrough();
+
+const adminUnblockDriverBodySchema = z.object({}).passthrough();
 
 const router: IRouter = Router();
 
-router.post("/admin/create", authMiddleware, requireRole("dispatcher", "admin"), async (req: AuthRequest, res) => {
+router.post("/admin/create", authMiddleware, requireRole("dispatcher", "admin"), validateBody(adminCreateDriverBodySchema), async (req: AuthRequest, res) => {
   try {
     const {
       firstName, lastName, phone, password, city,
@@ -96,7 +118,7 @@ router.post("/admin/create", authMiddleware, requireRole("dispatcher", "admin"),
 });
 
 
-router.post("/admin/quick-create", authMiddleware, requireRole("dispatcher", "admin"), async (req: AuthRequest, res) => {
+router.post("/admin/quick-create", authMiddleware, requireRole("dispatcher", "admin"), validateBody(adminQuickCreateDriverBodySchema), async (req: AuthRequest, res) => {
   try {
     const { name, phone, carBrand, carModel, carNumber } = req.body;
 
@@ -155,7 +177,7 @@ router.post("/admin/quick-create", authMiddleware, requireRole("dispatcher", "ad
 });
 
 
-router.patch("/admin/:id", authMiddleware, requireRole("dispatcher", "admin"), async (req: AuthRequest, res) => {
+router.patch("/admin/:id", authMiddleware, requireRole("dispatcher", "admin"), validateBody(adminUpdateDriverBodySchema), async (req: AuthRequest, res) => {
   try {
     const driverId = parseInt(req.params.id);
     if (isNaN(driverId)) { res.status(400).json({ error: "invalid_id" }); return; }
@@ -257,7 +279,7 @@ router.patch("/admin/:id", authMiddleware, requireRole("dispatcher", "admin"), a
 });
 
 
-router.patch("/admin/:id/password", authMiddleware, requireRole("dispatcher", "admin"), async (req: AuthRequest, res) => {
+router.patch("/admin/:id/password", authMiddleware, requireRole("dispatcher", "admin"), validateBody(adminPasswordBodySchema), async (req: AuthRequest, res) => {
   try {
     const driverId = parseInt(req.params.id);
     if (isNaN(driverId)) { res.status(400).json({ error: "invalid_id" }); return; }
@@ -284,7 +306,7 @@ router.patch("/admin/:id/password", authMiddleware, requireRole("dispatcher", "a
 });
 
 
-router.post("/admin/block/:id", authMiddleware, requireRole("dispatcher", "admin"), async (req: AuthRequest, res) => {
+router.post("/admin/block/:id", authMiddleware, requireRole("dispatcher", "admin"), validateBody(adminBlockDriverBodySchema), async (req: AuthRequest, res) => {
   try {
     const driverId = parseInt(req.params.id);
     if (isNaN(driverId)) { res.status(400).json({ error: "invalid_id" }); return; }
@@ -308,7 +330,7 @@ router.post("/admin/block/:id", authMiddleware, requireRole("dispatcher", "admin
 });
 
 
-router.post("/admin/unblock/:id", authMiddleware, requireRole("dispatcher", "admin"), async (req: AuthRequest, res) => {
+router.post("/admin/unblock/:id", authMiddleware, requireRole("dispatcher", "admin"), validateBody(adminUnblockDriverBodySchema), async (req: AuthRequest, res) => {
   try {
     const driverId = parseInt(req.params.id);
     if (isNaN(driverId)) { res.status(400).json({ error: "invalid_id" }); return; }
