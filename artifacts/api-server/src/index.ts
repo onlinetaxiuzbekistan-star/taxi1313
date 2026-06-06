@@ -9,7 +9,7 @@ import { onForceLogout, setSessionCacheInvalidator } from "./routes/auth.js";
 import { invalidateSessionCache } from "./middlewares/auth.js";
 import { loadSettingsCache } from "./lib/settingsCache.js";
 import { startPhotoScheduler, stopPhotoScheduler } from "./lib/photo-scheduler.js";
-import { warmupModels } from "./lib/photo-ai-validator.js";
+import { warmupPhotoWorker } from "./lib/photo-ai-runner.js";
 import { startMemoryGuardian, stopMemoryGuardian } from "./lib/memory-guardian.js";
 import { seedDatabase } from "./lib/seed.js";
 import { startAutoCancelScheduler, stopAutoCancelScheduler } from "./lib/order-auto-cancel.js";
@@ -77,7 +77,7 @@ seedDatabase().then(() => {
     startMemoryGuardian();
     startDispatchSweep();
     startWorkers();
-    warmupModels().catch(() => {});
+    warmupPhotoWorker().catch(() => {});
   });
 }).catch((err) => {
   logger.warn({ err }, "Startup pre-load failed, starting anyway");
@@ -89,7 +89,7 @@ seedDatabase().then(() => {
     startMemoryGuardian();
     startDispatchSweep();
     startWorkers();
-    warmupModels().catch(() => {});
+    warmupPhotoWorker().catch(() => {});
   });
 });
 

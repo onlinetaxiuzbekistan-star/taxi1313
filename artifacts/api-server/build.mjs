@@ -14,8 +14,7 @@ async function buildAll() {
   const distDir = path.resolve(artifactDir, "dist");
   await rm(distDir, { recursive: true, force: true });
 
-  await esbuild({
-    entryPoints: [path.resolve(artifactDir, "src/index.ts")],
+  const sharedConfig = {
     platform: "node",
     bundle: true,
     format: "esm",
@@ -117,6 +116,19 @@ globalThis.__filename = __bannerUrl.fileURLToPath(import.meta.url);
 globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);
     `,
     },
+  };
+
+  // Main server bundle → dist/index.mjs
+  await esbuild({
+    ...sharedConfig,
+    entryPoints: [path.resolve(artifactDir, "src/index.ts")],
+  });
+
+  // Photo-AI worker_threads bundle → dist/photo-ai-worker.mjs (single entry,
+  // so esbuild emits it at the dist root, a sibling of index.mjs).
+  await esbuild({
+    ...sharedConfig,
+    entryPoints: [path.resolve(artifactDir, "src/lib/photo-ai-worker.ts")],
   });
 }
 

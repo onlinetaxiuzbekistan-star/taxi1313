@@ -4,11 +4,13 @@
  * The TensorFlow inference in validatePhotos() is CPU-heavy; running it on the
  * request thread blocked event-loop latency for every concurrent request. This
  * runs it from a BullMQ worker instead — the submit endpoint returns 202 and the
- * result is written here, then pushed to the driver over WebSocket.
+ * result is written here, then pushed to the driver over WebSocket. The inference
+ * itself is further offloaded to a worker_threads Worker (photo-ai-runner) so TF
+ * never blocks this process's event loop either.
  */
 import { db, photoRequestsTable, photoHistoryTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { validatePhotos } from "./photo-ai-validator.js";
+import { validatePhotosInWorker } from "./photo-ai-runner.js";
 import { broadcastToUser } from "./websocket.js";
 import { logger } from "./logger.js";
 import type { PhotoValidationJobData } from "./queues/photo.queue.js";
@@ -16,7 +18,7 @@ import type { PhotoValidationJobData } from "./queues/photo.queue.js";
 export async function processPhotoValidation(data: PhotoValidationJobData): Promise<void> {
   const { requestId: id, driverId, taskId, selfieUrl, carFrontUrl, carBackUrl, interiorUrl, retryCount } = data;
 
-  const aiResult = await validatePhotos({ selfieUrl, carFrontUrl, carBackUrl, interiorUrl });
+  const aiResult = await validatePhotosInWorker({ selfieUrl, carFrontUrl, carBackUrl, interiorUrl });
 
   const historyEntries = [
     { driverId, requestId: id, photoType: "selfie", url: selfieUrl },
