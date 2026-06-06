@@ -8,6 +8,7 @@ import router from "./routes/index.js";
 import { logger } from "./lib/logger.js";
 import { rpsMiddleware, logSlowQuery } from "./lib/perf-cache.js";
 import { onSlowQuery } from "@workspace/db";
+import { Sentry } from "./lib/sentry.js";
 
 const UPLOADS_DIR = path.resolve(process.cwd(), "artifacts", "uploads");
 
@@ -138,5 +139,35 @@ if (isProduction && existsSync(indexHtml)) {
 } else {
   logger.warn({ dir: FRONTEND_DIR }, "Frontend build not found — static serving disabled");
 }
+
+// ───────────────────────── Error handling ─────────────────────────
+// Must be registered AFTER all routes. Sentry's handler captures unhandled
+// errors (5xx) and attaches request context; the custom handler then logs a
+// structured entry and returns a sanitized response. Capture happens once
+// (in Sentry's handler) so we don't re-capture below and create duplicate events.
+Sentry.setupExpressErrorHandler(app);
+
+app.use((err: any, req: any, res: any, _next: any) => {
+  logger.error(
+    {
+      err,
+      reqId: req?.id,
+      method: req?.method,
+      url: typeof req?.url === "string" ? req.url.split("?")[0] : undefined,
+      sentryId: res?.sentry,
+    },
+    "Unhandled request error",
+  );
+
+  // If the response already started, hand off to Express's default handler.
+  if (res.headersSent) {
+    return _next(err);
+  }
+
+  const status = typeof err?.status === "number" || typeof err?.statusCode === "number"
+    ? (err.status ?? err.statusCode)
+    : 500;
+  res.status(status >= 400 && status < 600 ? status : 500).json({ error: "Internal server error" });
+});
 
 export default app;

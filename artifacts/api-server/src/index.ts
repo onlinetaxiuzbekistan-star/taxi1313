@@ -1,4 +1,4 @@
-import { initSentry } from "./lib/sentry.js";
+import { initSentry, captureError, Sentry } from "./lib/sentry.js";
 import { startListingsCleanupScheduler, stopListingsCleanupScheduler } from "./lib/listings-cleanup.js";
 initSentry();
 import http from "http";
@@ -15,8 +15,15 @@ import { seedDatabase } from "./lib/seed.js";
 import { startAutoCancelScheduler, stopAutoCancelScheduler } from "./lib/order-auto-cancel.js";
 import { startDispatchSweep, stopDispatchSweep } from "./lib/autodispatch.js";
 import { startWorkers, stopWorkers } from "./lib/queues/workers.js";
-import { pool } from "@workspace/db";
+import { pool, onPoolError } from "@workspace/db";
 import { redis } from "./lib/redis.js";
+
+// An idle-client error from the pg pool would otherwise become an
+// uncaughtException; capture it to Sentry with structured logging instead.
+onPoolError((err) => {
+  logger.error({ err }, "PostgreSQL pool error");
+  captureError(err, { source: "pg_pool" });
+});
 
 function summarizeDatabaseUrl(url: string): string {
   const host = url.match(/@([^/?:]+)/)?.[1] || "unknown";
@@ -140,3 +147,23 @@ async function shutdown(signal: string) {
 
 process.on("SIGTERM", () => { void shutdown("SIGTERM"); });
 process.on("SIGINT", () => { void shutdown("SIGINT"); });
+
+// ───────────────────────── Process-level safety net ─────────────────────────
+// Without these, an error outside the request lifecycle (timer callback, event
+// emitter, stray promise) is invisible and may crash the process unreported.
+
+// Unhandled rejection: log + capture, but keep serving — it's a logged defect,
+// not necessarily a fatal state.
+process.on("unhandledRejection", (reason) => {
+  logger.error({ err: reason }, "Unhandled promise rejection");
+  captureError(reason, { source: "unhandledRejection" });
+});
+
+// Uncaught exception: the process state is undefined — capture, flush to Sentry,
+// then exit so systemd restarts us cleanly (avoids running further work on a
+// corrupted state).
+process.on("uncaughtException", (err) => {
+  logger.fatal({ err }, "Uncaught exception — flushing and exiting");
+  captureError(err, { source: "uncaughtException" });
+  void Sentry.flush(2000).then(() => process.exit(1)).catch(() => process.exit(1));
+});

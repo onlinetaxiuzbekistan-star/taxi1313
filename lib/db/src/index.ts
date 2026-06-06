@@ -25,6 +25,24 @@ export function onSlowQuery(cb: (query: string, durationMs: number) => void) {
   slowQueryCallback = cb;
 }
 
+let poolErrorCallback: ((err: Error) => void) | null = null;
+
+export function onPoolError(cb: (err: Error) => void) {
+  poolErrorCallback = cb;
+}
+
+// Without this listener, an error on an idle pooled client (e.g. the DB dropping
+// the connection) is emitted on the pool and, if unhandled, crashes the process
+// via 'uncaughtException'. Handle it: log + forward to the registered callback.
+pool.on("error", (err) => {
+  console.error("[DB POOL] Unexpected idle client error:", err.message);
+  try {
+    poolErrorCallback?.(err);
+  } catch {
+    /* never let the error handler throw */
+  }
+});
+
 const origQuery = pool.query.bind(pool);
 (pool as any).query = function (...args: any[]) {
   const start = performance.now();
