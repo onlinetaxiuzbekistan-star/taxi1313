@@ -59,6 +59,8 @@ export async function sendSms(phone: string, message: string): Promise<{ success
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
+      // Bound the call so a hung gateway can't stall the SMS queue worker.
+      signal: AbortSignal.timeout(8000),
     });
 
     if (!res.ok) {
