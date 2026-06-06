@@ -1,10 +1,11 @@
 import * as Sentry from "@sentry/node";
+import { config } from "./config.js";
 
 export function initSentry() {
   Sentry.init({
-    dsn: "https://f491698960188ffb1428099d9e32525b@o4511219755057152.ingest.de.sentry.io/4511219763511376",
-    environment: process.env.NODE_ENV || "production",
-    release: `taxi-api@${process.env.APP_VERSION || "1.0.0"}`,
+    dsn: config.sentry.dsn,
+    environment: config.nodeEnv,
+    release: `taxi-api@${config.appVersion}`,
     tracesSampleRate: 0.1,
     beforeSend(event) {
       if (event.exception?.values?.some(v => v.value?.includes("ECONNRESET"))) return null;

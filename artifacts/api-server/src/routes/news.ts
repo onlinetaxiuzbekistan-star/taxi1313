@@ -7,6 +7,7 @@ import path from "path";
 import fs from "fs";
 import { broadcastToRole, broadcastToUser } from "../lib/websocket.js";
 import webpush from "web-push";
+import { config } from "../lib/config.js";
 import { logger } from "../lib/logger.js";
 
 const UPLOADS_DIR = path.resolve(process.cwd(), "artifacts", "uploads", "news");
@@ -272,8 +273,8 @@ router.get("/:id/stats", authMiddleware, requireRole("admin", "dispatcher"), asy
 });
 
 async function sendNewsPush(news: typeof newsTable.$inferSelect) {
-  const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || "";
-  const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || "";
+  const VAPID_PUBLIC_KEY = config.vapid.publicKey;
+  const VAPID_PRIVATE_KEY = config.vapid.privateKey;
   if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) return;
 
   let targetUsers: { id: number }[] = [];

@@ -9,6 +9,7 @@ import { authMiddleware, requireRole, AuthRequest } from "../middlewares/auth.js
 import { validateBody } from "../middlewares/validate.js";
 import { createRideBodySchema, updateRideBodySchema } from "../middlewares/request-schemas.js";
 import { createRide, getRide } from "../lib/services/rides.service.js";
+import { config } from "../lib/config.js";
 import { getMarketplaceSettings } from "../lib/settings.js";
 import { getSettingNum, getSettingBool, getSetting } from "../lib/settingsCache.js";
 import { applySurgeToPrice, isRevenueAIProdEnabled, enableRevenueAIProd, getRevenueAIProdSurge } from "../lib/revenue-ai-prod.js";
@@ -1156,7 +1157,7 @@ router.post("/", validateBody(createRideBodySchema), async (req, res) => {
         }
       }
     } catch (err: any) {
-      if (process.env.NODE_ENV === "development") {
+      if (config.isDevelopment) {
         console.warn("JWT parse failed:", err?.message);
       }
     }

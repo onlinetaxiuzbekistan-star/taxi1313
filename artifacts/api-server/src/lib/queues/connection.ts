@@ -1,6 +1,7 @@
 import type { RedisOptions } from "ioredis";
+import { config } from "../config.js";
 
-const REDIS_URL = process.env.REDIS_URL || "redis://127.0.0.1:6379";
+const REDIS_URL = config.redisUrl;
 
 // BullMQ uses blocking Redis commands (BRPOPLPUSH etc.) on the worker side,
 // which require `maxRetriesPerRequest: null`. We hand BullMQ connection

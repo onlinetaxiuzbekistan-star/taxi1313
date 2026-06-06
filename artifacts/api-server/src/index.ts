@@ -22,6 +22,7 @@ import { stopPerfCacheCleanup } from "./lib/perf-cache.js";
 import { stopRevenueAiCleanup } from "./lib/revenue-ai-prod.js";
 import { pool, onPoolError } from "@workspace/db";
 import { redis } from "./lib/redis.js";
+import { config } from "./lib/config.js";
 
 // An idle-client error from the pg pool would otherwise become an
 // uncaughtException; capture it to Sentry with structured logging instead.
@@ -36,28 +37,17 @@ function summarizeDatabaseUrl(url: string): string {
   return `${host}/${name}`;
 }
 
-console.log("=== Такси 1313 Server Starting ===");
-console.log("ENV:", process.env.NODE_ENV || "not set");
-console.log(
-  "DB:",
-  process.env.DATABASE_URL
-    ? `configured (${summarizeDatabaseUrl(process.env.DATABASE_URL)})`
-    : "WARNING: DATABASE_URL not set!",
+logger.info(
+  {
+    env: config.nodeEnv,
+    db: config.databaseUrl ? summarizeDatabaseUrl(config.databaseUrl) : "NOT SET",
+  },
+  "Такси 1313 server starting",
 );
-console.log("===============================");
 
-const rawPort = process.env["PORT"];
-
-if (!rawPort) {
-  throw new Error(
-    "PORT environment variable is required but was not provided.",
-  );
-}
-
-const port = Number(rawPort);
-
-if (Number.isNaN(port) || port <= 0) {
-  throw new Error(`Invalid PORT value: "${rawPort}"`);
+const port = config.port;
+if (!port) {
+  throw new Error("PORT environment variable is required but was not provided.");
 }
 
 const server = http.createServer(app);

@@ -8,6 +8,7 @@ import fs from "fs";
 import { broadcastToUser } from "../lib/websocket.js";
 import webpush from "web-push";
 import { logger } from "../lib/logger.js";
+import { config } from "../lib/config.js";
 
 const UPLOADS_DIR = path.resolve(process.cwd(), "artifacts", "uploads", "push");
 fs.mkdirSync(UPLOADS_DIR, { recursive: true });
@@ -103,8 +104,8 @@ router.delete("/:id", authMiddleware, requireRole("admin", "dispatcher"), async 
 });
 
 async function sendPushToAudience(push: typeof pushNotificationsTable.$inferSelect) {
-  const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || "";
-  const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || "";
+  const VAPID_PUBLIC_KEY = config.vapid.publicKey;
+  const VAPID_PRIVATE_KEY = config.vapid.privateKey;
 
   let targetUsers: { id: number }[] = [];
 

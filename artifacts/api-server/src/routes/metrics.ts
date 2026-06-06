@@ -4,6 +4,7 @@ import { join } from "path";
 import { liveMetrics, liveAlerts, liveIncidents, recoveryActions, getRideIntervalMultiplier, getOptimizationState, rollbackToGeneration, getActionEffectiveness, getTrendAnalysis, getAIStatus, getMetaOptimizerStatus, getRevenueAIStatus, triggerManualRecovery, getDecisionSuggestions, getAutoExecState, setAutoExecEnabled, setAutoExecMode } from "../lib/stress-ws-simulation.js";
 import { getRevenueAIProdState, getRevenueAIProdLogs, enableRevenueAIProd, disableRevenueAIProd, isRevenueAIProdEnabled, getSafetyGuardState, toggleShadowMode } from "../lib/revenue-ai-prod.js";
 import { authMiddleware, requireRole } from "../middlewares/auth.js";
+import { config } from "../lib/config.js";
 
 const router: IRouter = Router();
 router.use(authMiddleware, requireRole("admin"));
@@ -11,7 +12,7 @@ router.use(authMiddleware, requireRole("admin"));
 // Simulation/stress endpoints are dev/diagnostic tooling, not production features.
 // Gate them behind SIMULATION_ENABLED (default OFF) so they're inert in prod —
 // respond 404 to avoid disclosing their existence.
-const SIMULATION_ENABLED = process.env.SIMULATION_ENABLED === "true";
+const SIMULATION_ENABLED = config.simulationEnabled;
 router.use((_req, res, next) => {
   if (!SIMULATION_ENABLED) {
     res.status(404).json({ error: "not_found" });

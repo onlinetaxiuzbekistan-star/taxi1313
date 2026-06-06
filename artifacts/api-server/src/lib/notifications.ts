@@ -5,10 +5,11 @@ import { eq } from "drizzle-orm";
 import { broadcastToUser, broadcastToRole } from "./websocket.js";
 import { enqueuePushJob, type PushJobData } from "./queues/push.queue.js";
 import { logger } from "./logger.js";
+import { config } from "./config.js";
 
-const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || "";
-const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || "";
-const VAPID_SUBJECT = process.env.VAPID_SUBJECT || "mailto:admin@buxtaxi.uz";
+const VAPID_PUBLIC_KEY = config.vapid.publicKey;
+const VAPID_PRIVATE_KEY = config.vapid.privateKey;
+const VAPID_SUBJECT = config.vapid.subject;
 
 if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
   webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);

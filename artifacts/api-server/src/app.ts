@@ -9,6 +9,7 @@ import { logger } from "./lib/logger.js";
 import { rpsMiddleware, logSlowQuery } from "./lib/perf-cache.js";
 import { onSlowQuery } from "@workspace/db";
 import { Sentry } from "./lib/sentry.js";
+import { config } from "./lib/config.js";
 
 const UPLOADS_DIR = path.resolve(process.cwd(), "artifacts", "uploads");
 
@@ -54,9 +55,9 @@ app.use(
   }),
 );
 function corsOriginDelegate(): boolean | string[] | ((origin: string | undefined, cb: (err: Error | null, allow?: boolean) => void) => void) {
-  const raw = process.env.CORS_ORIGINS?.trim();
+  const raw = config.corsOrigins;
   if (!raw) {
-    if (process.env.NODE_ENV === "production") {
+    if (config.isProduction) {
       logger.warn("CORS_ORIGINS is not set; allowing any Origin (credentials enabled). Set CORS_ORIGINS to a comma-separated allowlist for production.");
     }
     return true;
@@ -95,7 +96,7 @@ const noCacheHeaders = (_req: any, res: any, next: any) => {
 };
 
 const indexHtml = path.resolve(FRONTEND_DIR, "index.html");
-const isProduction = process.env.NODE_ENV === "production";
+const isProduction = config.isProduction;
 if (isProduction && existsSync(indexHtml)) {
   logger.info({ dir: FRONTEND_DIR, buildVersion: BUILD_VERSION }, "Serving frontend static files");
 

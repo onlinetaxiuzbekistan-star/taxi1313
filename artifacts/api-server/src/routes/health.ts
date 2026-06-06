@@ -5,6 +5,7 @@ import { sql } from "drizzle-orm";
 import { redis } from "../lib/redis.js";
 import { getDriverCache } from "../lib/driver-cache.js";
 import { getWsStats } from "../lib/websocket.js";
+import { config } from "../lib/config.js";
 import os from "os";
 
 const router: IRouter = Router();
@@ -15,7 +16,7 @@ router.get("/healthz", (_req, res) => {
 });
 
 router.get("/health-deep", async (req, res) => {
-  const healthToken = process.env.INTERNAL_HEALTH_TOKEN?.trim();
+  const healthToken = config.internalHealthToken;
   if (healthToken) {
     const provided =
       (typeof req.query.token === "string" && req.query.token) ||
