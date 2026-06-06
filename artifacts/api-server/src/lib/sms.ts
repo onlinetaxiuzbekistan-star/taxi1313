@@ -2,8 +2,11 @@ import { db, settingsTable } from "@workspace/db";
 import { clog } from "./logger.js";
 import { eq } from "drizzle-orm";
 import { recordSmsFailure } from "./metrics.js";
+import { makeBreaker } from "./circuit.js";
 
 const SMS_GATEWAY_URL = "http://217.30.171.176:3000/api/messages/send";
+
+const smsBreaker = makeBreaker("sms-gateway");
 
 interface SmsSettings {
   enabled: boolean;
@@ -57,13 +60,15 @@ export async function sendSms(phone: string, message: string): Promise<{ success
     };
     clog.log(`[SMS] payload: phone=${cleanPhone} unicode=${isUnicode} len=${message.length}`);
 
-    const res = await fetch(SMS_GATEWAY_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-      // Bound the call so a hung gateway can't stall the SMS queue worker.
-      signal: AbortSignal.timeout(8000),
-    });
+    const res = await smsBreaker.execute(() =>
+      fetch(SMS_GATEWAY_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        // Bound the call so a hung gateway can't stall the SMS queue worker.
+        signal: AbortSignal.timeout(8000),
+      }),
+    );
 
     if (!res.ok) {
       const text = await res.text();

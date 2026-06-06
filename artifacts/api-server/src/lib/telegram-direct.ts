@@ -1,6 +1,9 @@
 import https from "https";
 import { clog } from "./logger.js";
 import { config } from "./config.js";
+import { makeBreaker } from "./circuit.js";
+
+const telegramBreaker = makeBreaker("telegram-gateway");
 
 // Required in production (validated in config.ts); empty in dev/test.
 const TELEGRAM_BOT_TOKEN = config.telegram.botToken;
@@ -47,8 +50,11 @@ async function getChatIdFromSmsGateway(phone: string): Promise<string | null> {
   try {
     const normalized = phone.replace(/\D/g, "");
     const url = SMS_GATEWAY_URL + "/api/telegram/chat-id?phone=" + encodeURIComponent(normalized);
-    const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
-    if (!res.ok) return null;
+    const res = await telegramBreaker.execute(async () => {
+      const r = await fetch(url, { signal: AbortSignal.timeout(5000) });
+      if (!r.ok) throw new Error(`TG gateway HTTP ${r.status}`);
+      return r;
+    });
     const data = await res.json() as { chatId?: string };
     return data.chatId ?? null;
   } catch (err) {

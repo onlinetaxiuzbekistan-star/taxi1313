@@ -203,6 +203,9 @@ importers:
       bullmq:
         specifier: ^5.78.0
         version: 5.78.0
+      cockatiel:
+        specifier: ^4.0.0
+        version: 4.0.0
       cookie-parser:
         specifier: ^1.4.7
         version: 1.4.7
@@ -3445,6 +3448,10 @@ packages:
     peerDependencies:
       react: ^18 || ^19 || ^19.0.0-rc
       react-dom: ^18 || ^19 || ^19.0.0-rc
+
+  cockatiel@4.0.0:
+    resolution: {integrity: sha512-XpUZJnogsd03BGB19T9sv7Xb8SwvD8JddZV2Tlp0LNspopZ6Idv24ZwCl8vAGJ6JwODZ0zLRYVj3NWvmRcUDqA==}
+    engines: {node: '>=22'}
 
   codepage@1.15.0:
     resolution: {integrity: sha512-3g6NUTPd/YtuuGrhMnOMRjFc+LJw/bnMp3+0r/Wcz3IXUuCosKRJvMphm5+Q+bvTVGcJJuRvVLuYba+WojaFaA==}
@@ -9381,6 +9388,8 @@ snapshots:
     transitivePeerDependencies:
       - '@types/react'
       - '@types/react-dom'
+
+  cockatiel@4.0.0: {}
 
   codepage@1.15.0: {}
 

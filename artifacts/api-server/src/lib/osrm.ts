@@ -1,4 +1,8 @@
+import { makeBreaker } from "./circuit.js";
+
 const OSRM_BASE = "https://router.project-osrm.org/route/v1/driving";
+
+const osrmBreaker = makeBreaker("osrm");
 
 export interface OsrmRoute {
   distance: number;
@@ -15,8 +19,11 @@ export async function getOsrmRoute(
   const url = `${OSRM_BASE}/${coords}?overview=full&geometries=geojson`;
 
   try {
-    const resp = await fetch(url, { signal: AbortSignal.timeout(8000) });
-    if (!resp.ok) return null;
+    const resp = await osrmBreaker.execute(async () => {
+      const r = await fetch(url, { signal: AbortSignal.timeout(8000) });
+      if (!r.ok) throw new Error(`OSRM HTTP ${r.status}`);
+      return r;
+    });
 
     const data: any = await resp.json();
     if (data.code !== "Ok" || !data.routes?.length) return null;

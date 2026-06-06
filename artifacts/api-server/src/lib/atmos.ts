@@ -1,8 +1,11 @@
 import { db, settingsTable } from "@workspace/db";
 import { clog } from "./logger.js";
 import { eq } from "drizzle-orm";
+import { makeBreaker } from "./circuit.js";
 
 const ATMOS_BASE = "https://apigw.atmos.uz";
+
+const atmosBreaker = makeBreaker("atmos");
 
 let cachedToken: { token: string; expiresAt: number } | null = null;
 
@@ -17,7 +20,7 @@ async function atmosFetch(url: string, init: RequestInit, timeoutMs = 8000): Pro
   // eslint-disable-next-line no-console
   clog.log(`[ATMOS-REQ ${reqId}] ${init.method || "GET"} ${url} body=${safeBody}`);
   try {
-    const resp = await fetch(url, { ...init, signal: ctrl.signal });
+    const resp = await atmosBreaker.execute(() => fetch(url, { ...init, signal: ctrl.signal }));
     const ms = Date.now() - startedAt;
     const cloned = resp.clone();
     let bodyPreview = "";
