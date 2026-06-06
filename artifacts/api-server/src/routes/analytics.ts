@@ -32,7 +32,7 @@ router.get("/summary", async (req, res) => {
       drivers,
       commissionRows,
     ] = await Promise.all([
-      db.select({ status: ridesTable.status }).from(ridesTable),
+      db.select({ status: ridesTable.status, price: ridesTable.price }).from(ridesTable),
       db.select({ status: ridesTable.status, price: ridesTable.price })
         .from(ridesTable)
         .where(and(gte(ridesTable.createdAt, start), lte(ridesTable.createdAt, end))),

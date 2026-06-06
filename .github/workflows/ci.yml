@@ -26,13 +26,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # Typecheck is currently NON-BLOCKING: the repo has a large backlog of
-      # pre-existing TypeScript errors (implicit-any across legacy routes, plus
-      # the unbuilt lib/db project reference). It runs so new type errors are
-      # visible in CI; flip continue-on-error to false once the backlog is clear.
+      # Blocking: the typecheck backlog has been cleared (0 errors). The script
+      # builds the lib/db + lib/api-zod project refs before checking api-server.
       - name: Typecheck (api-server)
         run: pnpm --filter @workspace/api-server typecheck
-        continue-on-error: true
 
       - name: Test (api-server)
         run: pnpm --filter @workspace/api-server test

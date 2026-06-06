@@ -99,7 +99,7 @@ router.get("/messages", authMiddleware, async (req: AuthRequest, res) => {
     const peerId = parseInt(req.query.peerId as string) || 0;
     const myId = req.userId!;
 
-    let messages;
+    let messages: any[];
     if (rideId > 0) {
       const myRole = req.userRole;
       if (myRole !== "dispatcher" && myRole !== "admin") {

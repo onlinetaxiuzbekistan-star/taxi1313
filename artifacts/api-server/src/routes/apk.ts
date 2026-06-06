@@ -196,7 +196,7 @@ router.post("/apk/build", authMiddleware, requireRole("admin", "dispatcher"), as
   const buildId = generateBuildId();
   const version = generateVersion();
 
-  if (currentBuild && currentBuild.status !== "building") {
+  if (currentBuild && (currentBuild.status as string) !== "building") {
     buildHistory.unshift(currentBuild);
     if (buildHistory.length > MAX_HISTORY) buildHistory.pop();
   }
@@ -259,10 +259,10 @@ async function runBuild(serverUrl: string, buildId: string, version: string) {
     try {
       const result = await execAsync(cmd, opts);
       fullLogParts.push(`--- ${label} STDOUT (${result.stdout.length} bytes) ---`);
-      fullLogParts.push(result.stdout);
+      fullLogParts.push(result.stdout.toString());
       if (result.stderr) {
         fullLogParts.push(`--- ${label} STDERR ---`);
-        fullLogParts.push(result.stderr);
+        fullLogParts.push(result.stderr.toString());
       }
       writeFullLog();
       return result;
@@ -290,7 +290,7 @@ async function runBuild(serverUrl: string, buildId: string, version: string) {
         `cd "${taxiAppDir}" && PORT=5000 BASE_PATH="/" NODE_ENV=production npx vite build 2>&1`,
         { timeout: 120000, maxBuffer: 10 * 1024 * 1024 }
       );
-      const lastLines = buildOut.split("\n").filter((l: string) => l.trim()).slice(-3);
+      const lastLines = buildOut.toString().split("\n").filter((l: string) => l.trim()).slice(-3);
       for (const l of lastLines) addLog(`vite: ${l.trim()}`);
     } catch (viteErr: any) {
       throw new Error(`Frontend build failed (full log: ${buildLogPath}): ${viteErr.message}`);
@@ -349,7 +349,7 @@ async function runBuild(serverUrl: string, buildId: string, version: string) {
       },
     });
 
-    const buildLines = stdout.split("\n").filter((l: string) => l.trim());
+    const buildLines = stdout.toString().split("\n").filter((l: string) => l.trim());
     for (const line of buildLines.slice(-10)) {
       addLog(`gradle: ${line.trim()}`);
     }

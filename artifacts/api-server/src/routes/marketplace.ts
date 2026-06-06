@@ -9,7 +9,6 @@ import { resolveCitySlug } from "../lib/route-match.js";
 import { getSettingNum } from "../lib/settingsCache.js";
 import { getMarketplaceSettings } from "../lib/settings.js";
 import { startMarketplaceDispatch, stopDispatchLoop } from "../lib/autodispatch.js";
-import { getSettingNum } from "../lib/settingsCache.js";
 
 const CITIES_RU_TO_ID: Record<string, string> = {
   "бухара": "bukhara", "самарканд": "samarkand", "ташкент": "tashkent",
@@ -275,7 +274,7 @@ router.post("/buy", authMiddleware, requireRole("driver"), async (req: AuthReque
             driverPhone: buyer.phone,
             driverCar: buyer.carModel,
             driverCarNumber: buyer.carNumber,
-            driverRating: buyer.rating ? parseFloat(buyer.rating) : null,
+            driverRating: buyer.rating ? parseFloat(String(buyer.rating)) : null,
             status: "accepted",
             version: sql`COALESCE(${ridesTable.version}, 0) + 1`,
             updatedAt: new Date(),

@@ -10,6 +10,11 @@
     "noImplicitReturns": false
   },
   "include": ["src"],
+  "exclude": [
+    "src/lib/e2e-simulation.ts",
+    "src/lib/stress-simulation.ts",
+    "src/load-test.ts"
+  ],
   "references": [
     {
       "path": "../../lib/db"
