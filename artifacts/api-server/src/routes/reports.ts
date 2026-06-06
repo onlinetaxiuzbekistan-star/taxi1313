@@ -1,4 +1,5 @@
-import { Router, type IRouter } from "express";
+import { errorMessage } from "../lib/errors.js";
+import { Router, type IRouter, type Response } from "express";
 import { clog } from "../lib/logger.js";
 import { authMiddleware, requireRole, AuthRequest } from "../middlewares/auth.js";
 import { db, ridesTable, usersTable, driverGroupsTable } from "@workspace/db";
@@ -17,9 +18,10 @@ function parseDateRange(from?: string, to?: string) {
   return { start, end };
 }
 
-function handleErr(res: any, e: any) {
-  if (e?.status === 400) return res.status(400).json({ error: e.msg });
-  clog.error("[REPORTS]", e?.message || e);
+function handleErr(res: Response, e: unknown) {
+  const err = e as { status?: number; msg?: string; message?: string };
+  if (err?.status === 400) return res.status(400).json({ error: err.msg });
+  clog.error("[REPORTS]", err?.message || e);
   res.status(500).json({ error: "Internal server error" });
 }
 
@@ -75,7 +77,7 @@ router.get("/orders", authMiddleware, requireRole("dispatcher", "admin"), async 
       .where(and(...conditions));
 
     res.json({ rides, summary: summary[0] });
-  } catch (e: any) {
+  } catch (e) {
     handleErr(res, e);
   }
 });
@@ -143,7 +145,7 @@ router.get("/drivers", authMiddleware, requireRole("dispatcher", "admin"), async
     }));
 
     res.json({ drivers: result, groups });
-  } catch (e: any) {
+  } catch (e) {
     handleErr(res, e);
   }
 });
@@ -179,7 +181,7 @@ router.get("/clients", authMiddleware, requireRole("dispatcher", "admin"), async
     };
 
     res.json({ clients, summary });
-  } catch (e: any) {
+  } catch (e) {
     handleErr(res, e);
   }
 });
@@ -226,7 +228,7 @@ router.get("/cities", authMiddleware, requireRole("dispatcher", "admin"), async 
       .limit(100);
 
     res.json({ departures: fromCities, arrivals: toCities, routes });
-  } catch (e: any) {
+  } catch (e) {
     handleErr(res, e);
   }
 });
@@ -307,7 +309,7 @@ router.get("/driver-groups", authMiddleware, requireRole("dispatcher", "admin"),
     });
 
     res.json({ groups: result });
-  } catch (e: any) {
+  } catch (e) {
     handleErr(res, e);
   }
 });
@@ -333,7 +335,7 @@ router.get("/daily", authMiddleware, requireRole("dispatcher", "admin"), async (
       .orderBy(sql`date_trunc('day', ${ridesTable.createdAt})`);
 
     res.json({ daily });
-  } catch (e: any) {
+  } catch (e) {
     handleErr(res, e);
   }
 });

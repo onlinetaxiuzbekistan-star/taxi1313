@@ -1,4 +1,4 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Request, type Response } from "express";
 import os from "os";
 import fs from "fs";
 import { db, pool } from "@workspace/db";
@@ -13,7 +13,7 @@ const router: IRouter = Router();
 const loadRateLimit = new Map<string, number>();
 const LOAD_RATE_LIMIT_MS = 2000;
 
-function rateLimit(req: any, res: any): boolean {
+function rateLimit(req: Request, res: Response): boolean {
   const ip = req.ip || req.connection?.remoteAddress || "unknown";
   const now = Date.now();
   const last = loadRateLimit.get(ip) || 0;

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { clog } from "../lib/logger.js";
 import { db, photoTasksTable, photoRequestsTable, photoHistoryTable, usersTable, driverGroupsTable } from "@workspace/db";
-import { eq, and, desc, inArray, sql, or, ilike } from "drizzle-orm";
+import { eq, and, desc, inArray, sql, or, ilike, type SQL } from "drizzle-orm";
 import { authMiddleware, requireRole } from "../middlewares/auth.js";
 import type { AuthRequest } from "../middlewares/auth.js";
 import { broadcastToUser } from "../lib/websocket.js";
@@ -169,7 +169,7 @@ router.get("/requests", authMiddleware, requireRole("admin", "dispatcher"), asyn
 
     let searchDriverIds: number[] | null = null;
     if (search || groupId || city) {
-      const driverConditions: any[] = [eq(usersTable.role, "driver")];
+      const driverConditions: (SQL | undefined)[] = [eq(usersTable.role, "driver")];
       if (search) {
         const s = `%${search}%`;
         driverConditions.push(or(

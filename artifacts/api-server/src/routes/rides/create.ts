@@ -1,3 +1,4 @@
+import { errorMessage } from "../../lib/errors.js";
 import { Router, type IRouter } from "express";
 import { clog } from "../../lib/logger.js";
 import { db, ridesTable, usersTable, tariffsTable, orderOffersTable, ridePassengersTable, districtsTable, settingsTable, routesTable, routeOptionsTable, transactionsTable, driverGroupsTable, citiesTable } from "@workspace/db";
@@ -48,9 +49,9 @@ router.post("/", validateBody(createRideBodySchema), async (req, res) => {
           }
         }
       }
-    } catch (err: any) {
+    } catch (err) {
       if (config.isDevelopment) {
-        clog.warn("JWT parse failed:", err?.message);
+        clog.warn("JWT parse failed:", errorMessage(err));
       }
     }
     const isDispatcher = userRole === "dispatcher" || userRole === "admin";
@@ -295,10 +296,10 @@ router.post("/", validateBody(createRideBodySchema), async (req, res) => {
     }
 
     res.status(201).json({ ...ride, seatPassengers: enrichPassengersWithRouteInfo(ridePassengers, ride) });
-  } catch (err: any) {
+  } catch (err) {
     clog.error("CREATE RIDE ERROR:", err);
     req.log.error({ err }, "Create ride error");
-    res.status(500).json({ error: "server_error", message: err?.message || "Internal server error" });
+    res.status(500).json({ error: "server_error", message: errorMessage(err) || "Internal server error" });
   }
 });
 

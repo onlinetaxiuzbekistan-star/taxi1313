@@ -1,3 +1,4 @@
+import { errorMessage } from "./errors.js";
 import { db, usersTable, transactionsTable, paynetTransactionsTable, settingsTable } from "@workspace/db";
 import { eq, and, gte, lte, sql } from "drizzle-orm";
 import { timingSafeEqualStr } from "./secure-compare.js";
@@ -238,7 +239,7 @@ export async function paynetPerformTransaction(params: any) {
         status: "created",
         paynetTimestamp: paynetTs,
       }).returning({ id: paynetTransactionsTable.id });
-    } catch (e: any) {
+    } catch (e) {
       throw new PaynetError(PaynetCode.TransactionAlreadyExists);
     }
     const providerTrnId = inserted[0].id;

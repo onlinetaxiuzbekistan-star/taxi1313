@@ -1,3 +1,4 @@
+import { errorMessage } from "../lib/errors.js";
 import { Router, type IRouter } from "express";
 import { clog } from "../lib/logger.js";
 import { db, usersTable, paymentsTable, transactionsTable, paymeTransactionsTable, settingsTable } from "@workspace/db";
@@ -401,7 +402,7 @@ router.post("/", async (req, res) => {
     }
 
     res.json(result);
-  } catch (err: any) {
+  } catch (err) {
     clog.error("[PAYME] Error:", err);
     res.json(jsonRpcError(rpcId, { code: -32400, message: { ru: "Внутренняя ошибка", uz: "Ichki xato", en: "Internal error" } }));
   }

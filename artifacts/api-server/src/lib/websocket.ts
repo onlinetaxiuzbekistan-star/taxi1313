@@ -12,6 +12,8 @@ interface AuthenticatedWS extends WebSocket {
   userRole?: string;
   isAlive?: boolean;
   sessionId?: string;
+  _mappedUserId?: number;
+  _presenceMarked?: boolean;
 }
 
 const driverSessions = new Map<number, string>();
@@ -98,12 +100,12 @@ const onlineUsers = new Map<number, { role: string; count: number }>();
 const userSockets = new Map<number, Set<AuthenticatedWS>>();
 
 function registerUserSocket(userId: number, ws: AuthenticatedWS): void {
-  const prev = (ws as any)._mappedUserId as number | undefined;
+  const prev = ws._mappedUserId as number | undefined;
   if (prev !== undefined && prev !== userId) unregisterUserSocket(prev, ws);
   let set = userSockets.get(userId);
   if (!set) { set = new Set(); userSockets.set(userId, set); }
   set.add(ws);
-  (ws as any)._mappedUserId = userId;
+  ws._mappedUserId = userId;
 }
 
 function unregisterUserSocket(userId: number, ws: AuthenticatedWS): void {
@@ -226,7 +228,7 @@ export function setupWebSocket(server: Server) {
 
   wss.on("connection", (ws: AuthenticatedWS) => {
     ws.isAlive = true;
-    (ws as any)._presenceMarked = false;
+    ws._presenceMarked = false;
 
     ws.on("pong", () => {
       ws.isAlive = true;
@@ -288,8 +290,8 @@ export function setupWebSocket(server: Server) {
               driverSessions.set(ws.userId!, decoded.sid);
               clog.log(`[WS SESSION] driverId=${ws.userId} sessionId=${ws.sessionId}`);
             }
-            if (!(ws as any)._presenceMarked) {
-              (ws as any)._presenceMarked = true;
+            if (!ws._presenceMarked) {
+              ws._presenceMarked = true;
               markUserOnline(ws.userId, decoded.role);
             }
             clog.log(`[WS] Auth OK: userId=${ws.userId} (type=${typeof ws.userId}), role=${decoded.role}`);
@@ -521,8 +523,8 @@ export function setupWebSocket(server: Server) {
           clog.log(`[WS SESSION] driverId=${ws.userId} session ${ws.sessionId} cleared on close`);
         }
       }
-      if (ws.userId && (ws as any)._presenceMarked) {
-        (ws as any)._presenceMarked = false;
+      if (ws.userId && ws._presenceMarked) {
+        ws._presenceMarked = false;
         markUserOffline(ws.userId);
       }
       if (ws.userId) unregisterUserSocket(ws.userId, ws);
@@ -608,7 +610,7 @@ export function broadcastToUser(userId: number, data: object): boolean {
     clog.warn(`[WS] broadcastToUser(${numId}): sockets tracked but none OPEN`);
     return false;
   }
-  const msgType = (data as any)?.type || "unknown";
+  const msgType = (data as { type?: string })?.type || "unknown";
   clog.log(`[WS] broadcastToUser(${numId}): sent ${msgType} to ${sentCount} socket(s)`);
   return true;
 }
