@@ -19,9 +19,18 @@ OUTPUT_DIR="$SCRIPT_DIR/../public/apk"
 KEYSTORE_DIR="$SCRIPT_DIR/keystore"
 
 export ANDROID_HOME="${ANDROID_HOME:-/opt/android-sdk}"
-export JAVA_HOME="${JAVA_HOME:-$(dirname $(dirname $(readlink -f $(which java))))}"
+
+# Pin JDK 17. AGP 8.2 + compileSdk 34 fails on JDK 21 (jlink/system-modules
+# transform), so do NOT inherit whatever `java` happens to be on PATH.
+JAVA_HOME="/usr/lib/jvm/java-17-openjdk-amd64"
+if [ ! -x "$JAVA_HOME/bin/javac" ]; then
+  echo "ERROR: JDK 17 not found at $JAVA_HOME (required — AGP 8.2 is incompatible with JDK 21)." >&2
+  echo "ERROR: Install it: apt-get install -y openjdk-17-jdk" >&2
+  exit 1
+fi
+export JAVA_HOME
 export GRADLE_HOME="${GRADLE_HOME:-/opt/gradle-8.5}"
-export PATH="$GRADLE_HOME/bin:$ANDROID_HOME/build-tools/34.0.0:$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
+export PATH="$JAVA_HOME/bin:$GRADLE_HOME/bin:$ANDROID_HOME/build-tools/34.0.0:$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
 
 echo "[BUILD] BuxTaxi Driver APK Builder"
 echo "[BUILD] Server URL: $SERVER_URL"
