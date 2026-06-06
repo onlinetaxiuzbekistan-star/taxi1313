@@ -386,7 +386,7 @@ public class LauncherActivity extends Activity {
         }
 
         TextView appName = new TextView(this);
-        appName.setText("\u0422\u0430\u043a\u0441\u0438 1313");
+        appName.setText(getString(R.string.splash_app_name));
         appName.setTextColor(Color.WHITE);
         appName.setTextSize(TypedValue.COMPLEX_UNIT_SP, 28);
         appName.setTypeface(null, Typeface.BOLD);
@@ -398,7 +398,7 @@ public class LauncherActivity extends Activity {
         appName.setLayoutParams(nameParams);
 
         TextView subtitle = new TextView(this);
-        subtitle.setText("\u041c\u0435\u0436\u0433\u043e\u0440\u043e\u0434");
+        subtitle.setText(getString(R.string.splash_tagline));
         subtitle.setTextColor(Color.parseColor("#71717a"));
         subtitle.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
         subtitle.setGravity(Gravity.CENTER);
@@ -492,10 +492,10 @@ public class LauncherActivity extends Activity {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel(
                 CHANNEL_ID,
-                "\u0422\u0430\u043a\u0441\u0438 1313",
+                getString(R.string.notification_channel_name),
                 NotificationManager.IMPORTANCE_HIGH
             );
-            channel.setDescription("\u0423\u0432\u0435\u0434\u043e\u043c\u043b\u0435\u043d\u0438\u044f \u043e \u043d\u043e\u0432\u044b\u0445 \u0437\u0430\u043a\u0430\u0437\u0430\u0445");
+            channel.setDescription(getString(R.string.notification_channel_description));
             channel.enableVibration(true);
             channel.setVibrationPattern(new long[]{0, 300, 200, 300});
             NotificationManager nm = getSystemService(NotificationManager.class);
@@ -637,7 +637,7 @@ public class LauncherActivity extends Activity {
                 super.onBackPressed();
             } else {
                 lastBackPress = now;
-                Toast.makeText(this, "\u041d\u0430\u0436\u043c\u0438\u0442\u0435 \u0435\u0449\u0451 \u0440\u0430\u0437 \u0434\u043b\u044f \u0432\u044b\u0445\u043e\u0434\u0430", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, R.string.back_press_to_exit, Toast.LENGTH_SHORT).show();
             }
         }
     }
@@ -844,7 +844,7 @@ public class LauncherActivity extends Activity {
                 Intent share = new Intent(Intent.ACTION_SEND);
                 share.setType("text/plain");
                 share.putExtra(Intent.EXTRA_TEXT, text);
-                startActivity(Intent.createChooser(share, "\u041f\u043e\u0434\u0435\u043b\u0438\u0442\u044c\u0441\u044f"));
+                startActivity(Intent.createChooser(share, getString(R.string.share_chooser_title)));
             } catch (Exception ignored) {}
         }
 
