@@ -263,7 +263,7 @@ export function cleanupStaleEntries() {
   }
 }
 
-setInterval(cleanupStaleEntries, 30_000);
+let cleanupTimer: ReturnType<typeof setInterval> | null = setInterval(cleanupStaleEntries, 30_000);
 
 export async function initQueueFromCache() {
   const { getOnlineDrivers } = await import("./driver-cache.js");
@@ -290,8 +290,14 @@ export async function initQueueFromCache() {
   await refreshOccupiedSeats();
 }
 
-setTimeout(() => initQueueFromCache(), 5000);
-setInterval(() => refreshOccupiedSeats(), 15_000);
+const initTimer: ReturnType<typeof setTimeout> = setTimeout(() => initQueueFromCache(), 5000);
+let seatsTimer: ReturnType<typeof setInterval> | null = setInterval(() => refreshOccupiedSeats(), 15_000);
+
+export function stopDriverQueueTimers(): void {
+  clearTimeout(initTimer);
+  if (cleanupTimer) { clearInterval(cleanupTimer); cleanupTimer = null; }
+  if (seatsTimer) { clearInterval(seatsTimer); seatsTimer = null; }
+}
 
 export function getQueueMetrics() {
   return {

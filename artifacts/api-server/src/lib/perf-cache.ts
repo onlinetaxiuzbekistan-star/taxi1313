@@ -189,3 +189,7 @@ const cleanupTimer = setInterval(() => {
   while (globalBuckets.length > 0 && globalBuckets[0].ts < cutoff) globalBuckets.shift();
 }, 30_000);
 cleanupTimer.unref();
+
+export function stopPerfCacheCleanup(): void {
+  clearInterval(cleanupTimer);
+}

@@ -76,7 +76,7 @@ function pruneAckedOffers() {
   if (pruned > 0) console.log(`[ACK PRUNE] removed ${pruned} stale acked offers, ${ackedOffers.size} remaining`);
 }
 
-setInterval(pruneAckedOffers, 60_000);
+let ackPruneTimer: ReturnType<typeof setInterval> | null = setInterval(pruneAckedOffers, 60_000);
 
 import { registerCache } from "./memory-guardian.js";
 registerCache(() => {
@@ -1082,6 +1082,7 @@ export function startDispatchSweep(): void {
 
 export function stopDispatchSweep(): void {
   if (sweepInterval) { clearInterval(sweepInterval); sweepInterval = null; }
+  if (ackPruneTimer) { clearInterval(ackPruneTimer); ackPruneTimer = null; }
 }
 
 export async function getOfferStatus(rideId: number) {

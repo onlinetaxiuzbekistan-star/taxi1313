@@ -74,7 +74,7 @@ function getActiveCallFor(userId: number): CallRecord | null {
 }
 
 // Periodic timeout sweep for unanswered ringing calls
-setInterval(() => {
+const callTimeoutSweep = setInterval(() => {
   const now = Date.now();
   for (const c of Array.from(activeCalls.values())) {
     if (c.state === "ringing" && now - c.startedAt > CALL_RING_TIMEOUT_MS) {
@@ -525,6 +525,7 @@ export function setupWebSocket(server: Server) {
  */
 export function closeWebSocket(): Promise<void> {
   return new Promise((resolve) => {
+    clearInterval(callTimeoutSweep);
     if (!wss) { resolve(); return; }
     const server = wss;
     try {

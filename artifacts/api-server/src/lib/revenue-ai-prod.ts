@@ -101,7 +101,7 @@ const driverProdStats = new Map<number, DriverAcceptStats>();
 const DRIVER_STATS_MAX = 500;
 const DRIVER_STATS_TTL_MS = 24 * 60 * 60 * 1000;
 
-setInterval(() => {
+let statsCleanupTimer: ReturnType<typeof setInterval> | null = setInterval(() => {
   const now = Date.now();
   for (const [id, stats] of driverProdStats) {
     if (now - stats.lastActiveAt > DRIVER_STATS_TTL_MS) {
@@ -109,6 +109,10 @@ setInterval(() => {
     }
   }
 }, 5 * 60_000);
+
+export function stopRevenueAiCleanup(): void {
+  if (statsCleanupTimer) { clearInterval(statsCleanupTimer); statsCleanupTimer = null; }
+}
 
 import { registerCache } from "./memory-guardian.js";
 registerCache(() => {

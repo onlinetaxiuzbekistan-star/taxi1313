@@ -192,4 +192,8 @@ export async function syncDriverCache(): Promise<void> {
 }
 
 syncDriverCache();
-setInterval(syncDriverCache, FULL_SYNC_INTERVAL_MS);
+let syncTimer: ReturnType<typeof setInterval> | null = setInterval(syncDriverCache, FULL_SYNC_INTERVAL_MS);
+
+export function stopDriverCacheSync(): void {
+  if (syncTimer) { clearInterval(syncTimer); syncTimer = null; }
+}

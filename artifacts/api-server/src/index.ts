@@ -15,6 +15,11 @@ import { seedDatabase } from "./lib/seed.js";
 import { startAutoCancelScheduler, stopAutoCancelScheduler } from "./lib/order-auto-cancel.js";
 import { startDispatchSweep, stopDispatchSweep } from "./lib/autodispatch.js";
 import { startWorkers, stopWorkers } from "./lib/queues/workers.js";
+import { stopIdempotencyCleanup } from "./lib/idempotency.js";
+import { stopDriverCacheSync } from "./lib/driver-cache.js";
+import { stopDriverQueueTimers } from "./lib/driver-queue.js";
+import { stopPerfCacheCleanup } from "./lib/perf-cache.js";
+import { stopRevenueAiCleanup } from "./lib/revenue-ai-prod.js";
 import { pool, onPoolError } from "@workspace/db";
 import { redis } from "./lib/redis.js";
 
@@ -118,7 +123,16 @@ async function shutdown(signal: string) {
     stopAutoCancelScheduler();
     stopListingsCleanupScheduler();
     stopMemoryGuardian();
-    stopDispatchSweep();
+    stopDispatchSweep(); // also clears the acked-offer prune timer
+
+    // 1a) Stop module-scope interval timers so they don't fire DB/Redis work
+    // during the drain window after the pool/redis begin closing.
+    stopIdempotencyCleanup();
+    stopDriverCacheSync();
+    stopDriverQueueTimers();
+    stopPerfCacheCleanup();
+    stopRevenueAiCleanup();
+    // (websocket call-timeout sweep is cleared inside closeWebSocket below)
 
     // 1b) Drain BullMQ workers/queue (finishes in-flight jobs, closes its own Redis conns).
     await stopWorkers();

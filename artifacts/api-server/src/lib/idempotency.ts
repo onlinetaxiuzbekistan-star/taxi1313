@@ -13,7 +13,7 @@ interface CacheEntry {
 
 const memCache = new Map<string, CacheEntry>();
 
-setInterval(async () => {
+let cleanupTimer: ReturnType<typeof setInterval> | null = setInterval(async () => {
   const cutoff = new Date(Date.now() - TTL_MS);
   try {
     await db.delete(idempotencyKeysTable).where(lt(idempotencyKeysTable.createdAt, cutoff));
@@ -23,6 +23,10 @@ setInterval(async () => {
     if (now - v.ts > TTL_MS) memCache.delete(k);
   }
 }, CLEANUP_INTERVAL);
+
+export function stopIdempotencyCleanup(): void {
+  if (cleanupTimer) { clearInterval(cleanupTimer); cleanupTimer = null; }
+}
 
 export function idempotencyKey(driverId: number, action: string, actionId: string): string {
   return `${driverId}:${action}:${actionId}`;
