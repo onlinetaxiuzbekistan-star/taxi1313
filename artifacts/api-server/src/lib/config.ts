@@ -17,8 +17,17 @@ import { logger } from "./logger.js";
 
 const isProduction = process.env.NODE_ENV === "production";
 const KNOWN_WEAK_SECRET = "buxtaxi-secret-key-2024";
-const SENTRY_DSN_DEFAULT =
-  "https://f491698960188ffb1428099d9e32525b@o4511219755057152.ingest.de.sentry.io/4511219763511376";
+
+/** Sentry DSN comes from the environment ONLY — no hardcoded default (a baked-in
+ *  DSN ships errors to a fixed project and leaks the ingest key in the binary).
+ *  Empty DSN ⇒ Sentry stays disabled. */
+function resolveSentryDsn(): string {
+  const dsn = process.env.SENTRY_DSN?.trim() || "";
+  if (isProduction && !dsn) {
+    logger.warn("[config] SENTRY_DSN is not set — error monitoring is disabled in production.");
+  }
+  return dsn;
+}
 
 function requiredInProd(name: string, value: string | undefined): string {
   const v = value?.trim();
@@ -109,6 +118,6 @@ export const config = {
   },
 
   sentry: {
-    dsn: process.env.SENTRY_DSN || SENTRY_DSN_DEFAULT,
+    dsn: resolveSentryDsn(),
   },
 } as const;

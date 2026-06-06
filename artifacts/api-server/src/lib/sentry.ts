@@ -2,6 +2,8 @@ import * as Sentry from "@sentry/node";
 import { config } from "./config.js";
 
 export function initSentry() {
+  // No DSN ⇒ Sentry disabled (dev/test, or prod without monitoring configured).
+  if (!config.sentry.dsn) return;
   Sentry.init({
     dsn: config.sentry.dsn,
     environment: config.nodeEnv,

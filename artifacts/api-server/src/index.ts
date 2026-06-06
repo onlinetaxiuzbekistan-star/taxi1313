@@ -50,6 +50,36 @@ if (!port) {
   throw new Error("PORT environment variable is required but was not provided.");
 }
 
+/**
+ * One structured line capturing the full effective runtime configuration at
+ * boot — versions, port, and which optional integrations are actually wired.
+ * No secrets are logged (only booleans / summaries), so it's safe in prod and
+ * invaluable for "what config is this instance actually running?" debugging.
+ */
+function logStartupSummary(): void {
+  logger.info(
+    {
+      app: "taxi-1313-api",
+      version: config.appVersion,
+      env: config.nodeEnv,
+      node: process.version,
+      pid: process.pid,
+      port,
+      database: config.databaseUrl ? summarizeDatabaseUrl(config.databaseUrl) : "NOT SET",
+      redis: config.redisUrl ? "configured" : "NOT SET",
+      gc: typeof global.gc === "function" ? "exposed" : "unavailable (add --expose-gc)",
+      integrations: {
+        sentry: config.sentry.dsn ? "enabled" : "disabled",
+        webPush: config.vapid.publicKey && config.vapid.privateKey ? "configured" : "disabled",
+        telegram: config.telegram.botToken ? "configured" : "disabled",
+        trustProxy: config.trustProxy,
+        simulation: config.simulationEnabled,
+      },
+    },
+    "Startup configuration summary",
+  );
+}
+
 const server = http.createServer(app);
 setupWebSocket(server);
 
@@ -71,6 +101,7 @@ seedDatabase().then(() => {
     }
 
     logger.info({ port }, "Server listening with WebSocket support");
+    logStartupSummary();
     startPhotoScheduler();
     startAutoCancelScheduler();
     startListingsCleanupScheduler();
@@ -83,6 +114,7 @@ seedDatabase().then(() => {
   logger.warn({ err }, "Startup pre-load failed, starting anyway");
   server.listen(port, () => {
     logger.info({ port }, "Server listening (will retry on next request)");
+    logStartupSummary();
     startPhotoScheduler();
     startAutoCancelScheduler();
     startListingsCleanupScheduler();

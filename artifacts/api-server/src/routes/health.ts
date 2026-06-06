@@ -12,6 +12,41 @@ import os from "os";
 
 const router: IRouter = Router();
 
+/**
+ * Liveness probe — is the process up and the event loop responsive? Never
+ * touches dependencies, so a slow/broken DB never causes a liveness failure
+ * (which would make an orchestrator kill an otherwise-healthy pod). 200 = alive.
+ */
+router.get("/liveness", (_req, res) => {
+  res.json({ status: "alive", uptime_seconds: Math.round(process.uptime()) });
+});
+
+/**
+ * Readiness probe — can this instance serve traffic right now? Checks the
+ * critical dependencies (Postgres + Redis). 200 = ready, 503 = not ready (the
+ * orchestrator should stop routing here until it recovers). Auxiliary services
+ * (SMS/Telegram/etc.) are intentionally excluded — they don't block core traffic.
+ */
+router.get("/readiness", async (_req, res) => {
+  const checks: Record<string, "ok" | "error"> = {};
+  let ready = true;
+  try {
+    await db.execute(sql`SELECT 1`);
+    checks.postgresql = "ok";
+  } catch {
+    checks.postgresql = "error";
+    ready = false;
+  }
+  try {
+    checks.redis = (await redis.ping()) === "PONG" ? "ok" : "error";
+    if (checks.redis === "error") ready = false;
+  } catch {
+    checks.redis = "error";
+    ready = false;
+  }
+  res.status(ready ? 200 : 503).json({ status: ready ? "ready" : "not_ready", checks });
+});
+
 router.get("/healthz", (_req, res) => {
   const data = HealthCheckResponse.parse({ status: "ok" });
   res.json(data);
