@@ -8,6 +8,18 @@ import { authMiddleware, requireRole } from "../middlewares/auth.js";
 const router: IRouter = Router();
 router.use(authMiddleware, requireRole("admin"));
 
+// Simulation/stress endpoints are dev/diagnostic tooling, not production features.
+// Gate them behind SIMULATION_ENABLED (default OFF) so they're inert in prod —
+// respond 404 to avoid disclosing their existence.
+const SIMULATION_ENABLED = process.env.SIMULATION_ENABLED === "true";
+router.use((_req, res, next) => {
+  if (!SIMULATION_ENABLED) {
+    res.status(404).json({ error: "not_found" });
+    return;
+  }
+  next();
+});
+
 router.get("/stress", (_req, res) => {
   res.json(liveMetrics);
 });
