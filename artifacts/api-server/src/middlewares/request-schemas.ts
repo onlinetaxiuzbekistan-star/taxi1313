@@ -31,7 +31,7 @@ export const registerBodySchema = z
   .object({
     phone: z.string().min(1),
     name: z.string().min(1),
-    password: z.string().min(1),
+    password: z.string().min(6, "password must be at least 6 characters"),
     role: z.enum(["driver", "client"]),
     carModel: z.string().optional(),
     carNumber: z.string().optional(),
