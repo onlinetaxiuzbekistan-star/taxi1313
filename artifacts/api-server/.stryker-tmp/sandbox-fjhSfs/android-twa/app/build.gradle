@@ -1,0 +1,49 @@
+apply plugin: 'com.android.application'
+
+android {
+    namespace 'uz.buxtaxi.driver'
+    compileSdk 34
+    
+    defaultConfig {
+        applicationId "uz.buxtaxi.driver"
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+    }
+
+    signingConfigs {
+        release {
+            def keystorePass = System.getenv("APK_KEYSTORE_PASS")
+            if (!keystorePass) {
+                throw new GradleException("APK_KEYSTORE_PASS environment variable must be set to sign the release APK")
+            }
+            storeFile file("${rootProject.projectDir}/keystore/buxtaxi.keystore")
+            storePassword keystorePass
+            keyAlias "buxtaxi"
+            keyPassword keystorePass
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    lint {
+        abortOnError false
+        checkReleaseBuilds false
+    }
+}
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'androidx.webkit:webkit:1.8.0'
+}

@@ -1,0 +1,87 @@
+#!/bin/bash
+set -e
+
+SERVER_URL="${1:-}"
+if [ -z "$SERVER_URL" ]; then
+  echo "ERROR: Server URL required. Usage: ./build-apk.sh https://your-domain.com"
+  exit 1
+fi
+
+if [ -z "${APK_KEYSTORE_PASS:-}" ]; then
+  echo "ERROR: APK_KEYSTORE_PASS environment variable is required (keystore signing password)."
+  exit 1
+fi
+export APK_KEYSTORE_PASS
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_DIR="$SCRIPT_DIR"
+OUTPUT_DIR="$SCRIPT_DIR/../public/apk"
+KEYSTORE_DIR="$SCRIPT_DIR/keystore"
+
+export ANDROID_HOME="${ANDROID_HOME:-/opt/android-sdk}"
+export JAVA_HOME="${JAVA_HOME:-$(dirname $(dirname $(readlink -f $(which java))))}"
+export GRADLE_HOME="${GRADLE_HOME:-/opt/gradle-8.5}"
+export PATH="$GRADLE_HOME/bin:$ANDROID_HOME/build-tools/34.0.0:$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
+
+echo "[BUILD] BuxTaxi Driver APK Builder"
+echo "[BUILD] Server URL: $SERVER_URL"
+echo "[BUILD] Android SDK: $ANDROID_HOME"
+echo "[BUILD] Java: $JAVA_HOME"
+echo "[BUILD] Gradle: $GRADLE_HOME"
+
+DRIVER_URL="${SERVER_URL}/driver"
+echo "[BUILD] Driver URL: $DRIVER_URL"
+
+STRINGS_FILE="$PROJECT_DIR/app/src/main/res/values/strings.xml"
+sed -i "s|https://PLACEHOLDER_URL/driver|${DRIVER_URL}|g" "$STRINGS_FILE"
+sed -i "s|https://PLACEHOLDER_URL|${SERVER_URL}|g" "$STRINGS_FILE"
+echo "[BUILD] Updated strings.xml with server URL"
+
+if [ ! -f "$KEYSTORE_DIR/buxtaxi.keystore" ]; then
+  mkdir -p "$KEYSTORE_DIR"
+  keytool -genkeypair \
+    -alias buxtaxi \
+    -keyalg RSA -keysize 2048 \
+    -validity 10000 \
+    -keystore "$KEYSTORE_DIR/buxtaxi.keystore" \
+    -storepass "$APK_KEYSTORE_PASS" \
+    -keypass "$APK_KEYSTORE_PASS" \
+    -dname "CN=BuxTaxi, OU=Development, O=BuxTaxi, L=Bukhara, ST=Bukhara, C=UZ"
+  echo "[BUILD] Generated signing keystore"
+else
+  echo "[BUILD] Using existing keystore"
+fi
+
+echo "[BUILD] Starting Gradle build..."
+cd "$PROJECT_DIR"
+
+"$GRADLE_HOME/bin/gradle" assembleRelease \
+  --no-daemon \
+  -Pandroid.sdk.dir="$ANDROID_HOME" \
+  2>&1
+
+APK_PATH="$PROJECT_DIR/app/build/outputs/apk/release/app-release.apk"
+if [ ! -f "$APK_PATH" ]; then
+  echo "[BUILD] ERROR: APK not found at $APK_PATH"
+  APK_PATH=$(ls "$PROJECT_DIR/app/build/outputs/apk/release/"*.apk 2>/dev/null | head -1)
+  if [ -z "$APK_PATH" ]; then
+    echo "[BUILD] ERROR: No APK files found"
+    exit 1
+  fi
+fi
+
+VERSION=$(date +"%Y%m%d.%H%M")
+FINAL_NAME="buxtaxi-driver-v${VERSION}.apk"
+
+mkdir -p "$OUTPUT_DIR"
+cp "$APK_PATH" "$OUTPUT_DIR/$FINAL_NAME"
+
+echo "[BUILD] SUCCESS!"
+echo "[BUILD] APK: $OUTPUT_DIR/$FINAL_NAME"
+echo "[BUILD] Size: $(du -h "$OUTPUT_DIR/$FINAL_NAME" | cut -f1)"
+echo "[BUILD] Version: $VERSION"
+
+sed -i "s|${DRIVER_URL}|https://PLACEHOLDER_URL/driver|g" "$STRINGS_FILE"
+sed -i "s|${SERVER_URL}|https://PLACEHOLDER_URL|g" "$STRINGS_FILE"
+
+echo "$FINAL_NAME"

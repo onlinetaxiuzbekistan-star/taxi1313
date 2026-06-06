@@ -1,0 +1,1450 @@
+{
+  "saved_at": "2026-04-01T15:20:22.439Z",
+  "generation": 156,
+  "scores": [
+    {
+      "type": "ws_reconnect",
+      "total_uses": 0,
+      "successful": 0,
+      "failed": 0,
+      "skipped": 0,
+      "explored": 2,
+      "avg_effectiveness": 0,
+      "avg_sr_delta": 0,
+      "avg_latency_delta": 0,
+      "best_effectiveness": null,
+      "worst_effectiveness": null,
+      "current_cooldown_ms": 30000,
+      "base_cooldown_ms": 30000,
+      "enabled": true,
+      "history": [],
+      "context_scores": [],
+      "objective_impact": {
+        "health": 0,
+        "completion": 0,
+        "earnings": 0,
+        "combined": 0
+      }
+    },
+    {
+      "type": "dispatch_restart",
+      "total_uses": 88,
+      "successful": 88,
+      "failed": 0,
+      "skipped": 0,
+      "explored": 0,
+      "avg_effectiveness": 0.057702042756005545,
+      "avg_sr_delta": 9.605981560996826,
+      "avg_latency_delta": -0.3878593237388959,
+      "best_effectiveness": 0.2,
+      "worst_effectiveness": -0.137,
+      "current_cooldown_ms": 30000,
+      "base_cooldown_ms": 30000,
+      "enabled": true,
+      "history": [
+        {
+          "timestamp": "2026-04-01T11:18:41.889Z",
+          "effectiveness": 0.02,
+          "sr_delta": 3.3,
+          "latency_delta": 1,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "day",
+          "objectives": {
+            "health": 0.013,
+            "completion": 0.023,
+            "earnings": 0.017,
+            "combined": 0.018
+          }
+        },
+        {
+          "timestamp": "2026-04-01T12:10:00.801Z",
+          "effectiveness": 0.1,
+          "sr_delta": 16.6,
+          "latency_delta": 2,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "day",
+          "objectives": {
+            "health": 0.067,
+            "completion": 0.116,
+            "earnings": 0.083,
+            "combined": 0.088
+          }
+        },
+        {
+          "timestamp": "2026-04-01T12:12:29.704Z",
+          "effectiveness": -0.137,
+          "sr_delta": -22.9,
+          "latency_delta": 0,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "day",
+          "objectives": {
+            "health": -0.092,
+            "completion": -0.16,
+            "earnings": -0.114,
+            "combined": -0.121
+          }
+        },
+        {
+          "timestamp": "2026-04-01T12:12:31.593Z",
+          "effectiveness": 0.028,
+          "sr_delta": 4.7,
+          "latency_delta": -1,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "day",
+          "objectives": {
+            "health": 0.019,
+            "completion": 0.033,
+            "earnings": 0.023,
+            "combined": 0.025
+          }
+        },
+        {
+          "timestamp": "2026-04-01T13:21:49.923Z",
+          "effectiveness": 0.043,
+          "sr_delta": 7.1,
+          "latency_delta": 0,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "day",
+          "objectives": {
+            "health": 0.028,
+            "completion": 0.05,
+            "earnings": 0.036,
+            "combined": 0.038
+          }
+        },
+        {
+          "timestamp": "2026-04-01T13:23:51.280Z",
+          "effectiveness": 0.075,
+          "sr_delta": 12.5,
+          "latency_delta": 0,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "day",
+          "objectives": {
+            "health": 0.05,
+            "completion": 0.088,
+            "earnings": 0.063,
+            "combined": 0.066
+          }
+        },
+        {
+          "timestamp": "2026-04-01T13:33:38.224Z",
+          "effectiveness": 0.014,
+          "sr_delta": 2.4,
+          "latency_delta": 0,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "day",
+          "objectives": {
+            "health": 0.01,
+            "completion": 0.017,
+            "earnings": 0.012,
+            "combined": 0.013
+          }
+        },
+        {
+          "timestamp": "2026-04-01T13:36:14.902Z",
+          "effectiveness": 0.1,
+          "sr_delta": 16.7,
+          "latency_delta": 0,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "day",
+          "objectives": {
+            "health": 0.067,
+            "completion": 0.117,
+            "earnings": 0.084,
+            "combined": 0.089
+          }
+        },
+        {
+          "timestamp": "2026-04-01T13:36:27.263Z",
+          "effectiveness": 0.086,
+          "sr_delta": 14.3,
+          "latency_delta": 0,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "day",
+          "objectives": {
+            "health": 0.057,
+            "completion": 0.1,
+            "earnings": 0.072,
+            "combined": 0.076
+          }
+        },
+        {
+          "timestamp": "2026-04-01T13:36:47.266Z",
+          "effectiveness": 0.021,
+          "sr_delta": 3.6,
+          "latency_delta": -1,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "day",
+          "objectives": {
+            "health": 0.014,
+            "completion": 0.025,
+            "earnings": 0.018,
+            "combined": 0.019
+          }
+        },
+        {
+          "timestamp": "2026-04-01T13:45:48.149Z",
+          "effectiveness": 0.1,
+          "sr_delta": 16.7,
+          "latency_delta": 0,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "day",
+          "objectives": {
+            "health": 0.067,
+            "completion": 0.117,
+            "earnings": 0.084,
+            "combined": 0.089
+          }
+        },
+        {
+          "timestamp": "2026-04-01T13:46:01.478Z",
+          "effectiveness": 0,
+          "sr_delta": 0,
+          "latency_delta": 2,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "day",
+          "objectives": {
+            "health": 0.001,
+            "completion": 0,
+            "earnings": 0,
+            "combined": 0
+          }
+        },
+        {
+          "timestamp": "2026-04-01T13:46:21.480Z",
+          "effectiveness": 0.086,
+          "sr_delta": 14.3,
+          "latency_delta": 0,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "day",
+          "objectives": {
+            "health": 0.057,
+            "completion": 0.1,
+            "earnings": 0.072,
+            "combined": 0.076
+          }
+        },
+        {
+          "timestamp": "2026-04-01T13:47:02.410Z",
+          "effectiveness": 0,
+          "sr_delta": 0,
+          "latency_delta": 0,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "day",
+          "objectives": {
+            "health": 0,
+            "completion": 0,
+            "earnings": 0,
+            "combined": 0
+          }
+        },
+        {
+          "timestamp": "2026-04-01T13:48:51.794Z",
+          "effectiveness": 0,
+          "sr_delta": 0,
+          "latency_delta": 0,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "day",
+          "objectives": {
+            "health": 0,
+            "completion": 0,
+            "earnings": 0,
+            "combined": 0
+          }
+        },
+        {
+          "timestamp": "2026-04-01T13:49:10.498Z",
+          "effectiveness": 0.028,
+          "sr_delta": 4.7,
+          "latency_delta": -1,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "day",
+          "objectives": {
+            "health": 0.019,
+            "completion": 0.033,
+            "earnings": 0.023,
+            "combined": 0.025
+          }
+        },
+        {
+          "timestamp": "2026-04-01T14:09:32.293Z",
+          "effectiveness": 0.1,
+          "sr_delta": 16.6,
+          "latency_delta": 1,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "day",
+          "objectives": {
+            "health": 0.067,
+            "completion": 0.116,
+            "earnings": 0.083,
+            "combined": 0.088
+          }
+        },
+        {
+          "timestamp": "2026-04-01T14:11:56.379Z",
+          "effectiveness": 0,
+          "sr_delta": 0,
+          "latency_delta": 0,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "day",
+          "objectives": {
+            "health": 0,
+            "completion": 0,
+            "earnings": 0,
+            "combined": 0
+          }
+        },
+        {
+          "timestamp": "2026-04-01T14:34:56.868Z",
+          "effectiveness": 0.1,
+          "sr_delta": 16.6,
+          "latency_delta": 1,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "day",
+          "objectives": {
+            "health": 0.067,
+            "completion": 0.116,
+            "earnings": 0.083,
+            "combined": 0.088
+          }
+        },
+        {
+          "timestamp": "2026-04-01T14:35:30.578Z",
+          "effectiveness": 0,
+          "sr_delta": 0,
+          "latency_delta": 1,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "day",
+          "objectives": {
+            "health": 0,
+            "completion": 0,
+            "earnings": 0,
+            "combined": 0
+          }
+        },
+        {
+          "timestamp": "2026-04-01T14:35:39.190Z",
+          "effectiveness": 0.08,
+          "sr_delta": 13.3,
+          "latency_delta": -1,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "day",
+          "objectives": {
+            "health": 0.053,
+            "completion": 0.093,
+            "earnings": 0.066,
+            "combined": 0.07
+          }
+        },
+        {
+          "timestamp": "2026-04-01T14:37:30.061Z",
+          "effectiveness": 0.12,
+          "sr_delta": 20,
+          "latency_delta": 0,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "day",
+          "objectives": {
+            "health": 0.08,
+            "completion": 0.14,
+            "earnings": 0.1,
+            "combined": 0.106
+          }
+        },
+        {
+          "timestamp": "2026-04-01T14:38:06.602Z",
+          "effectiveness": 0,
+          "sr_delta": 0,
+          "latency_delta": 0,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "day",
+          "objectives": {
+            "health": 0,
+            "completion": 0,
+            "earnings": 0,
+            "combined": 0
+          }
+        },
+        {
+          "timestamp": "2026-04-01T14:55:27.935Z",
+          "effectiveness": -0.047,
+          "sr_delta": -7.9,
+          "latency_delta": 0,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "day",
+          "objectives": {
+            "health": -0.032,
+            "completion": -0.055,
+            "earnings": -0.04,
+            "combined": -0.042
+          }
+        },
+        {
+          "timestamp": "2026-04-01T14:58:05.936Z",
+          "effectiveness": 0.02,
+          "sr_delta": 3.3,
+          "latency_delta": 0,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "day",
+          "objectives": {
+            "health": 0.013,
+            "completion": 0.023,
+            "earnings": 0.016,
+            "combined": 0.017
+          }
+        },
+        {
+          "timestamp": "2026-04-01T14:58:08.049Z",
+          "effectiveness": 0.1,
+          "sr_delta": 16.6,
+          "latency_delta": 0,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "day",
+          "objectives": {
+            "health": 0.066,
+            "completion": 0.116,
+            "earnings": 0.083,
+            "combined": 0.088
+          }
+        },
+        {
+          "timestamp": "2026-04-01T14:58:38.243Z",
+          "effectiveness": 0.066,
+          "sr_delta": 11.1,
+          "latency_delta": -2,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "day",
+          "objectives": {
+            "health": 0.044,
+            "completion": 0.078,
+            "earnings": 0.055,
+            "combined": 0.058
+          }
+        },
+        {
+          "timestamp": "2026-04-01T15:16:37.483Z",
+          "effectiveness": 0.114,
+          "sr_delta": 19,
+          "latency_delta": -1,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "day",
+          "objectives": {
+            "health": 0.076,
+            "completion": 0.133,
+            "earnings": 0.095,
+            "combined": 0.101
+          }
+        },
+        {
+          "timestamp": "2026-04-01T15:17:36.349Z",
+          "effectiveness": 0.016,
+          "sr_delta": 2.7,
+          "latency_delta": -1,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "day",
+          "objectives": {
+            "health": 0.011,
+            "completion": 0.019,
+            "earnings": 0.013,
+            "combined": 0.014
+          }
+        },
+        {
+          "timestamp": "2026-04-01T15:19:03.877Z",
+          "effectiveness": 0.1,
+          "sr_delta": 16.6,
+          "latency_delta": 0,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "day",
+          "objectives": {
+            "health": 0.066,
+            "completion": 0.116,
+            "earnings": 0.083,
+            "combined": 0.088
+          }
+        }
+      ],
+      "context_scores": [
+        {
+          "bucket": "high_load",
+          "uses": 87,
+          "avg_effectiveness": 0.059624983447266446,
+          "avg_sr_delta": 9.925143123971898,
+          "avg_latency_delta": -0.435549070025012,
+          "entries": [
+            {
+              "timestamp": "2026-04-01T13:49:10.498Z",
+              "effectiveness": 0.028,
+              "sr_delta": 4.7,
+              "latency_delta": -1,
+              "result": "success",
+              "context": "high_load",
+              "time_bucket": "day",
+              "objectives": {
+                "health": 0.019,
+                "completion": 0.033,
+                "earnings": 0.023,
+                "combined": 0.025
+              }
+            },
+            {
+              "timestamp": "2026-04-01T14:09:32.293Z",
+              "effectiveness": 0.1,
+              "sr_delta": 16.6,
+              "latency_delta": 1,
+              "result": "success",
+              "context": "high_load",
+              "time_bucket": "day",
+              "objectives": {
+                "health": 0.067,
+                "completion": 0.116,
+                "earnings": 0.083,
+                "combined": 0.088
+              }
+            },
+            {
+              "timestamp": "2026-04-01T14:11:56.379Z",
+              "effectiveness": 0,
+              "sr_delta": 0,
+              "latency_delta": 0,
+              "result": "success",
+              "context": "high_load",
+              "time_bucket": "day",
+              "objectives": {
+                "health": 0,
+                "completion": 0,
+                "earnings": 0,
+                "combined": 0
+              }
+            },
+            {
+              "timestamp": "2026-04-01T14:34:56.868Z",
+              "effectiveness": 0.1,
+              "sr_delta": 16.6,
+              "latency_delta": 1,
+              "result": "success",
+              "context": "high_load",
+              "time_bucket": "day",
+              "objectives": {
+                "health": 0.067,
+                "completion": 0.116,
+                "earnings": 0.083,
+                "combined": 0.088
+              }
+            },
+            {
+              "timestamp": "2026-04-01T14:35:30.578Z",
+              "effectiveness": 0,
+              "sr_delta": 0,
+              "latency_delta": 1,
+              "result": "success",
+              "context": "high_load",
+              "time_bucket": "day",
+              "objectives": {
+                "health": 0,
+                "completion": 0,
+                "earnings": 0,
+                "combined": 0
+              }
+            },
+            {
+              "timestamp": "2026-04-01T14:35:39.190Z",
+              "effectiveness": 0.08,
+              "sr_delta": 13.3,
+              "latency_delta": -1,
+              "result": "success",
+              "context": "high_load",
+              "time_bucket": "day",
+              "objectives": {
+                "health": 0.053,
+                "completion": 0.093,
+                "earnings": 0.066,
+                "combined": 0.07
+              }
+            },
+            {
+              "timestamp": "2026-04-01T14:37:30.061Z",
+              "effectiveness": 0.12,
+              "sr_delta": 20,
+              "latency_delta": 0,
+              "result": "success",
+              "context": "high_load",
+              "time_bucket": "day",
+              "objectives": {
+                "health": 0.08,
+                "completion": 0.14,
+                "earnings": 0.1,
+                "combined": 0.106
+              }
+            },
+            {
+              "timestamp": "2026-04-01T14:38:06.602Z",
+              "effectiveness": 0,
+              "sr_delta": 0,
+              "latency_delta": 0,
+              "result": "success",
+              "context": "high_load",
+              "time_bucket": "day",
+              "objectives": {
+                "health": 0,
+                "completion": 0,
+                "earnings": 0,
+                "combined": 0
+              }
+            },
+            {
+              "timestamp": "2026-04-01T14:55:27.935Z",
+              "effectiveness": -0.047,
+              "sr_delta": -7.9,
+              "latency_delta": 0,
+              "result": "success",
+              "context": "high_load",
+              "time_bucket": "day",
+              "objectives": {
+                "health": -0.032,
+                "completion": -0.055,
+                "earnings": -0.04,
+                "combined": -0.042
+              }
+            },
+            {
+              "timestamp": "2026-04-01T14:58:05.936Z",
+              "effectiveness": 0.02,
+              "sr_delta": 3.3,
+              "latency_delta": 0,
+              "result": "success",
+              "context": "high_load",
+              "time_bucket": "day",
+              "objectives": {
+                "health": 0.013,
+                "completion": 0.023,
+                "earnings": 0.016,
+                "combined": 0.017
+              }
+            },
+            {
+              "timestamp": "2026-04-01T14:58:08.049Z",
+              "effectiveness": 0.1,
+              "sr_delta": 16.6,
+              "latency_delta": 0,
+              "result": "success",
+              "context": "high_load",
+              "time_bucket": "day",
+              "objectives": {
+                "health": 0.066,
+                "completion": 0.116,
+                "earnings": 0.083,
+                "combined": 0.088
+              }
+            },
+            {
+              "timestamp": "2026-04-01T14:58:38.243Z",
+              "effectiveness": 0.066,
+              "sr_delta": 11.1,
+              "latency_delta": -2,
+              "result": "success",
+              "context": "high_load",
+              "time_bucket": "day",
+              "objectives": {
+                "health": 0.044,
+                "completion": 0.078,
+                "earnings": 0.055,
+                "combined": 0.058
+              }
+            },
+            {
+              "timestamp": "2026-04-01T15:16:37.483Z",
+              "effectiveness": 0.114,
+              "sr_delta": 19,
+              "latency_delta": -1,
+              "result": "success",
+              "context": "high_load",
+              "time_bucket": "day",
+              "objectives": {
+                "health": 0.076,
+                "completion": 0.133,
+                "earnings": 0.095,
+                "combined": 0.101
+              }
+            },
+            {
+              "timestamp": "2026-04-01T15:17:36.349Z",
+              "effectiveness": 0.016,
+              "sr_delta": 2.7,
+              "latency_delta": -1,
+              "result": "success",
+              "context": "high_load",
+              "time_bucket": "day",
+              "objectives": {
+                "health": 0.011,
+                "completion": 0.019,
+                "earnings": 0.013,
+                "combined": 0.014
+              }
+            },
+            {
+              "timestamp": "2026-04-01T15:19:03.877Z",
+              "effectiveness": 0.1,
+              "sr_delta": 16.6,
+              "latency_delta": 0,
+              "result": "success",
+              "context": "high_load",
+              "time_bucket": "day",
+              "objectives": {
+                "health": 0.066,
+                "completion": 0.116,
+                "earnings": 0.083,
+                "combined": 0.088
+              }
+            }
+          ]
+        }
+      ],
+      "objective_impact": {
+        "health": 0.038,
+        "completion": 0.067,
+        "earnings": 0.048,
+        "combined": 0.051
+      }
+    },
+    {
+      "type": "load_reduce",
+      "total_uses": 68,
+      "successful": 68,
+      "failed": 0,
+      "skipped": 0,
+      "explored": 2,
+      "avg_effectiveness": 0.0363742043031041,
+      "avg_sr_delta": 12.2332746033819,
+      "avg_latency_delta": -0.47779040375522447,
+      "best_effectiveness": 0.123,
+      "worst_effectiveness": -0.047,
+      "current_cooldown_ms": 20000,
+      "base_cooldown_ms": 20000,
+      "enabled": true,
+      "history": [
+        {
+          "timestamp": "2026-04-01T09:30:53.213Z",
+          "effectiveness": 0.026,
+          "sr_delta": 7.5,
+          "latency_delta": 5,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "morning",
+          "objectives": {
+            "health": 0.032,
+            "completion": 0.053,
+            "earnings": 0.039,
+            "combined": 0.041
+          }
+        },
+        {
+          "timestamp": "2026-04-01T09:33:06.800Z",
+          "effectiveness": 0.123,
+          "sr_delta": 29.2,
+          "latency_delta": 59,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "morning",
+          "objectives": {
+            "health": 0.135,
+            "completion": 0.204,
+            "earnings": 0.158,
+            "combined": 0.165
+          }
+        },
+        {
+          "timestamp": "2026-04-01T09:33:27.032Z",
+          "effectiveness": -0.021,
+          "sr_delta": -3.5,
+          "latency_delta": -17,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "morning",
+          "objectives": {
+            "health": -0.019,
+            "completion": -0.024,
+            "earnings": -0.021,
+            "combined": -0.021
+          }
+        },
+        {
+          "timestamp": "2026-04-01T09:55:47.063Z",
+          "effectiveness": 0.061,
+          "sr_delta": 16.7,
+          "latency_delta": 18,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "morning",
+          "objectives": {
+            "health": 0.072,
+            "completion": 0.117,
+            "earnings": 0.087,
+            "combined": 0.092
+          }
+        },
+        {
+          "timestamp": "2026-04-01T09:56:09.800Z",
+          "effectiveness": 0.035,
+          "sr_delta": 13.1,
+          "latency_delta": -7,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "morning",
+          "objectives": {
+            "health": 0.05,
+            "completion": 0.092,
+            "earnings": 0.064,
+            "combined": 0.068
+          }
+        },
+        {
+          "timestamp": "2026-04-01T10:14:37.155Z",
+          "effectiveness": 0.063,
+          "sr_delta": 11.1,
+          "latency_delta": 50,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "morning",
+          "objectives": {
+            "health": 0.059,
+            "completion": 0.078,
+            "earnings": 0.066,
+            "combined": 0.067
+          }
+        },
+        {
+          "timestamp": "2026-04-01T10:14:57.157Z",
+          "effectiveness": -0.047,
+          "sr_delta": -8.6,
+          "latency_delta": -35,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "morning",
+          "objectives": {
+            "health": -0.045,
+            "completion": -0.06,
+            "earnings": -0.05,
+            "combined": -0.052
+          }
+        },
+        {
+          "timestamp": "2026-04-01T10:14:57.519Z",
+          "effectiveness": -0.023,
+          "sr_delta": -4.1,
+          "latency_delta": -18,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "morning",
+          "objectives": {
+            "health": -0.022,
+            "completion": -0.029,
+            "earnings": -0.024,
+            "combined": -0.025
+          }
+        },
+        {
+          "timestamp": "2026-04-01T10:17:09.077Z",
+          "effectiveness": 0,
+          "sr_delta": 0,
+          "latency_delta": 0,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "morning",
+          "objectives": {
+            "health": 0,
+            "completion": 0,
+            "earnings": 0,
+            "combined": 0
+          }
+        },
+        {
+          "timestamp": "2026-04-01T10:17:39.080Z",
+          "effectiveness": -0.009,
+          "sr_delta": 3.3,
+          "latency_delta": -31,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "morning",
+          "objectives": {
+            "health": 0.004,
+            "completion": 0.023,
+            "earnings": 0.01,
+            "combined": 0.012
+          }
+        },
+        {
+          "timestamp": "2026-04-01T10:18:15.092Z",
+          "effectiveness": 0,
+          "sr_delta": 0,
+          "latency_delta": 0,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "morning",
+          "objectives": {
+            "health": 0,
+            "completion": 0,
+            "earnings": 0,
+            "combined": 0
+          }
+        },
+        {
+          "timestamp": "2026-04-01T10:18:35.094Z",
+          "effectiveness": 0,
+          "sr_delta": 0,
+          "latency_delta": 0,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "morning",
+          "objectives": {
+            "health": 0,
+            "completion": 0,
+            "earnings": 0,
+            "combined": 0
+          }
+        },
+        {
+          "timestamp": "2026-04-01T11:09:16.412Z",
+          "effectiveness": 0.064,
+          "sr_delta": 21.4,
+          "latency_delta": -1,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "day",
+          "objectives": {
+            "health": 0.085,
+            "completion": 0.15,
+            "earnings": 0.107,
+            "combined": 0.113
+          }
+        },
+        {
+          "timestamp": "2026-04-01T11:09:38.111Z",
+          "effectiveness": 0.001,
+          "sr_delta": 0,
+          "latency_delta": 1,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "day",
+          "objectives": {
+            "health": 0,
+            "completion": 0,
+            "earnings": 0,
+            "combined": 0
+          }
+        },
+        {
+          "timestamp": "2026-04-01T11:15:35.956Z",
+          "effectiveness": 0.052,
+          "sr_delta": 16.7,
+          "latency_delta": 3,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "day",
+          "objectives": {
+            "health": 0.068,
+            "completion": 0.117,
+            "earnings": 0.084,
+            "combined": 0.089
+          }
+        },
+        {
+          "timestamp": "2026-04-01T11:18:09.368Z",
+          "effectiveness": 0.099,
+          "sr_delta": 33.3,
+          "latency_delta": -1,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "day",
+          "objectives": {
+            "health": 0.133,
+            "completion": 0.233,
+            "earnings": 0.166,
+            "combined": 0.176
+          }
+        },
+        {
+          "timestamp": "2026-04-01T11:18:51.891Z",
+          "effectiveness": -0.019,
+          "sr_delta": -6.4,
+          "latency_delta": 1,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "day",
+          "objectives": {
+            "health": -0.025,
+            "completion": -0.045,
+            "earnings": -0.032,
+            "combined": -0.034
+          }
+        },
+        {
+          "timestamp": "2026-04-01T12:10:23.343Z",
+          "effectiveness": 0.076,
+          "sr_delta": 25,
+          "latency_delta": 1,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "day",
+          "objectives": {
+            "health": 0.1,
+            "completion": 0.175,
+            "earnings": 0.125,
+            "combined": 0.133
+          }
+        },
+        {
+          "timestamp": "2026-04-01T12:12:41.596Z",
+          "effectiveness": 0.01,
+          "sr_delta": 3.6,
+          "latency_delta": -1,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "day",
+          "objectives": {
+            "health": 0.014,
+            "completion": 0.025,
+            "earnings": 0.018,
+            "combined": 0.019
+          }
+        },
+        {
+          "timestamp": "2026-04-01T12:13:10.638Z",
+          "effectiveness": 0.075,
+          "sr_delta": 25,
+          "latency_delta": 0,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "day",
+          "objectives": {
+            "health": 0.1,
+            "completion": 0.175,
+            "earnings": 0.125,
+            "combined": 0.133
+          }
+        },
+        {
+          "timestamp": "2026-04-01T13:21:49.923Z",
+          "effectiveness": 0.021,
+          "sr_delta": 7.1,
+          "latency_delta": 0,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "day",
+          "objectives": {
+            "health": 0.028,
+            "completion": 0.05,
+            "earnings": 0.036,
+            "combined": 0.038
+          }
+        },
+        {
+          "timestamp": "2026-04-01T13:24:01.282Z",
+          "effectiveness": 0.008,
+          "sr_delta": 2.8,
+          "latency_delta": -1,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "day",
+          "objectives": {
+            "health": 0.011,
+            "completion": 0.02,
+            "earnings": 0.014,
+            "combined": 0.015
+          }
+        },
+        {
+          "timestamp": "2026-04-01T13:36:14.905Z",
+          "effectiveness": 0.05,
+          "sr_delta": 16.7,
+          "latency_delta": 0,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "day",
+          "objectives": {
+            "health": 0.067,
+            "completion": 0.117,
+            "earnings": 0.084,
+            "combined": 0.089
+          }
+        },
+        {
+          "timestamp": "2026-04-01T13:36:37.265Z",
+          "effectiveness": 0.012,
+          "sr_delta": 4.2,
+          "latency_delta": -1,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "day",
+          "objectives": {
+            "health": 0.017,
+            "completion": 0.029,
+            "earnings": 0.021,
+            "combined": 0.022
+          }
+        },
+        {
+          "timestamp": "2026-04-01T13:45:48.150Z",
+          "effectiveness": 0.05,
+          "sr_delta": 16.7,
+          "latency_delta": 0,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "day",
+          "objectives": {
+            "health": 0.067,
+            "completion": 0.117,
+            "earnings": 0.084,
+            "combined": 0.089
+          }
+        },
+        {
+          "timestamp": "2026-04-01T13:46:11.479Z",
+          "effectiveness": 0,
+          "sr_delta": 0,
+          "latency_delta": 0,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "day",
+          "objectives": {
+            "health": 0,
+            "completion": 0,
+            "earnings": 0,
+            "combined": 0
+          }
+        },
+        {
+          "timestamp": "2026-04-01T13:47:02.410Z",
+          "effectiveness": 0,
+          "sr_delta": 0,
+          "latency_delta": 0,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "day",
+          "objectives": {
+            "health": 0,
+            "completion": 0,
+            "earnings": 0,
+            "combined": 0
+          }
+        },
+        {
+          "timestamp": "2026-04-01T14:35:10.575Z",
+          "effectiveness": 0,
+          "sr_delta": 0,
+          "latency_delta": 0,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "day",
+          "objectives": {
+            "health": 0,
+            "completion": 0,
+            "earnings": 0,
+            "combined": 0
+          }
+        },
+        {
+          "timestamp": "2026-04-01T14:35:40.579Z",
+          "effectiveness": 0.039,
+          "sr_delta": 13.3,
+          "latency_delta": -1,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "day",
+          "objectives": {
+            "health": 0.053,
+            "completion": 0.093,
+            "earnings": 0.066,
+            "combined": 0.07
+          }
+        },
+        {
+          "timestamp": "2026-04-01T15:19:21.785Z",
+          "effectiveness": 0.112,
+          "sr_delta": 37.5,
+          "latency_delta": -1,
+          "result": "success",
+          "context": "high_load",
+          "time_bucket": "day",
+          "objectives": {
+            "health": 0.15,
+            "completion": 0.262,
+            "earnings": 0.187,
+            "combined": 0.199
+          }
+        }
+      ],
+      "context_scores": [
+        {
+          "bucket": "high_load",
+          "uses": 68,
+          "avg_effectiveness": 0.03781206986179345,
+          "avg_sr_delta": 12.702974256130807,
+          "avg_latency_delta": -0.41197895541371055,
+          "entries": [
+            {
+              "timestamp": "2026-04-01T11:18:09.368Z",
+              "effectiveness": 0.099,
+              "sr_delta": 33.3,
+              "latency_delta": -1,
+              "result": "success",
+              "context": "high_load",
+              "time_bucket": "day",
+              "objectives": {
+                "health": 0.133,
+                "completion": 0.233,
+                "earnings": 0.166,
+                "combined": 0.176
+              }
+            },
+            {
+              "timestamp": "2026-04-01T11:18:51.891Z",
+              "effectiveness": -0.019,
+              "sr_delta": -6.4,
+              "latency_delta": 1,
+              "result": "success",
+              "context": "high_load",
+              "time_bucket": "day",
+              "objectives": {
+                "health": -0.025,
+                "completion": -0.045,
+                "earnings": -0.032,
+                "combined": -0.034
+              }
+            },
+            {
+              "timestamp": "2026-04-01T12:10:23.343Z",
+              "effectiveness": 0.076,
+              "sr_delta": 25,
+              "latency_delta": 1,
+              "result": "success",
+              "context": "high_load",
+              "time_bucket": "day",
+              "objectives": {
+                "health": 0.1,
+                "completion": 0.175,
+                "earnings": 0.125,
+                "combined": 0.133
+              }
+            },
+            {
+              "timestamp": "2026-04-01T12:12:41.596Z",
+              "effectiveness": 0.01,
+              "sr_delta": 3.6,
+              "latency_delta": -1,
+              "result": "success",
+              "context": "high_load",
+              "time_bucket": "day",
+              "objectives": {
+                "health": 0.014,
+                "completion": 0.025,
+                "earnings": 0.018,
+                "combined": 0.019
+              }
+            },
+            {
+              "timestamp": "2026-04-01T12:13:10.638Z",
+              "effectiveness": 0.075,
+              "sr_delta": 25,
+              "latency_delta": 0,
+              "result": "success",
+              "context": "high_load",
+              "time_bucket": "day",
+              "objectives": {
+                "health": 0.1,
+                "completion": 0.175,
+                "earnings": 0.125,
+                "combined": 0.133
+              }
+            },
+            {
+              "timestamp": "2026-04-01T13:21:49.923Z",
+              "effectiveness": 0.021,
+              "sr_delta": 7.1,
+              "latency_delta": 0,
+              "result": "success",
+              "context": "high_load",
+              "time_bucket": "day",
+              "objectives": {
+                "health": 0.028,
+                "completion": 0.05,
+                "earnings": 0.036,
+                "combined": 0.038
+              }
+            },
+            {
+              "timestamp": "2026-04-01T13:24:01.282Z",
+              "effectiveness": 0.008,
+              "sr_delta": 2.8,
+              "latency_delta": -1,
+              "result": "success",
+              "context": "high_load",
+              "time_bucket": "day",
+              "objectives": {
+                "health": 0.011,
+                "completion": 0.02,
+                "earnings": 0.014,
+                "combined": 0.015
+              }
+            },
+            {
+              "timestamp": "2026-04-01T13:36:14.905Z",
+              "effectiveness": 0.05,
+              "sr_delta": 16.7,
+              "latency_delta": 0,
+              "result": "success",
+              "context": "high_load",
+              "time_bucket": "day",
+              "objectives": {
+                "health": 0.067,
+                "completion": 0.117,
+                "earnings": 0.084,
+                "combined": 0.089
+              }
+            },
+            {
+              "timestamp": "2026-04-01T13:36:37.265Z",
+              "effectiveness": 0.012,
+              "sr_delta": 4.2,
+              "latency_delta": -1,
+              "result": "success",
+              "context": "high_load",
+              "time_bucket": "day",
+              "objectives": {
+                "health": 0.017,
+                "completion": 0.029,
+                "earnings": 0.021,
+                "combined": 0.022
+              }
+            },
+            {
+              "timestamp": "2026-04-01T13:45:48.150Z",
+              "effectiveness": 0.05,
+              "sr_delta": 16.7,
+              "latency_delta": 0,
+              "result": "success",
+              "context": "high_load",
+              "time_bucket": "day",
+              "objectives": {
+                "health": 0.067,
+                "completion": 0.117,
+                "earnings": 0.084,
+                "combined": 0.089
+              }
+            },
+            {
+              "timestamp": "2026-04-01T13:46:11.479Z",
+              "effectiveness": 0,
+              "sr_delta": 0,
+              "latency_delta": 0,
+              "result": "success",
+              "context": "high_load",
+              "time_bucket": "day",
+              "objectives": {
+                "health": 0,
+                "completion": 0,
+                "earnings": 0,
+                "combined": 0
+              }
+            },
+            {
+              "timestamp": "2026-04-01T13:47:02.410Z",
+              "effectiveness": 0,
+              "sr_delta": 0,
+              "latency_delta": 0,
+              "result": "success",
+              "context": "high_load",
+              "time_bucket": "day",
+              "objectives": {
+                "health": 0,
+                "completion": 0,
+                "earnings": 0,
+                "combined": 0
+              }
+            },
+            {
+              "timestamp": "2026-04-01T14:35:10.575Z",
+              "effectiveness": 0,
+              "sr_delta": 0,
+              "latency_delta": 0,
+              "result": "success",
+              "context": "high_load",
+              "time_bucket": "day",
+              "objectives": {
+                "health": 0,
+                "completion": 0,
+                "earnings": 0,
+                "combined": 0
+              }
+            },
+            {
+              "timestamp": "2026-04-01T14:35:40.579Z",
+              "effectiveness": 0.039,
+              "sr_delta": 13.3,
+              "latency_delta": -1,
+              "result": "success",
+              "context": "high_load",
+              "time_bucket": "day",
+              "objectives": {
+                "health": 0.053,
+                "completion": 0.093,
+                "earnings": 0.066,
+                "combined": 0.07
+              }
+            },
+            {
+              "timestamp": "2026-04-01T15:19:21.785Z",
+              "effectiveness": 0.112,
+              "sr_delta": 37.5,
+              "latency_delta": -1,
+              "result": "success",
+              "context": "high_load",
+              "time_bucket": "day",
+              "objectives": {
+                "health": 0.15,
+                "completion": 0.262,
+                "earnings": 0.187,
+                "combined": 0.199
+              }
+            }
+          ]
+        }
+      ],
+      "objective_impact": {
+        "health": 0.049,
+        "completion": 0.086,
+        "earnings": 0.061,
+        "combined": 0.065
+      }
+    }
+  ]
+}

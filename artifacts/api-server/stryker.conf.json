@@ -1,0 +1,30 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "_comment": "Mutation testing for the deterministic critical modules (constant-time compare, request validation + schemas, error helper, resilience layer). Run: pnpm run test:mutation. These modules are the ones held to the 95% unit-coverage gate; mutation testing verifies the tests actually assert behavior, not just execute lines.",
+  "packageManager": "pnpm",
+  "testRunner": "vitest",
+  "plugins": ["@stryker-mutator/vitest-runner"],
+  "vitest": {
+    "configFile": "vitest.config.ts"
+  },
+  "coverageAnalysis": "perTest",
+  "_mutatorComment": "Excludes low-value mutants — log/response-message StringLiterals and zod schema ObjectLiteral/ArrayDeclaration shapes produce brittle survivors (you'd have to assert exact log text / every schema field boundary). We mutation-test behavior, not message wording.",
+  "mutator": {
+    "excludedMutations": ["StringLiteral", "ObjectLiteral", "ArrayDeclaration"]
+  },
+  "mutate": [
+    "src/lib/secure-compare.ts",
+    "src/lib/errors.ts",
+    "src/lib/circuit.ts",
+    "src/middlewares/validate.ts",
+    "src/middlewares/request-schemas.ts"
+  ],
+  "reporters": ["clear-text", "progress"],
+  "thresholds": {
+    "high": 90,
+    "low": 75,
+    "break": 60
+  },
+  "timeoutMS": 20000,
+  "concurrency": 2
+}

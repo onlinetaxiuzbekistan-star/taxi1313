@@ -23,5 +23,22 @@ export default defineConfig({
     environment: "node",
     include: ["src/**/*.test.ts"],
     clearMocks: true,
+    // Enforced 95% gate over the deterministic, fully-unit-testable critical
+    // modules: constant-time compare, request validation + schemas, error
+    // helper, and the resilience (circuit-breaker/retry) layer. DB-bound
+    // services/ledger/completion are exercised by the integration suite
+    // (vitest.integration.config.ts) instead.
+    coverage: {
+      provider: "v8",
+      include: [
+        "src/lib/secure-compare.ts",
+        "src/lib/errors.ts",
+        "src/lib/circuit.ts",
+        "src/middlewares/validate.ts",
+        "src/middlewares/request-schemas.ts",
+      ],
+      reporter: ["text", "text-summary"],
+      thresholds: { statements: 95, lines: 95, functions: 95, branches: 80 },
+    },
   },
 });

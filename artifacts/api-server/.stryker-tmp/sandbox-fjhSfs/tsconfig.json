@@ -1,0 +1,28 @@
+{
+  "extends": "../../../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": ".",
+    "types": [
+      "node"
+    ],
+    "noImplicitReturns": false
+  },
+  "include": [
+    "src",
+    "tools"
+  ],
+  "exclude": [
+    "tools/simulation/e2e-simulation.ts",
+    "tools/simulation/stress-simulation.ts",
+    "tools/simulation/load-test.ts"
+  ],
+  "references": [
+    {
+      "path": "../../../../lib/db/tsconfig.json"
+    },
+    {
+      "path": "../../../../lib/api-zod/tsconfig.json"
+    }
+  ]
+}

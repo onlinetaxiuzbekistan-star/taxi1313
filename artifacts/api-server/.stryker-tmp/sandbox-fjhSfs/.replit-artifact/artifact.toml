@@ -1,0 +1,33 @@
+kind = "api"
+previewPath = "/api"
+title = "API Server"
+version = "1.0.0"
+id = "3B4_FFSkEVBkAeYMFRJ2e"
+
+[[services]]
+localPort = 8080
+name = "API Server"
+paths = ["/api"]
+
+[services.development]
+run = "pnpm --filter @workspace/api-server run dev"
+
+[services.production]
+
+[services.production.build]
+args = ["sh", "-c", "rm -rf artifacts/taxi-app/dist artifacts/taxi-app/.vite artifacts/api-server/dist && pnpm --filter @workspace/taxi-app run build && pnpm --filter @workspace/api-server run build"]
+
+[services.production.build.env]
+NODE_ENV = "production"
+BASE_PATH = "/"
+PORT = "23292"
+
+[services.production.run]
+args = ["node", "--enable-source-maps", "--max-old-space-size=512", "artifacts/api-server/dist/index.mjs"]
+
+[services.production.run.env]
+PORT = "8080"
+NODE_ENV = "production"
+
+[services.production.health.startup]
+path = "/api/healthz"
