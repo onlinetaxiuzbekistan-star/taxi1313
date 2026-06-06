@@ -12,8 +12,8 @@ android {
         // build-apk.sh passes APK_VERSION_CODE (minutes since the Unix epoch — a
         // monotonic int well under the 2.1e9 ceiling). Falls back to 1 for ad-hoc
         // local builds, so manual builds still work.
-        versionCode (System.getenv("APK_VERSION_CODE") ?: "1").toInteger()
-        versionName System.getenv("APK_VERSION_NAME") ?: "1.0"
+        versionCode((System.getenv("APK_VERSION_CODE") ?: "1").toInteger())
+        versionName((System.getenv("APK_VERSION_NAME") ?: "1.0"))
     }
 
     signingConfigs {
