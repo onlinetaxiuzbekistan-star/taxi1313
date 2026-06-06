@@ -13,6 +13,7 @@ import {
 import { validateBody } from "../middlewares/validate.js";
 import { depositInitBodySchema, depositConfirmBodySchema } from "../middlewares/request-schemas.js";
 import { processTopup, getBalance } from "../lib/services/payments.service.js";
+import { recordPaymentFailure } from "../lib/metrics.js";
 
 const router: IRouter = Router();
 
@@ -167,6 +168,7 @@ router.post("/deposit/init", authMiddleware, validateBody(depositInitBodySchema)
     });
   } catch (err: any) {
     req.log.error({ err }, "Deposit init error");
+    recordPaymentFailure("init");
     res.status(400).json({ error: "atmos_error", message: err.message || "Ошибка создания платежа" });
   }
 });
@@ -220,6 +222,7 @@ router.post("/deposit/confirm", authMiddleware, validateBody(depositConfirmBodyS
     });
   } catch (err: any) {
     req.log.error({ err }, "Deposit confirm error");
+    recordPaymentFailure("confirm");
     res.status(400).json({ error: "atmos_error", message: err.message || "Ошибка подтверждения платежа" });
   }
 });

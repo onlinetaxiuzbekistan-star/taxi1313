@@ -11,6 +11,7 @@ import { rpsMiddleware, logSlowQuery } from "./lib/perf-cache.js";
 import { onSlowQuery } from "@workspace/db";
 import { Sentry } from "./lib/sentry.js";
 import { config } from "./lib/config.js";
+import { metricsMiddleware, metricsEndpoint } from "./lib/metrics.js";
 
 const UPLOADS_DIR = path.resolve(process.cwd(), "artifacts", "uploads");
 
@@ -75,6 +76,10 @@ function corsOriginDelegate(): boolean | string[] | ((origin: string | undefined
 
 app.use(cors({ origin: corsOriginDelegate(), credentials: true }));
 app.use(rpsMiddleware);
+app.use(metricsMiddleware);
+
+// Prometheus scrape endpoint (RED metrics + business counters).
+app.get("/metrics", metricsEndpoint);
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 

@@ -1,6 +1,7 @@
 import { db, settingsTable } from "@workspace/db";
 import { clog } from "./logger.js";
 import { eq } from "drizzle-orm";
+import { recordSmsFailure } from "./metrics.js";
 
 const SMS_GATEWAY_URL = "http://217.30.171.176:3000/api/messages/send";
 
@@ -67,6 +68,7 @@ export async function sendSms(phone: string, message: string): Promise<{ success
     if (!res.ok) {
       const text = await res.text();
       clog.error(`[SMS] Gateway error: ${res.status} ${text}`);
+      recordSmsFailure();
       return { success: false, error: text };
     }
 
@@ -76,10 +78,12 @@ export async function sendSms(phone: string, message: string): Promise<{ success
       return { success: true, id: data.messageId };
     } else {
       clog.error(`[SMS] Gateway returned error: ${data.error}`);
+      recordSmsFailure();
       return { success: false, error: data.error };
     }
   } catch (err: any) {
     clog.error(`[SMS] Error:`, err.message);
+    recordSmsFailure();
     return { success: false, error: err.message };
   }
 }

@@ -1,5 +1,6 @@
 import { db, ridesTable, usersTable, orderOffersTable, ridePassengersTable, driverGroupsTable, marketplaceListingsTable } from "@workspace/db";
 import { clog } from "./logger.js";
+import { recordDispatchFailure } from "./metrics.js";
 import { eq, and, inArray, ne, sql } from "drizzle-orm";
 import { broadcastToAll, broadcastToUser, isUserOnline } from "./websocket.js";
 import { logger } from "./logger.js";
@@ -513,6 +514,7 @@ export async function startAutoDispatch(rideId: number, fromCity: string): Promi
 
       if (cycle >= maxCycles) {
         clog.log(`[DISPATCH LOOP] ride ${rideId}: max cycles (${maxCycles}) reached`);
+        recordDispatchFailure();
         broadcastToAll({ type: "dispatch_failed", rideId, reason: "max_cycles_reached" });
         break;
       }
