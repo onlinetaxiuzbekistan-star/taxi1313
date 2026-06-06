@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import healthRouter    from "./health.js";
 import authRouter      from "./auth.js";
-import ridesRouter     from "./rides.js";
+import ridesRouter     from "./rides/index.js";
 import driversRouter   from "./drivers/index.js";
 import dispatcherRouter from "./dispatcher.js";
 import messagesRouter  from "./messages.js";

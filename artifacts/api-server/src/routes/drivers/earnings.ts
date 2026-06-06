@@ -6,7 +6,7 @@ import { fileURLToPath } from "url";
 import fs from "fs";
 import { db, usersTable, ridesTable, orderOffersTable, transactionsTable, ridePassengersTable, marketplaceListingsTable, photoRequestsTable, driverAuditLogsTable } from "@workspace/db";
 import { eq, and, ne, desc, sql, gte, lte, inArray, notInArray } from "drizzle-orm";
-import { CITIES } from "../rides.js";
+import { CITIES } from "../rides/index.js";
 import { getOsrmRoute, haversineDistance } from "../../lib/osrm.js";
 import { authMiddleware, requireRole, AuthRequest } from "../../middlewares/auth.js";
 import { broadcastToAll, broadcastToUser } from "../../lib/websocket.js";
