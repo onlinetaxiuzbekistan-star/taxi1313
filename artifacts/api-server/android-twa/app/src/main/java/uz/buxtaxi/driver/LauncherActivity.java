@@ -862,6 +862,19 @@ public class LauncherActivity extends ComponentActivity {
             } catch (Exception ignored) {}
         }
 
+        /**
+         * Cleanly close the activity and remove it from the recents list.
+         * The web driver app calls this via window.__buxtaxiNative.exitApp()
+         * from the "Закрыть приложение" confirmation. Without this, the web
+         * fallback was logging a destructive toast.
+         */
+        @android.webkit.JavascriptInterface
+        public void exitApp() {
+            runOnUiThread(() -> {
+                try { finishAndRemoveTask(); } catch (Exception e) { finish(); }
+            });
+        }
+
         @android.webkit.JavascriptInterface
         public void shareText(String text) {
             try {

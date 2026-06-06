@@ -127,7 +127,7 @@ export default function DriverLayout({ children }: { children: ReactNode }) {
 
 function DriverLayoutInner({ children, wsRef }: { children: ReactNode; wsRef: React.MutableRefObject<WebSocket | null> }) {
   const [location, navigate] = useLocation();
-  const { user, token, refreshUser } = useAuth();
+  const { user, token, refreshUser, logout } = useAuth();
   const { toast } = useToast();
   const [toggling, setToggling] = useState(false);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
@@ -360,15 +360,19 @@ function DriverLayoutInner({ children, wsRef }: { children: ReactNode; wsRef: Re
     // Try every known way to close, in priority order. Don't gate on isNativePlatform()
     // — in some Capacitor remote-URL builds it returns false even when Plugins.App exists.
 
-    // 1. Native Android JS-interface (truly closes activity, removes from recents)
+    // 1. The WebView shell's NativeBridge (LauncherActivity.NativeBridge.exitApp)
+    //    — truly closes the activity and removes it from recents.
+    if (w.__buxtaxiNative?.exitApp) {
+      try { w.__buxtaxiNative.exitApp(); return; } catch (e) { console.warn("[exit] __buxtaxiNative.exitApp:", e); }
+    }
+    // 2. Legacy AndroidExit JS interface (older builds).
     if (w.AndroidExit?.exitApp) {
       try { w.AndroidExit.exitApp(); return; } catch (e) { console.warn("[exit] AndroidExit.exitApp:", e); }
     }
-    // 2. Capacitor Plugins.App.exitApp
+    // 3. Capacitor Plugins.App.exitApp (if the build ever uses Capacitor).
     if (cap?.Plugins?.App?.exitApp) {
       try { await cap.Plugins.App.exitApp(); return; } catch (e) { console.warn("[exit] Plugins.App.exitApp:", e); }
     }
-    // 2. Bridge call directly (some Capacitor builds expose it this way)
     if (cap?.nativeCallback) {
       try { cap.nativeCallback("App", "exitApp", {}); return; } catch (e) { console.warn("[exit] nativeCallback:", e); }
     }
@@ -376,14 +380,11 @@ function DriverLayoutInner({ children, wsRef }: { children: ReactNode; wsRef: Re
       try { await cap.Plugins.App.minimizeApp(); return; } catch (e) { console.warn("[exit] minimizeApp:", e); }
     }
 
-    // Diagnostic toast — show what's actually available so we can debug
-    const diag = `Capacitor=${!!cap} isNative=${cap?.isNativePlatform?.()} Plugins=${cap?.Plugins ? Object.keys(cap.Plugins).join(",") : "none"}`;
-    console.warn("[exit] no exit method available. " + diag);
-    toast({
-      title: lang === "uz" ? "Chiqib bolmadi" : "Не удалось закрыть",
-      description: diag.length > 120 ? diag.slice(0, 120) : diag,
-      variant: "destructive",
-    });
+    // Fallback (plain browser, or APK shell without the bridge yet): rather
+    // than show a red destructive toast, perform a graceful logout — that is
+    // what "exit" really means when we cannot actually close the activity.
+    console.log("[exit] no native exit available — falling back to logout");
+    logout();
   };
 
   const toggleStatus = async () => {
@@ -469,12 +470,14 @@ function DriverLayoutInner({ children, wsRef }: { children: ReactNode; wsRef: Re
             onClick={toggleStatus}
             disabled={toggling}
             className={`flex items-center gap-1.5 h-9 pl-3 pr-2 rounded-full transition-all ${
-              isOnline
-                ? "bg-zinc-900 text-white shadow-md shadow-zinc-900/30 border border-zinc-700"
-                : "bg-secondary text-muted-foreground"
+              user.status === "busy"
+                ? "bg-amber-500 text-white shadow-md shadow-amber-500/30 border border-amber-600"
+                : isOnline
+                ? "bg-emerald-500 text-white shadow-md shadow-emerald-500/30 border border-emerald-600"
+                : "bg-red-500 text-white shadow-md shadow-red-500/30 border border-red-600"
             } disabled:opacity-50`}
           >
-            <div className={`w-2 h-2 rounded-full ${isOnline ? "bg-white animate-pulse" : "bg-muted-foreground"}`} />
+            <div className={`w-2 h-2 rounded-full ${isOnline ? "bg-white animate-pulse" : "bg-white/80"}`} />
             <span className="text-xs font-bold">{user.status === "busy" ? (lang === "uz" ? "Reysda" : "В рейсе") : isOnline ? "Online" : "Offline"}</span>
             {toggling ? <Loader2 className="w-4 h-4 animate-spin" /> : <Power className="w-4 h-4" />}
           </button>
@@ -625,7 +628,7 @@ function DriverLayoutInner({ children, wsRef }: { children: ReactNode; wsRef: Re
         {children}
       </main>
 
-      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-card/95 backdrop-blur-lg border-t border-white/[0.06]">
+      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-card/95 backdrop-blur-lg border-t border-white/[0.06] pb-[env(safe-area-inset-bottom)]">
         <div className="flex justify-around items-center h-[68px] px-1">
           {navs.map(nav => {
             const isChat = nav.path === "/driver/chat";

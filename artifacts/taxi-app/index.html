@@ -22,7 +22,10 @@
 })();
 </script>
     <meta name="build-time" content="1777812866" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+    <!-- viewport-fit=cover lets the page draw under the Android system bars,
+         enabling env(safe-area-inset-*) to report non-zero so the bottom nav
+         can pad itself above the system navigation bar / gesture indicator. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover" />
     <title>Такси 1313 — Межгород</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="manifest" href="/manifest.json" />
