@@ -292,7 +292,12 @@ public class LauncherActivity extends Activity {
 
             @Override
             public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
-                handler.proceed();
+                // SECURITY: never proceed past an invalid TLS certificate — doing so
+                // would allow a man-in-the-middle to intercept all driver traffic.
+                // Cancel the connection and show the offline/error page instead.
+                handler.cancel();
+                runOnUiThread(() -> showSslErrorPage(view));
+                dismissSplash();
             }
 
             @Override
@@ -468,6 +473,22 @@ public class LauncherActivity extends Activity {
             "<p style='color:#71717a;margin:0 0 24px'>\u041f\u0440\u043e\u0432\u0435\u0440\u044c\u0442\u0435 \u0438\u043d\u0442\u0435\u0440\u043d\u0435\u0442-\u0441\u043e\u0435\u0434\u0438\u043d\u0435\u043d\u0438\u0435</p>" +
             "<button onclick='location.reload()' style='background:#F59E0B;border:none;color:#09090b;padding:14px 40px;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer'>\u041f\u043e\u0432\u0442\u043e\u0440\u0438\u0442\u044c</button></div></body></html>",
             "text/html", "UTF-8"
+        );
+    }
+
+    private void showSslErrorPage(WebView view) {
+        // Distinct from the generic offline page: a TLS failure is a security
+        // condition (bad/expired cert or active MITM), not just "no internet".
+        view.loadDataWithBaseURL(
+            null,
+            "<html><body style='background:#09090b;color:#fff;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0'>" +
+            "<div style='text-align:center;padding:24px;max-width:340px'>" +
+            "<div style='width:64px;height:64px;border-radius:16px;background:#7f1d1d;margin:0 auto 20px;display:flex;align-items:center;justify-content:center'>" +
+            "<svg width='32' height='32' viewBox='0 0 24 24' fill='none' stroke='#fca5a5' stroke-width='2'><path d='M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z'/></svg></div>" +
+            "<h2 style='font-size:20px;margin:0 0 8px'>Небезопасное соединение</h2>" +
+            "<p style='color:#a1a1aa;margin:0 0 24px;line-height:1.5'>Не удалось проверить безопасность сервера. Подключение заблокировано для вашей защиты. Проверьте сеть или обратитесь к диспетчеру.</p>" +
+            "<button onclick='location.href=\"" + launchUrl + "\"' style='background:#F59E0B;border:none;color:#09090b;padding:14px 40px;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer'>Повторить</button></div></body></html>",
+            "text/html", "UTF-8", null
         );
     }
 
