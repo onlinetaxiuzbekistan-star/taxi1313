@@ -7,4 +7,6 @@
     <color name="backgroundColor">#09090b</color>
     <color name="navigationDividerColor">#09090b</color>
     <color name="splashBackground">#09090b</color>
+    <!-- Adaptive launcher icon background (matches the dark app theme). -->
+    <color name="ic_launcher_background">#09090b</color>
 </resources>
