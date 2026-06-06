@@ -127,7 +127,7 @@ if (isProduction && existsSync(indexHtml)) {
       let content = readFileSync(indexHtml, "utf-8");
       content = content.replace(
         "</head>",
-        `<script>clog.log("FRONT VERSION: ${new Date().toISOString()} (built: ${new Date(mtime).toISOString()})");</script></head>`
+        `<script>console.log("FRONT VERSION: ${new Date().toISOString()} (built: ${new Date(mtime).toISOString()})");</script></head>`
       );
       _htmlCache = { mtime, content };
       logger.info({ mtime: new Date(mtime).toISOString() }, "index.html reloaded from disk");
