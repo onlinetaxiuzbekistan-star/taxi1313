@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import healthRouter    from "./health.js";
 import authRouter      from "./auth.js";
 import ridesRouter     from "./rides.js";
-import driversRouter   from "./drivers.js";
+import driversRouter   from "./drivers/index.js";
 import dispatcherRouter from "./dispatcher.js";
 import messagesRouter  from "./messages.js";
 import tariffsRouter   from "./tariffs.js";
