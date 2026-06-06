@@ -131,57 +131,64 @@ router.get("/crm", authMiddleware, requireRole("dispatcher", "admin"), async (re
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const weekStart = new Date(todayStart.getTime() - 7 * 24 * 60 * 60 * 1000);
 
-    const allTransactions = await db.select({
-      id: transactionsTable.id,
-      driverId: transactionsTable.driverId,
-      type: transactionsTable.type,
-      amount: transactionsTable.amount,
-      createdAt: transactionsTable.createdAt,
-    }).from(transactionsTable).where(sql`${transactionsTable.driverId} IS NOT NULL`);
-    const txByDriver = new Map<number, typeof allTransactions>();
-    for (const tx of allTransactions) {
-      if (!tx.driverId) continue;
-      if (!txByDriver.has(tx.driverId)) txByDriver.set(tx.driverId, []);
-      txByDriver.get(tx.driverId)!.push(tx);
+    // Aggregate earnings + ride stats per driver in SQL (GROUP BY) rather than
+    // streaming every transaction/ride row into memory and reducing in JS.
+    const txRows: any = await db.execute(sql`
+      SELECT driver_id,
+        COALESCE(SUM(amount) FILTER (WHERE type IN ('income','bonus')), 0) AS total_income,
+        COALESCE(SUM(amount) FILTER (WHERE type IN ('commission','penalty','withdraw')), 0) AS total_deduct,
+        COALESCE(SUM(amount) FILTER (WHERE type IN ('income','bonus') AND created_at >= ${todayStart}), 0) AS today_income,
+        COALESCE(SUM(amount) FILTER (WHERE type IN ('commission','penalty','withdraw') AND created_at >= ${todayStart}), 0) AS today_deduct
+      FROM transactions
+      WHERE driver_id IS NOT NULL
+      GROUP BY driver_id
+    `);
+    const txAgg = new Map<number, { todayIncome: number; todayDeduct: number; totalIncome: number; totalDeduct: number }>();
+    for (const r of (txRows.rows ?? txRows) as any[]) {
+      txAgg.set(Number(r.driver_id), {
+        todayIncome: parseFloat(r.today_income ?? "0"),
+        todayDeduct: parseFloat(r.today_deduct ?? "0"),
+        totalIncome: parseFloat(r.total_income ?? "0"),
+        totalDeduct: parseFloat(r.total_deduct ?? "0"),
+      });
     }
 
-    const allRides = await db.select({
-      id: ridesTable.id,
-      driverId: ridesTable.driverId,
-      status: ridesTable.status,
-      fromCity: ridesTable.fromCity,
-      toCity: ridesTable.toCity,
-      createdAt: ridesTable.createdAt,
-    }).from(ridesTable).where(
-      and(
-        sql`${ridesTable.driverId} IS NOT NULL`
-      )
-    );
-    const ridesByDriver = new Map<number, typeof allRides>();
-    for (const r of allRides) {
-      if (!r.driverId) continue;
-      if (!ridesByDriver.has(r.driverId)) ridesByDriver.set(r.driverId, []);
-      ridesByDriver.get(r.driverId)!.push(r);
+    const rideRows: any = await db.execute(sql`
+      SELECT driver_id,
+        COUNT(*) FILTER (WHERE created_at >= ${todayStart}) AS rides_today,
+        COUNT(*) FILTER (WHERE created_at >= ${weekStart}) AS rides_week,
+        COUNT(*) FILTER (WHERE status = 'completed') AS completed_rides,
+        COUNT(*) FILTER (WHERE status = 'cancelled') AS cancelled_rides,
+        array_agg(DISTINCT from_city) FILTER (WHERE from_city IS NOT NULL AND from_city <> '') AS from_cities,
+        array_agg(DISTINCT to_city) FILTER (WHERE to_city IS NOT NULL AND to_city <> '') AS to_cities
+      FROM rides
+      WHERE driver_id IS NOT NULL
+      GROUP BY driver_id
+    `);
+    const rideAgg = new Map<number, { ridesToday: number; ridesWeek: number; completedRides: number; cancelledRides: number; cities: string[] }>();
+    for (const r of (rideRows.rows ?? rideRows) as any[]) {
+      const cities = new Set<string>([...(r.from_cities ?? []), ...(r.to_cities ?? [])]);
+      rideAgg.set(Number(r.driver_id), {
+        ridesToday: Number(r.rides_today ?? 0),
+        ridesWeek: Number(r.rides_week ?? 0),
+        completedRides: Number(r.completed_rides ?? 0),
+        cancelledRides: Number(r.cancelled_rides ?? 0),
+        cities: Array.from(cities),
+      });
     }
 
     const enriched = drivers.map(driver => {
       const { passwordHash, ...safe } = driver;
 
-      const driverTx = txByDriver.get(driver.id) || [];
-      const incomeTx = driverTx.filter(t => t.type === "income" || t.type === "bonus");
-      const deductTx = driverTx.filter(t => t.type === "commission" || t.type === "penalty" || t.type === "withdraw");
-      const todayIncome = incomeTx.filter(t => t.createdAt >= todayStart).reduce((s, t) => s + parseFloat(t.amount?.toString() || "0"), 0);
-      const todayDeduct = deductTx.filter(t => t.createdAt >= todayStart).reduce((s, t) => s + parseFloat(t.amount?.toString() || "0"), 0);
-      const todayEarnings = todayIncome - todayDeduct;
-      const totalIncome = incomeTx.reduce((s, t) => s + parseFloat(t.amount?.toString() || "0"), 0);
-      const totalDeduct = deductTx.reduce((s, t) => s + parseFloat(t.amount?.toString() || "0"), 0);
-      const totalEarnings = totalIncome - totalDeduct;
+      const t = txAgg.get(driver.id) || { todayIncome: 0, todayDeduct: 0, totalIncome: 0, totalDeduct: 0 };
+      const todayEarnings = t.todayIncome - t.todayDeduct;
+      const totalEarnings = t.totalIncome - t.totalDeduct;
 
-      const driverRides = ridesByDriver.get(driver.id) || [];
-      const ridesToday = driverRides.filter(r => r.createdAt >= todayStart).length;
-      const ridesWeek = driverRides.filter(r => r.createdAt >= weekStart).length;
-      const completedRides = driverRides.filter(r => r.status === "completed").length;
-      const cancelledRides = driverRides.filter(r => r.status === "cancelled").length;
+      const rd = rideAgg.get(driver.id) || { ridesToday: 0, ridesWeek: 0, completedRides: 0, cancelledRides: 0, cities: [] as string[] };
+      const ridesToday = rd.ridesToday;
+      const ridesWeek = rd.ridesWeek;
+      const completedRides = rd.completedRides;
+      const cancelledRides = rd.cancelledRides;
 
       const accepted = driver.acceptedOrders || 0;
       const cancelled = driver.cancelledOrders || 0;
@@ -223,11 +230,7 @@ router.get("/crm", authMiddleware, requireRole("dispatcher", "admin"), async (re
       const cityPfx = driver.city ? (CITY_PREFIX[driver.city] || "BT") : "BT";
       const callsign = `${cityPfx}-${String(driver.id).padStart(3, "0")}`;
 
-      const routeCities = new Set<string>();
-      for (const r of driverRides) {
-        if (r.fromCity) routeCities.add(r.fromCity);
-        if (r.toCity) routeCities.add(r.toCity);
-      }
+      const routeCities = new Set<string>(rd.cities);
 
       return {
         ...safe,

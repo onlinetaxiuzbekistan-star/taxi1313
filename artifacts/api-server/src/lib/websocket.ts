@@ -90,6 +90,27 @@ const callTimeoutSweep = setInterval(() => {
 let wss: WebSocketServer | null = null;
 
 const onlineUsers = new Map<number, { role: string; count: number }>();
+
+// userId -> set of that user's live sockets. Lets broadcastToUser() route in
+// O(sockets-per-user) instead of scanning every connected client (O(n)).
+const userSockets = new Map<number, Set<AuthenticatedWS>>();
+
+function registerUserSocket(userId: number, ws: AuthenticatedWS): void {
+  const prev = (ws as any)._mappedUserId as number | undefined;
+  if (prev !== undefined && prev !== userId) unregisterUserSocket(prev, ws);
+  let set = userSockets.get(userId);
+  if (!set) { set = new Set(); userSockets.set(userId, set); }
+  set.add(ws);
+  (ws as any)._mappedUserId = userId;
+}
+
+function unregisterUserSocket(userId: number, ws: AuthenticatedWS): void {
+  const set = userSockets.get(userId);
+  if (set) {
+    set.delete(ws);
+    if (set.size === 0) userSockets.delete(userId);
+  }
+}
 const offlineGraceTimers = new Map<number, ReturnType<typeof setTimeout>>();
 const OFFLINE_GRACE_MS = 30_000;
 
@@ -220,6 +241,7 @@ export function setupWebSocket(server: Server) {
             const decoded = jwt.verify(msg.token, JWT_SECRET) as { userId: number; role: string; sid?: string };
             ws.userId = Number(decoded.userId);
             ws.userRole = decoded.role;
+            registerUserSocket(ws.userId, ws);
 
             const isDriver = decoded.role === "driver";
             const maxConns = isDriver ? MAX_CONNECTIONS_PER_USER : 10;
@@ -501,6 +523,7 @@ export function setupWebSocket(server: Server) {
         (ws as any)._presenceMarked = false;
         markUserOffline(ws.userId);
       }
+      if (ws.userId) unregisterUserSocket(ws.userId, ws);
     });
   });
 
@@ -566,25 +589,26 @@ export function broadcastToUser(userId: number, data: object): boolean {
     return false;
   }
   const numId = Number(userId);
+  const sockets = userSockets.get(numId);
+  if (!sockets || sockets.size === 0) {
+    console.warn(`[WS] broadcastToUser(${numId}): NO connection found (${wss.clients.size} total clients)`);
+    return false;
+  }
   const message = JSON.stringify(injectVersion(data as Record<string, any>));
-  let sent = false;
   let sentCount = 0;
-  wss.clients.forEach((client: AuthenticatedWS) => {
-    if (client.readyState === WebSocket.OPEN && Number(client.userId) === numId) {
+  for (const client of sockets) {
+    if (client.readyState === WebSocket.OPEN) {
       client.send(message);
-      sent = true;
       sentCount++;
     }
-  });
-  if (!sent) {
-    const connectedIds: number[] = [];
-    wss.clients.forEach((c: AuthenticatedWS) => { if (c.userId && c.readyState === WebSocket.OPEN) connectedIds.push(Number(c.userId)); });
-    console.warn(`[WS] broadcastToUser(${numId}): NO connection found (${wss.clients.size} total clients, connected userIds: [${connectedIds.join(",")}])`);
-  } else {
-    const msgType = (data as any)?.type || "unknown";
-    console.log(`[WS] broadcastToUser(${numId}): sent ${msgType} to ${sentCount} socket(s)`);
   }
-  return sent;
+  if (sentCount === 0) {
+    console.warn(`[WS] broadcastToUser(${numId}): sockets tracked but none OPEN`);
+    return false;
+  }
+  const msgType = (data as any)?.type || "unknown";
+  console.log(`[WS] broadcastToUser(${numId}): sent ${msgType} to ${sentCount} socket(s)`);
+  return true;
 }
 
 export function broadcastToRole(role: string, data: object) {

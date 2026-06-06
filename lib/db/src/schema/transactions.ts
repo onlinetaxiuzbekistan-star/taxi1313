@@ -31,6 +31,7 @@ export const transactionsTable = pgTable("transactions", {
   index("transactions_ride_id_idx").on(t.rideId),
   index("transactions_type_idx").on(t.type),
   index("transactions_created_at_idx").on(t.createdAt),
+  index("transactions_driver_created_idx").on(t.driverId, t.createdAt),
 ]);
 
 export const insertTransactionSchema = createInsertSchema(transactionsTable)
