@@ -14,6 +14,7 @@ import { notifyOrderAccepted, notifyOrderTaken } from "../lib/notifications.js";
 import { applyCancelPenalty, resetConsecutiveIgnores, isDriverBanned, getBanRemainingMs, handleStatusToggle } from "../lib/bonuses.js";
 import { completeRide } from "../lib/completion.js";
 import { stopDispatchLoop, citiesMatch, enrichRideForOffer } from "../lib/autodispatch.js";
+import { getDriver, updateDriver, getDriverBalance } from "../lib/services/drivers.service.js";
 import { notifyRideStatusChange } from "../lib/sms-notifications.js";
 import { idempotencyKey, getIdempotentResult, storeIdempotentResult } from "../lib/idempotency.js";
 import { recordDriverAccept, recordDriverReject, recordRideCompleted } from "../lib/revenue-ai-prod.js";
@@ -1208,7 +1209,7 @@ router.delete("/admin/delete/:id", authMiddleware, requireRole("dispatcher", "ad
   try {
     const driverId = parseInt(req.params.id);
     if (isNaN(driverId)) { res.status(400).json({ error: "invalid_id" }); return; }
-    const [driver] = await db.select().from(usersTable).where(and(eq(usersTable.id, driverId), eq(usersTable.role, "driver"))).limit(1);
+    const driver = await getDriver(driverId);
     if (!driver) { res.status(404).json({ error: "not_found", message: "Водитель не найден" }); return; }
     if (driver.status === "busy") { res.status(400).json({ error: "driver_busy", message: "Нельзя удалить водителя в поездке" }); return; }
     await db.delete(driverAuditLogsTable).where(eq(driverAuditLogsTable.driverId, driverId));

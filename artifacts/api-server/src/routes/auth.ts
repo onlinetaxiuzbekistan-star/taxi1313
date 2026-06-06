@@ -9,6 +9,7 @@ import jwt from "jsonwebtoken";
 import { generateReferralCode, applyReferralBonus } from "../lib/bonuses.js";
 import { registerDeviceToken, registerPushSubscription, getVapidPublicKey } from "../lib/notifications.js";
 import { JWT_SECRET } from "../lib/jwt-secret.js";
+import { hashPassword, verifyPassword, hashOtp, register as registerUser } from "../lib/services/auth.service.js";
 import { loginRateLimit, clearLoginRateLimit, codeOnlyRateLimit } from "../lib/login-rate-limit.js";
 import { validateBody } from "../middlewares/validate.js";
 import { loginBodySchema, registerBodySchema } from "../middlewares/request-schemas.js";
@@ -26,28 +27,8 @@ function normalizePhone(raw: string): string {
   return raw.trim().replace(/\s+/g, "");
 }
 
-function legacySha256(password: string): string {
-  return crypto.createHash("sha256").update(password + "buxtaxi-salt").digest("hex");
-}
-
-async function hashPassword(password: string): Promise<string> {
-  return bcrypt.hash(password.trim(), 10);
-}
-
-async function verifyPassword(inputPassword: string, storedHash: string): Promise<boolean> {
-  const input = inputPassword.trim();
-  if (storedHash.startsWith("$2a$") || storedHash.startsWith("$2b$")) {
-    return bcrypt.compare(input, storedHash);
-  }
-  return legacySha256(input) === storedHash;
-}
-
 function generateToken(userId: number, role: string, sessionToken?: string): string {
   return jwt.sign({ userId, role, ...(sessionToken ? { sid: sessionToken } : {}) }, JWT_SECRET, { expiresIn: "30d" });
-}
-
-export function hashOtp(code: string): string {
-  return crypto.createHash("sha256").update(code + "buxtaxi-otp-salt").digest("hex");
 }
 
 function generate6DigitCode(): string {
@@ -172,7 +153,7 @@ router.post("/register", validateBody(registerBodySchema), async (req, res) => {
     }
 
     const passwordHash = await hashPassword(password);
-    const [user] = await db.insert(usersTable).values({
+    const user = await registerUser({
       phone,
       name,
       passwordHash,
@@ -183,7 +164,7 @@ router.post("/register", validateBody(registerBodySchema), async (req, res) => {
       status: role === "driver" ? "offline" : null,
       referralCode: role === "driver" ? generateReferralCode() : null,
       invitedBy: invitedBy ?? null,
-    }).returning();
+    });
 
     if (invitedBy && role === "driver") {
       applyReferralBonus(invitedBy, user.id).catch(err => {
@@ -867,4 +848,4 @@ router.put("/preferences", async (req, res) => {
 });
 
 export default router;
-export { JWT_SECRET, hashPassword, verifyPassword };
+export { JWT_SECRET, hashPassword, verifyPassword, hashOtp };
