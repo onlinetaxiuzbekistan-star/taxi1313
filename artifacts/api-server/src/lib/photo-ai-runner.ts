@@ -85,3 +85,18 @@ export async function warmupPhotoWorker(): Promise<void> {
     clog.error("[PHOTO-WORKER] warmup failed:", errorMessage(err));
   }
 }
+
+/**
+ * Terminate the resident worker thread (graceful shutdown). The thread holds the
+ * TF/OCR models and would otherwise keep the event loop alive. Pending requests
+ * are rejected by the worker's 'exit' handler.
+ */
+export async function stopPhotoWorker(): Promise<void> {
+  if (!worker) return;
+  try {
+    await worker.terminate();
+  } catch {
+    /* already gone */
+  }
+  worker = null;
+}

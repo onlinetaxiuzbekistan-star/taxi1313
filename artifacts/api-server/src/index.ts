@@ -9,7 +9,7 @@ import { onForceLogout, setSessionCacheInvalidator } from "./routes/auth.js";
 import { invalidateSessionCache } from "./middlewares/auth.js";
 import { loadSettingsCache } from "./lib/settingsCache.js";
 import { startPhotoScheduler, stopPhotoScheduler } from "./lib/photo-scheduler.js";
-import { warmupPhotoWorker } from "./lib/photo-ai-runner.js";
+import { warmupPhotoWorker, stopPhotoWorker } from "./lib/photo-ai-runner.js";
 import { startMemoryGuardian, stopMemoryGuardian } from "./lib/memory-guardian.js";
 import { seedDatabase } from "./lib/seed.js";
 import { startAutoCancelScheduler, stopAutoCancelScheduler } from "./lib/order-auto-cancel.js";
@@ -156,21 +156,43 @@ async function shutdown(signal: string) {
     stopRevenueAiCleanup();
     // (websocket call-timeout sweep is cleared inside closeWebSocket below)
 
+    // Per-step timing so a slow drain step is visible in the logs.
+    const step = async (name: string, fn: () => Promise<void> | void) => {
+      const t0 = Date.now();
+      try {
+        await fn();
+        logger.info({ step: name, ms: Date.now() - t0 }, "shutdown step done");
+      } catch (e) {
+        logger.error({ step: name, ms: Date.now() - t0, err: e }, "shutdown step failed");
+      }
+    };
+
     // 1b) Drain BullMQ workers/queue (finishes in-flight jobs, closes its own Redis conns).
-    await stopWorkers();
+    await step("bullmq", () => stopWorkers());
 
-    // 2) Stop accepting new HTTP connections; wait for in-flight requests to finish.
-    await new Promise<void>((resolve) => server.close(() => resolve()));
-    server.closeIdleConnections?.();
+    // 1c) Terminate the photo-AI worker thread (holds TF/OCR models).
+    await step("photo-worker", () => stopPhotoWorker());
 
-    // 3) Close WebSocket clients (1001 going-away) and the WS server.
-    await closeWebSocket();
+    // 2) Close WebSocket clients FIRST (1001 going-away). This MUST happen before
+    // server.close(): server.close() waits for every open connection to end, and
+    // drivers hold persistent WS upgrades — closing them after would block the
+    // drain until the force-timeout (the cause of the shutdown hangs).
+    await step("websocket", () => closeWebSocket());
+
+    // 3) Stop accepting new HTTP connections; drain in-flight requests, then drop
+    // any lingering keep-alive sockets so close() can't hang.
+    await step("http", () => new Promise<void>((resolve) => {
+      server.close(() => resolve());
+      server.closeIdleConnections?.();
+      // give in-flight requests a moment, then force-drop remaining keep-alives
+      setTimeout(() => server.closeAllConnections?.(), 3000).unref();
+    }));
 
     // 4) Drain the PostgreSQL pool (waits for active queries).
-    await pool.end();
+    await step("postgres", () => pool.end());
 
     // 5) Close Redis.
-    try { await redis.quit(); } catch { redis.disconnect(); }
+    await step("redis", async () => { try { await redis.quit(); } catch { redis.disconnect(); } });
 
     clearTimeout(force);
     logger.info("Graceful shutdown complete");
