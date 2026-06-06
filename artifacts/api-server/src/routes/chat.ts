@@ -1,3 +1,4 @@
+import { errorMessage } from "../lib/errors.js";
 import { Router, type IRouter } from "express";
 import { validateBody } from "../middlewares/validate.js";
 import { chatJoinBodySchema, chatSendBodySchema } from "../middlewares/request-schemas.js";
@@ -221,8 +222,8 @@ router.post("/send", authMiddleware, validateBody(chatSendBodySchema), async (re
     }
 
     res.status(201).json(msg);
-  } catch (err: any) {
-    req.log?.error?.({ err: err?.message || err }, "Chat send error");
+  } catch (err) {
+    req.log?.error?.({ err: errorMessage(err) || err }, "Chat send error");
     res.status(500).json({ error: "server_error", message: "Internal server error" });
   }
 });
@@ -230,7 +231,7 @@ router.post("/send", authMiddleware, validateBody(chatSendBodySchema), async (re
 router.post("/send-voice", authMiddleware, (req, res, next) => {
   voiceUpload.single("voice")(req, res, (err: any) => {
     if (err) {
-      const msg = err.code === "LIMIT_FILE_SIZE" ? "Файл слишком большой (макс 10МБ)" : err.message || "Ошибка загрузки";
+      const msg = err.code === "LIMIT_FILE_SIZE" ? "Файл слишком большой (макс 10МБ)" : errorMessage(err) || "Ошибка загрузки";
       res.status(400).json({ error: "upload_error", message: msg });
       return;
     }
@@ -284,11 +285,11 @@ router.post("/send-voice", authMiddleware, (req, res, next) => {
     }
 
     res.status(201).json(msg);
-  } catch (err: any) {
+  } catch (err) {
     if (file?.path) {
       try { fs.unlinkSync(file.path); } catch {}
     }
-    req.log?.error?.({ err: err?.message || err }, "Voice send error");
+    req.log?.error?.({ err: errorMessage(err) || err }, "Voice send error");
     res.status(500).json({ error: "server_error", message: "Internal server error" });
   }
 });
@@ -296,7 +297,7 @@ router.post("/send-voice", authMiddleware, (req, res, next) => {
 router.post("/send-photo", authMiddleware, (req, res, next) => {
   photoUpload.single("photo")(req, res, (err: any) => {
     if (err) {
-      const msg = err.code === "LIMIT_FILE_SIZE" ? "Файл слишком большой (макс 10МБ)" : err.message || "Ошибка загрузки";
+      const msg = err.code === "LIMIT_FILE_SIZE" ? "Файл слишком большой (макс 10МБ)" : errorMessage(err) || "Ошибка загрузки";
       res.status(400).json({ error: "upload_error", message: msg });
       return;
     }
@@ -350,11 +351,11 @@ router.post("/send-photo", authMiddleware, (req, res, next) => {
     }
 
     res.status(201).json(msg);
-  } catch (err: any) {
+  } catch (err) {
     if (file?.path) {
       try { fs.unlinkSync(file.path); } catch {}
     }
-    req.log?.error?.({ err: err?.message || err }, "Photo send error");
+    req.log?.error?.({ err: errorMessage(err) || err }, "Photo send error");
     res.status(500).json({ error: "server_error", message: "Internal server error" });
   }
 });
@@ -481,8 +482,8 @@ router.get("/dispatcher-info", authMiddleware, async (req: AuthRequest, res) => 
     } else {
       res.json({ id: null, name: null, error: "no_dispatchers" });
     }
-  } catch (err: any) {
-    clog.error("[dispatcher-info] error:", err?.message);
+  } catch (err) {
+    clog.error("[dispatcher-info] error:", errorMessage(err));
     res.json({ id: null, name: null, error: "server_error" });
   }
 });
@@ -496,8 +497,8 @@ router.get("/unread-total", authMiddleware, async (req: AuthRequest, res) => {
     `)).rows as any[];
     const dmCount = parseInt(dmResult[0]?.cnt || "0");
     res.json({ total: dmCount });
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
+  } catch (e) {
+    res.status(500).json({ error: errorMessage(e) });
   }
 });
 

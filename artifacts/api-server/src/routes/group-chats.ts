@@ -1,3 +1,4 @@
+import { errorMessage } from "../lib/errors.js";
 import { Router, type IRouter } from "express";
 import multer from "multer";
 import path from "path";
@@ -125,8 +126,8 @@ router.get("/", authMiddleware, async (req: AuthRequest, res) => {
     });
 
     res.json({ chats: enriched });
-  } catch (err: any) {
-    res.status(500).json({ error: "server_error", message: err?.message });
+  } catch (err) {
+    res.status(500).json({ error: "server_error", message: errorMessage(err) });
   }
 });
 
@@ -196,8 +197,8 @@ router.post("/", authMiddleware, requireRole(["dispatcher", "admin"]), async (re
     }
 
     res.status(201).json(chat);
-  } catch (err: any) {
-    res.status(500).json({ error: "server_error", message: err?.message });
+  } catch (err) {
+    res.status(500).json({ error: "server_error", message: errorMessage(err) });
   }
 });
 
@@ -243,8 +244,8 @@ router.get("/available", authMiddleware, async (req: AuthRequest, res) => {
     }));
 
     res.json({ groups: enriched });
-  } catch (err: any) {
-    res.status(500).json({ error: "server_error", message: err?.message });
+  } catch (err) {
+    res.status(500).json({ error: "server_error", message: errorMessage(err) });
   }
 });
 
@@ -261,8 +262,8 @@ router.get("/join-requests", authMiddleware, requireRole("dispatcher", "admin"),
       ORDER BY r.created_at DESC
     `);
     res.json({ requests: requests.rows });
-  } catch (err: any) {
-    res.status(500).json({ error: "server_error", message: err?.message });
+  } catch (err) {
+    res.status(500).json({ error: "server_error", message: errorMessage(err) });
   }
 });
 
@@ -293,8 +294,8 @@ router.post("/join-requests/:id/approve", authMiddleware, requireRole("dispatche
 
     broadcastToUser(request.userId, { type: "join_request_approved", chatId: request.chatId });
     res.json({ success: true });
-  } catch (err: any) {
-    res.status(500).json({ error: "server_error", message: err?.message });
+  } catch (err) {
+    res.status(500).json({ error: "server_error", message: errorMessage(err) });
   }
 });
 
@@ -310,8 +311,8 @@ router.post("/join-requests/:id/reject", authMiddleware, requireRole("dispatcher
 
     broadcastToUser(request.userId, { type: "join_request_rejected", chatId: request.chatId });
     res.json({ success: true });
-  } catch (err: any) {
-    res.status(500).json({ error: "server_error", message: err?.message });
+  } catch (err) {
+    res.status(500).json({ error: "server_error", message: errorMessage(err) });
   }
 });
 
@@ -343,8 +344,8 @@ router.post("/:id/request-join", authMiddleware, async (req: AuthRequest, res) =
 
     const [request] = await db.insert(groupJoinRequestsTable).values({ chatId, userId: myId }).returning();
     res.status(201).json({ request });
-  } catch (err: any) {
-    res.status(500).json({ error: "server_error", message: err?.message });
+  } catch (err) {
+    res.status(500).json({ error: "server_error", message: errorMessage(err) });
   }
 });
 
@@ -526,7 +527,7 @@ router.post("/:id/messages", authMiddleware, async (req: AuthRequest, res) => {
 router.post("/:id/send-photo", authMiddleware, (req, res, next) => {
   photoUpload.single("photo")(req, res, (err: any) => {
     if (err) {
-      res.status(400).json({ error: "upload_error", message: err.message });
+      res.status(400).json({ error: "upload_error", message: errorMessage(err) });
       return;
     }
     next();
@@ -575,7 +576,7 @@ router.post("/:id/send-photo", authMiddleware, (req, res, next) => {
     });
 
     res.status(201).json(msg);
-  } catch (err: any) {
+  } catch (err) {
     if (file?.path) { try { fs.unlinkSync(file.path); } catch {} }
     res.status(500).json({ error: "server_error" });
   }
@@ -593,7 +594,7 @@ router.post("/:id/send-voice", authMiddleware, (req, res, next) => {
   });
   voiceUpload.single("voice")(req, res, (err: any) => {
     if (err) {
-      res.status(400).json({ error: "upload_error", message: err.message });
+      res.status(400).json({ error: "upload_error", message: errorMessage(err) });
       return;
     }
     next();

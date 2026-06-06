@@ -5,6 +5,7 @@ import jwt from "jsonwebtoken";
 import { db, orderOffersTable, ridesTable } from "@workspace/db";
 import { eq, and, inArray } from "drizzle-orm";
 import { JWT_SECRET } from "./jwt-secret.js";
+import { errorMessage } from "./errors.js";
 
 interface AuthenticatedWS extends WebSocket {
   userId?: number;
@@ -395,8 +396,8 @@ export function setupWebSocket(server: Server) {
                 return;
               }
               calleeRole = target.role || "";
-            } catch (err: any) {
-              clog.error(`[WS CALL] target lookup error:`, err?.message);
+            } catch (err) {
+              clog.error(`[WS CALL] target lookup error:`, errorMessage(err));
               broadcastToUser(fromId, { type: "call_reject", fromUserId: targetUserId, reason: "server_error" });
               return;
             }

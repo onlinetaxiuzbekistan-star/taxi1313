@@ -1,3 +1,4 @@
+import { errorMessage } from "../lib/errors.js";
 import { Router, type IRouter, type Response } from "express";
 import { type AuthRequest, authMiddleware, requireRole } from "../middlewares/auth.js";
 import { db, newsTable, newsReadsTable, usersTable, deviceTokensTable } from "@workspace/db";
@@ -68,8 +69,8 @@ router.get("/", authMiddleware, async (req: AuthRequest, res: Response) => {
       .where(and(...conditions));
 
     res.json({ items: enriched, total: Number(countResult.count), page: parseInt(page), limit: parseInt(limit) });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+  } catch (err) {
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -113,8 +114,8 @@ router.get("/unread", authMiddleware, async (req: AuthRequest, res: Response) =>
       .orderBy(desc(newsTable.createdAt));
 
     res.json({ items });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+  } catch (err) {
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -144,8 +145,8 @@ router.get("/:id", authMiddleware, async (req: AuthRequest, res: Response) => {
       .where(and(eq(newsReadsTable.newsId, id), eq(newsReadsTable.userId, req.userId!)));
 
     res.json({ ...item, isRead: !!readRecord });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+  } catch (err) {
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -184,8 +185,8 @@ router.post("/", authMiddleware, requireRole("admin", "dispatcher"), newsUpload.
     sendNewsPush(created).catch(err => logger.error({ err }, "News push error"));
 
     res.json(created);
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+  } catch (err) {
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -220,8 +221,8 @@ router.patch("/:id", authMiddleware, requireRole("admin", "dispatcher"), newsUpl
     const [updated] = await db.update(newsTable).set(updates).where(eq(newsTable.id, id)).returning();
     if (!updated) { res.status(404).json({ error: "Not found" }); return; }
     res.json(updated);
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+  } catch (err) {
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -232,8 +233,8 @@ router.delete("/:id", authMiddleware, requireRole("admin", "dispatcher"), async 
     const [deleted] = await db.delete(newsTable).where(eq(newsTable.id, id)).returning();
     if (!deleted) { res.status(404).json({ error: "Not found" }); return; }
     res.json({ deleted: true });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+  } catch (err) {
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -254,8 +255,8 @@ router.post("/:id/read", authMiddleware, async (req: AuthRequest, res: Response)
     }
 
     res.json({ read: true });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+  } catch (err) {
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -267,8 +268,8 @@ router.get("/:id/stats", authMiddleware, requireRole("admin", "dispatcher"), asy
       .where(eq(newsReadsTable.newsId, newsId));
 
     res.json({ newsId, readCount: Number(readCount.count) });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+  } catch (err) {
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -319,8 +320,8 @@ async function sendNewsPush(news: typeof newsTable.$inferSelect) {
           { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
           payload
         );
-      } catch (err: any) {
-        if (err.statusCode === 410 || err.statusCode === 404) {
+      } catch (err) {
+        if ((err as { statusCode?: number }).statusCode === 410 || (err as { statusCode?: number }).statusCode === 404) {
           await db.delete(deviceTokensTable).where(eq(deviceTokensTable.id, sub.id));
         }
       }
