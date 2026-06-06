@@ -10,6 +10,7 @@ import { generateReferralCode, applyReferralBonus } from "../lib/bonuses.js";
 import { registerDeviceToken, registerPushSubscription, getVapidPublicKey } from "../lib/notifications.js";
 import { JWT_SECRET } from "../lib/jwt-secret.js";
 import { hashPassword, verifyPassword, hashOtp, register as registerUser } from "../lib/services/auth.service.js";
+import { errorMessage } from "../lib/errors.js";
 import { loginRateLimit, clearLoginRateLimit, codeOnlyRateLimit } from "../lib/login-rate-limit.js";
 import { validateBody } from "../middlewares/validate.js";
 import { loginBodySchema, registerBodySchema } from "../middlewares/request-schemas.js";
@@ -39,8 +40,10 @@ function generateSessionToken(): string {
   return crypto.randomBytes(48).toString("hex");
 }
 
-function getClientIp(req: any): string {
-  return req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.socket?.remoteAddress || "unknown";
+function getClientIp(req: Request): string {
+  const xff = req.headers["x-forwarded-for"];
+  const xffStr = Array.isArray(xff) ? xff[0] : xff;
+  return xffStr?.split(",")[0]?.trim() || req.socket?.remoteAddress || "unknown";
 }
 
 const otpRateLimit = new Map<string, { count: number; resetAt: number }>();
@@ -199,7 +202,7 @@ router.post("/login", loginRateLimit, validateBody(loginBodySchema), async (req,
     }
 
     const ip = getClientIp(req);
-    let user: any = null;
+    let user: typeof usersTable.$inferSelect | undefined;
 
     if (loginName) {
       const trimmed = loginName.trim();
@@ -363,8 +366,8 @@ router.post("/refresh-token", async (req, res) => {
     }
     const newToken = generateToken(decoded.userId, user.role, decoded.sid || undefined);
     res.json({ refreshed: true, token: newToken });
-  } catch (err: any) {
-    if (err?.name === "TokenExpiredError") {
+  } catch (err) {
+    if (err instanceof Error && err.name === "TokenExpiredError") {
       res.status(401).json({ error: "token_expired", message: "Token expired, please login again" });
       return;
     }
@@ -842,8 +845,8 @@ router.put("/preferences", async (req, res) => {
       sql`UPDATE users SET preferences = ${prefsJson}::jsonb, updated_at = NOW() WHERE id = ${decoded.userId}`,
     );
     res.json({ success: true });
-  } catch (err: any) {
-    res.status(400).json({ error: err.message || "error" });
+  } catch (err) {
+    res.status(400).json({ error: errorMessage(err) || "error" });
   }
 });
 

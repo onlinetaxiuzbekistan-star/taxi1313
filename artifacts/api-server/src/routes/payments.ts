@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, usersTable, paymentsTable, transactionsTable, driverCardsTable } from "@workspace/db";
-import { eq, desc, and, sql } from "drizzle-orm";
+import { eq, desc, and, sql, type SQL } from "drizzle-orm";
 import { authMiddleware, AuthRequest } from "../middlewares/auth.js";
 import {
   atmosBindCardInit,
@@ -14,6 +14,7 @@ import { validateBody } from "../middlewares/validate.js";
 import { depositInitBodySchema, depositConfirmBodySchema } from "../middlewares/request-schemas.js";
 import { processTopup, getBalance } from "../lib/services/payments.service.js";
 import { recordPaymentFailure } from "../lib/metrics.js";
+import { errorMessage } from "../lib/errors.js";
 
 const router: IRouter = Router();
 
@@ -54,9 +55,9 @@ router.post("/cards/bind-init", authMiddleware, async (req: AuthRequest, res) =>
       transactionId: result.transaction_id,
       phone: result.phone,
     });
-  } catch (err: any) {
+  } catch (err) {
     req.log.error({ err }, "Card bind init error");
-    res.status(400).json({ error: "atmos_error", message: err.message || "Ошибка привязки карты" });
+    res.status(400).json({ error: "atmos_error", message: errorMessage(err) || "Ошибка привязки карты" });
   }
 });
 
@@ -83,9 +84,9 @@ router.post("/cards/bind-confirm", authMiddleware, async (req: AuthRequest, res)
 
     req.log.info({ driverId, cardId: cardData.card_id, pan: cardData.pan }, "Card bound");
     res.json({ card: { id: card.id, pan: card.pan, expiry: card.expiry, cardHolder: card.cardHolder } });
-  } catch (err: any) {
+  } catch (err) {
     req.log.error({ err }, "Card bind confirm error");
-    res.status(400).json({ error: "atmos_error", message: err.message || "Ошибка подтверждения" });
+    res.status(400).json({ error: "atmos_error", message: errorMessage(err) || "Ошибка подтверждения" });
   }
 });
 
@@ -166,10 +167,10 @@ router.post("/deposit/init", authMiddleware, validateBody(depositInitBodySchema)
       atmosTransactionId: atmosTxId,
       pan: card.pan,
     });
-  } catch (err: any) {
+  } catch (err) {
     req.log.error({ err }, "Deposit init error");
     recordPaymentFailure("init");
-    res.status(400).json({ error: "atmos_error", message: err.message || "Ошибка создания платежа" });
+    res.status(400).json({ error: "atmos_error", message: errorMessage(err) || "Ошибка создания платежа" });
   }
 });
 
@@ -220,10 +221,10 @@ router.post("/deposit/confirm", authMiddleware, validateBody(depositConfirmBodyS
       newBalance: result.balanceAfter,
       message: `Баланс пополнен на ${Number(amount).toLocaleString("ru-RU")} сум`,
     });
-  } catch (err: any) {
+  } catch (err) {
     req.log.error({ err }, "Deposit confirm error");
     recordPaymentFailure("confirm");
-    res.status(400).json({ error: "atmos_error", message: err.message || "Ошибка подтверждения платежа" });
+    res.status(400).json({ error: "atmos_error", message: errorMessage(err) || "Ошибка подтверждения платежа" });
   }
 });
 
@@ -258,12 +259,12 @@ router.get("/transactions", authMiddleware, async (req: AuthRequest, res) => {
     const { type, limit: limitStr } = req.query as { type?: string; limit?: string };
     const queryLimit = Math.min(parseInt(limitStr || "50"), 200);
 
-    const conditions: any[] = [];
+    const conditions: SQL[] = [];
     if (!isDispatcher) {
       conditions.push(eq(transactionsTable.driverId, userId));
     }
     if (type && ["income", "commission", "withdraw", "refund", "bonus", "penalty"].includes(type)) {
-      conditions.push(eq(transactionsTable.type, type as any));
+      conditions.push(eq(transactionsTable.type, type as (typeof transactionsTable.$inferSelect)["type"]));
     }
 
     let query = db.select({

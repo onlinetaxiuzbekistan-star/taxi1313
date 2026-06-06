@@ -48,7 +48,7 @@ async function cascadeCompleteChildren(tripRideId: number, fallbackDriverId: num
   const children = await db.select().from(ridesTable).where(
     and(
       eq(ridesTable.tripId, tripRideId),
-      inArray(ridesTable.status, STUCK_CHILD_STATUSES as any)
+      inArray(ridesTable.status, STUCK_CHILD_STATUSES as unknown as (typeof ridesTable.$inferSelect)["status"][])
     )
   );
 

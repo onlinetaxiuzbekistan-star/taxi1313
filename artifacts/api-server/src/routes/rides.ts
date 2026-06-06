@@ -1051,7 +1051,7 @@ router.patch("/:rideId/transactions/:txId", authMiddleware, requireRole("dispatc
         .for("update");
       if (!existing) return null;
 
-      const updates: any = { updatedBy: req.userId, updatedAt: new Date() };
+      const updates: Partial<typeof transactionsTable.$inferInsert> = { updatedBy: req.userId, updatedAt: new Date() };
       if (comment !== undefined) updates.description = comment;
 
       if (amount !== undefined && existing.driverId) {
