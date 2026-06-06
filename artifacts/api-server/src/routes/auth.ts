@@ -9,6 +9,8 @@ import { generateReferralCode, applyReferralBonus } from "../lib/bonuses.js";
 import { registerDeviceToken, registerPushSubscription, getVapidPublicKey } from "../lib/notifications.js";
 import { JWT_SECRET } from "../lib/jwt-secret.js";
 import { loginRateLimit, clearLoginRateLimit, codeOnlyRateLimit } from "../lib/login-rate-limit.js";
+import { validateBody } from "../middlewares/validate.js";
+import { loginBodySchema, registerBodySchema } from "../middlewares/request-schemas.js";
 
 const router: IRouter = Router();
 
@@ -134,7 +136,7 @@ export function setSessionCacheInvalidator(cb: (driverId: number) => void) {
   sessionCacheInvalidator = cb;
 }
 
-router.post("/register", async (req, res) => {
+router.post("/register", validateBody(registerBodySchema), async (req, res) => {
   try {
     const { phone: rawPhone, name, password, role, carModel, carNumber, carClass, referralCode: inviteCode } = req.body;
 
@@ -205,7 +207,7 @@ router.post("/register", async (req, res) => {
   }
 });
 
-router.post("/login", loginRateLimit, async (req, res) => {
+router.post("/login", loginRateLimit, validateBody(loginBodySchema), async (req, res) => {
   try {
     const { phone: rawPhone, password, deviceId, deviceName, login: loginName } = req.body;
 

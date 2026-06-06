@@ -6,6 +6,8 @@ import { startAutoDispatch, getOfferStatus, stopDispatchLoop, citiesMatch, addUn
 import { addToBuffer, isBatchEnabled } from "../lib/ride-buffer.js";
 import { completeRide } from "../lib/completion.js";
 import { authMiddleware, requireRole, AuthRequest } from "../middlewares/auth.js";
+import { validateBody } from "../middlewares/validate.js";
+import { createRideBodySchema, updateRideBodySchema } from "../middlewares/request-schemas.js";
 import { getMarketplaceSettings } from "../lib/settings.js";
 import { getSettingNum, getSettingBool, getSetting } from "../lib/settingsCache.js";
 import { applySurgeToPrice, isRevenueAIProdEnabled, enableRevenueAIProd, getRevenueAIProdSurge } from "../lib/revenue-ai-prod.js";
@@ -1130,7 +1132,7 @@ router.get("/", async (req, res) => {
   }
 });
 
-router.post("/", async (req, res) => {
+router.post("/", validateBody(createRideBodySchema), async (req, res) => {
   try {
     const { fromCity, toCity, fromAddress, toAddress, scheduledAt, passengers, carClass, riderName, riderPhone, paymentType, comment, seats, fromDistrictId, toDistrictId, timeSlot, isUrgent, roundTrip, selectedOptions, gender, isMail, isMoney, requiredCarModel } = req.body;
 
@@ -1504,7 +1506,7 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-router.patch("/:id", authMiddleware, requireRole("dispatcher", "admin"), async (req: AuthRequest, res) => {
+router.patch("/:id", authMiddleware, requireRole("dispatcher", "admin"), validateBody(updateRideBodySchema), async (req: AuthRequest, res) => {
   try {
     const { status, driverId, fromCity, toCity, fromAddress, toAddress,
             passengers, carClass, price, comment, riderName, riderPhone, paymentType,

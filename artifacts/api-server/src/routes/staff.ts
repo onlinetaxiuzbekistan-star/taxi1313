@@ -4,6 +4,8 @@ import { eq, and, inArray, desc } from "drizzle-orm";
 import { authMiddleware, requireRole, AuthRequest, invalidatePermCache, invalidateBranchCache } from "../middlewares/auth.js";
 import { logActivity } from "../lib/activity.js";
 import { hashPassword } from "./auth.js";
+import { validateBody } from "../middlewares/validate.js";
+import { createStaffBodySchema, updateStaffBodySchema } from "../middlewares/request-schemas.js";
 
 const router: IRouter = Router();
 
@@ -28,7 +30,7 @@ router.get("/", authMiddleware, requireRole("admin", "dispatcher"), async (req: 
 
 // Staff creation is an admin-only operation: it can assign roles and custom
 // RBAC roleIds, so dispatchers must never reach it (privilege-escalation guard).
-router.post("/", authMiddleware, requireRole("admin"), async (req: AuthRequest, res) => {
+router.post("/", authMiddleware, requireRole("admin"), validateBody(createStaffBodySchema), async (req: AuthRequest, res) => {
   try {
     const { name, phone, password, role, login: loginName, sipServer, sipDomain, sipLogin, sipPassword, branchId, roleId } = req.body;
     if (!name?.trim() || !password) {
@@ -85,7 +87,7 @@ router.post("/", authMiddleware, requireRole("admin"), async (req: AuthRequest, 
 
 // Admin-only: this route can reset passwords and reassign role/roleId of any
 // staff member. Dispatchers must never reach it.
-router.patch("/:id", authMiddleware, requireRole("admin"), async (req: AuthRequest, res) => {
+router.patch("/:id", authMiddleware, requireRole("admin"), validateBody(updateStaffBodySchema), async (req: AuthRequest, res) => {
   try {
     const id = parseInt(req.params.id);
     const { name, phone, password, role, roleId, login: loginName, sipServer, sipDomain, sipLogin, sipPassword, branchId } = req.body;

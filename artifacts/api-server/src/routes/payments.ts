@@ -11,6 +11,8 @@ import {
   atmosApply,
 } from "../lib/atmos.js";
 import { credit } from "../lib/ledger.js";
+import { validateBody } from "../middlewares/validate.js";
+import { depositInitBodySchema, depositConfirmBodySchema } from "../middlewares/request-schemas.js";
 
 const router: IRouter = Router();
 
@@ -120,7 +122,7 @@ router.post("/cards/remove", authMiddleware, async (req: AuthRequest, res) => {
   }
 });
 
-router.post("/deposit/init", authMiddleware, async (req: AuthRequest, res) => {
+router.post("/deposit/init", authMiddleware, validateBody(depositInitBodySchema), async (req: AuthRequest, res) => {
   try {
     const driverId = req.userId!;
     const { amount, cardDbId } = req.body;
@@ -169,7 +171,7 @@ router.post("/deposit/init", authMiddleware, async (req: AuthRequest, res) => {
   }
 });
 
-router.post("/deposit/confirm", authMiddleware, async (req: AuthRequest, res) => {
+router.post("/deposit/confirm", authMiddleware, validateBody(depositConfirmBodySchema), async (req: AuthRequest, res) => {
   try {
     const driverId = req.userId!;
     const { paymentId, otp } = req.body;
