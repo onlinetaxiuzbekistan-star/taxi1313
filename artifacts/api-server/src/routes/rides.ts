@@ -8,6 +8,7 @@ import { completeRide } from "../lib/completion.js";
 import { authMiddleware, requireRole, AuthRequest } from "../middlewares/auth.js";
 import { validateBody } from "../middlewares/validate.js";
 import { createRideBodySchema, updateRideBodySchema } from "../middlewares/request-schemas.js";
+import { createRide, getRide } from "../lib/services/rides.service.js";
 import { getMarketplaceSettings } from "../lib/settings.js";
 import { getSettingNum, getSettingBool, getSetting } from "../lib/settingsCache.js";
 import { applySurgeToPrice, isRevenueAIProdEnabled, enableRevenueAIProd, getRevenueAIProdSurge } from "../lib/revenue-ai-prod.js";
@@ -1310,7 +1311,7 @@ router.post("/", validateBody(createRideBodySchema), async (req, res) => {
       const __sc = await __getRequesterBranchScope(req);
       (req as any).__creatorBranchId = __sc.branchId;
     }
-    const [ride] = await db.insert(ridesTable).values({
+    const ride = await createRide({
       fromCity, toCity, fromAddress, toAddress,
       scheduledAt: scheduledDate,
       passengers: isMailOrder ? 0 : seatCount,
@@ -1345,7 +1346,7 @@ router.post("/", validateBody(createRideBodySchema), async (req, res) => {
       selectedOptions: Array.isArray(selectedOptions) ? (selectedOptions as string[]).filter((k: any) => typeof k === "string") : [],
       createdByUserId: creatorUserId,
       createdByUserName: creatorUserName,
-    }).returning();
+    });
 
     if (!isMailOrder && Array.isArray(seats) && seats.length > 0) {
       for (const seat of seats) {
@@ -1461,7 +1462,7 @@ router.get("/urgent", authMiddleware, async (req: AuthRequest, res) => {
 
 router.get("/:id", async (req, res) => {
   try {
-    const [ride] = await db.select().from(ridesTable).where(eq(ridesTable.id, parseInt(req.params.id)));
+    const ride = await getRide(parseInt(req.params.id));
     if (!ride) { res.status(404).json({ error: "not_found", message: "Ride not found" }); return; }
 
     const me = await __getRequesterIdentity(req);

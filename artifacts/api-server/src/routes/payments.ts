@@ -10,9 +10,9 @@ import {
   atmosPreApply,
   atmosApply,
 } from "../lib/atmos.js";
-import { credit, type DbTransaction } from "../lib/ledger.js";
 import { validateBody } from "../middlewares/validate.js";
 import { depositInitBodySchema, depositConfirmBodySchema } from "../middlewares/request-schemas.js";
+import { processTopup, getBalance } from "../lib/services/payments.service.js";
 
 const router: IRouter = Router();
 
@@ -198,25 +198,12 @@ router.post("/deposit/confirm", authMiddleware, validateBody(depositConfirmBodyS
 
     const amount = parseFloat(payment.amount || "0");
 
-    // Atomic + idempotent: CAS the payment pending→success, credit the balance, write the ledger row,
-    // all in one transaction. The WHERE status='pending' guard stops concurrent confirms double-crediting.
-    const result = await db.transaction(async (tx: DbTransaction) => {
-      const [marked] = await tx.update(paymentsTable)
-        .set({ status: "success", updatedAt: new Date() })
-        .where(and(eq(paymentsTable.id, paymentId), eq(paymentsTable.status, "pending")))
-        .returning();
-
-      if (!marked) return { applied: false as const };
-
-      const { balanceAfter } = await credit(tx, {
-        driverId,
-        type: "income",
-        amount,
-        description: `Пополнение через Atmos: ${Number(amount).toLocaleString("ru-RU")} сум`,
-      });
-
-      return { applied: true as const, balAfter: balanceAfter };
-    });
+    const result = await processTopup(
+      driverId,
+      paymentId,
+      amount,
+      `Пополнение через Atmos: ${Number(amount).toLocaleString("ru-RU")} сум`,
+    );
 
     if (!result.applied) {
       // Another concurrent request already confirmed this payment.
@@ -228,12 +215,22 @@ router.post("/deposit/confirm", authMiddleware, validateBody(depositConfirmBodyS
 
     res.json({
       success: true,
-      newBalance: result.balAfter,
+      newBalance: result.balanceAfter,
       message: `Баланс пополнен на ${Number(amount).toLocaleString("ru-RU")} сум`,
     });
   } catch (err: any) {
     req.log.error({ err }, "Deposit confirm error");
     res.status(400).json({ error: "atmos_error", message: err.message || "Ошибка подтверждения платежа" });
+  }
+});
+
+router.get("/balance", authMiddleware, async (req: AuthRequest, res) => {
+  try {
+    const balance = await getBalance(req.userId!);
+    res.json({ balance });
+  } catch (err) {
+    req.log.error({ err }, "Get balance error");
+    res.status(500).json({ error: "server_error" });
   }
 });
 
