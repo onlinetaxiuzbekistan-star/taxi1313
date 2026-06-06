@@ -12,6 +12,26 @@ const atmosBreaker = makeBreaker("atmos", { retries: 0 });
 
 let cachedToken: { token: string; expiresAt: number } | null = null;
 
+/**
+ * Mask secrets/PII before any Atmos request/response/error text reaches the
+ * logs: OAuth client_id (leaked by Atmos 401 bodies), bearer access_token,
+ * card_token, card PAN, and OTP. Defence-in-depth — both explicit JSON fields
+ * and a bare-card-number fallback (keeps last 4).
+ */
+export function redactAtmos(s: string): string {
+  if (!s) return s;
+  return s
+    // sensitive JSON string fields → [REDACTED]
+    .replace(
+      /("(?:access_token|card_token|otp|card_number|pan|consumer_secret|consumer_key)"\s*:\s*")[^"]*(")/gi,
+      "$1[REDACTED]$2",
+    )
+    // OAuth client_id wherever it appears (e.g. Atmos 401 "... client_id: XXXX")
+    .replace(/(client_id["'\s:=]+)[A-Za-z0-9_\-]+/gi, "$1[REDACTED]")
+    // bare card PAN (13–19 digits) → keep last 4
+    .replace(/\b(\d{9,15})(\d{4})\b/g, (_m, head, last4) => "*".repeat(head.length) + last4);
+}
+
 async function atmosFetch(url: string, init: RequestInit, timeoutMs = 8000): Promise<Response> {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
@@ -21,7 +41,7 @@ async function atmosFetch(url: string, init: RequestInit, timeoutMs = 8000): Pro
     ? (init.body.length > 500 ? init.body.slice(0, 500) + "...[trunc]" : init.body)
     : init.body ? "[non-string]" : "";
   // eslint-disable-next-line no-console
-  clog.log(`[ATMOS-REQ ${reqId}] ${init.method || "GET"} ${url} body=${safeBody}`);
+  clog.log(`[ATMOS-REQ ${reqId}] ${init.method || "GET"} ${url} body=${redactAtmos(safeBody)}`);
   try {
     const resp = await atmosBreaker.execute(() => fetch(url, { ...init, signal: ctrl.signal }));
     const ms = Date.now() - startedAt;
@@ -32,7 +52,7 @@ async function atmosFetch(url: string, init: RequestInit, timeoutMs = 8000): Pro
       bodyPreview = txt.length > 800 ? txt.slice(0, 800) + "...[trunc]" : txt;
     } catch {}
     // eslint-disable-next-line no-console
-    clog.log(`[ATMOS-RES ${reqId}] HTTP ${resp.status} (${ms}ms) body=${bodyPreview}`);
+    clog.log(`[ATMOS-RES ${reqId}] HTTP ${resp.status} (${ms}ms) body=${redactAtmos(bodyPreview)}`);
     return resp;
   } catch (err: any) {
     const ms = Date.now() - startedAt;
@@ -84,7 +104,7 @@ export async function getAtmosToken(): Promise<string> {
 
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`Atmos token error: ${res.status} ${text}`);
+    throw new Error(`Atmos token error: ${res.status} ${redactAtmos(text)}`);
   }
 
   const data = await res.json() as { access_token: string; expires_in: number };
