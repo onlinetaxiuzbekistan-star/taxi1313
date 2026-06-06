@@ -52,4 +52,7 @@ android {
 dependencies {
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'androidx.webkit:webkit:1.8.0'
+    // Explicit (don't rely on transitive) for ComponentActivity +
+    // OnBackPressedCallback (Issue 8: replace deprecated onBackPressed).
+    implementation 'androidx.activity:activity:1.8.0'
 }

@@ -2,7 +2,11 @@ package uz.buxtaxi.driver;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
-import android.app.Activity;
+import androidx.activity.ComponentActivity;
+import androidx.activity.OnBackPressedCallback;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.content.BroadcastReceiver;
@@ -61,7 +65,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class LauncherActivity extends Activity {
+public class LauncherActivity extends ComponentActivity {
 
     private static final int FILE_CHOOSER_REQUEST = 1001;
     private static final int PERMISSION_REQUEST = 1002;
@@ -99,14 +103,19 @@ public class LauncherActivity extends Activity {
             }
         } catch (Exception ignored) {}
 
-        Window window = getWindow();
-        window.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS);
-        window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
-        window.setStatusBarColor(Color.parseColor("#09090b"));
-        window.setNavigationBarColor(Color.parseColor("#09090b"));
-        getWindow().getDecorView().setSystemUiVisibility(
-            View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-        );
+        // FLAG_TRANSLUCENT_STATUS clear and FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS
+        // add are superseded by WindowCompat.setDecorFitsSystemWindows(false)
+        // below — left only the explicit bar-color calls.
+        getWindow().setStatusBarColor(Color.parseColor("#09090b"));
+        getWindow().setNavigationBarColor(Color.parseColor("#09090b"));
+        // Replaces deprecated setSystemUiVisibility(LAYOUT_STABLE|LAYOUT_FULLSCREEN):
+        // tell the framework that the window draws behind the system bars, then
+        // adjust the bar appearance via WindowInsetsControllerCompat.
+        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+        WindowInsetsControllerCompat insets = WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
+        if (insets != null) {
+            insets.setSystemBarsBehavior(WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+        }
 
         launchUrl = getString(R.string.launch_url);
         int serverPort = 80;
@@ -357,6 +366,8 @@ public class LauncherActivity extends Activity {
             "if(navigator.serviceWorker){navigator.serviceWorker.getRegistrations().then(function(r){r.forEach(function(sw){sw.unregister()})}).catch(function(){});}",
             null
         );
+
+        installBackPressHandler();
 
         webView.loadUrl(launchUrl);
     }
@@ -627,19 +638,32 @@ public class LauncherActivity extends Activity {
         }
     }
 
-    @Override
-    public void onBackPressed() {
-        if (webView.canGoBack()) {
-            webView.goBack();
-        } else {
-            long now = System.currentTimeMillis();
-            if (now - lastBackPress < 2000) {
-                super.onBackPressed();
-            } else {
-                lastBackPress = now;
-                Toast.makeText(this, R.string.back_press_to_exit, Toast.LENGTH_SHORT).show();
+    /**
+     * Replaces the deprecated onBackPressed() override with the predictive-back
+     * compatible OnBackPressedCallback. Wired once in onCreate.
+     * WebView keeps its own history; only when there's no more history do we
+     * apply the press-twice-to-exit guard (and disable ourselves so the second
+     * press is handled by the system default).
+     */
+    private void installBackPressHandler() {
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                if (webView != null && webView.canGoBack()) {
+                    webView.goBack();
+                    return;
+                }
+                long now = System.currentTimeMillis();
+                if (now - lastBackPress < 2000) {
+                    // Hand the press back to the system → finishes the activity.
+                    setEnabled(false);
+                    getOnBackPressedDispatcher().onBackPressed();
+                } else {
+                    lastBackPress = now;
+                    Toast.makeText(LauncherActivity.this, R.string.back_press_to_exit, Toast.LENGTH_SHORT).show();
+                }
             }
-        }
+        });
     }
 
     // Wakelock cap: bounded so the OS will reclaim if onPause is somehow skipped
