@@ -25,7 +25,7 @@ const STUCK_CHILD_STATUSES = ["merged", "in_progress", "accepted", "offered", "p
  *   total_commission   = base_commission + options_commission
  *   payout = price − total_commission
  */
-function computeCommission(price: number, optionsTotal: number, optionsCommission: number, rate: number, fixed: number, passengers: number = 1, roundTrip: boolean = false) {
+export function computeCommission(price: number, optionsTotal: number, optionsCommission: number, rate: number, fixed: number, passengers: number = 1, roundTrip: boolean = false) {
   const cleanBase = Math.max(0, price - (optionsTotal || 0));
   const seats = Math.max(1, passengers || 1);
   const tripMultiplier = roundTrip ? 2 : 1;

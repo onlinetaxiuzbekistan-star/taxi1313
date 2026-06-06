@@ -43,7 +43,7 @@ function generateToken(userId: number, role: string, sessionToken?: string): str
   return jwt.sign({ userId, role, ...(sessionToken ? { sid: sessionToken } : {}) }, JWT_SECRET, { expiresIn: "30d" });
 }
 
-function hashOtp(code: string): string {
+export function hashOtp(code: string): string {
   return crypto.createHash("sha256").update(code + "buxtaxi-otp-salt").digest("hex");
 }
 
@@ -63,7 +63,7 @@ const otpRateLimit = new Map<string, { count: number; resetAt: number }>();
 const OTP_MAX_ATTEMPTS = 5;
 const OTP_WINDOW_MS = 5 * 60 * 1000;
 
-function checkOtpRateLimit(phone: string): { allowed: boolean; retryAfterSeconds?: number } {
+export function checkOtpRateLimit(phone: string): { allowed: boolean; retryAfterSeconds?: number } {
   const now = Date.now();
   const key = `otp:${phone}`;
   const entry = otpRateLimit.get(key);
