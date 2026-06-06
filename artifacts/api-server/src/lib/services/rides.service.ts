@@ -6,11 +6,13 @@
 import { db, ridesTable } from "@workspace/db";
 import { eq, ne, and, sql } from "drizzle-orm";
 
+/** Fetch a single ride by id, or undefined if none. */
 export async function getRide(id: number) {
   const [ride] = await db.select().from(ridesTable).where(eq(ridesTable.id, id));
   return ride;
 }
 
+/** Insert a new ride and return the created row. */
 export async function createRide(values: typeof ridesTable.$inferInsert) {
   const [ride] = await db.insert(ridesTable).values(values).returning();
   return ride;
@@ -23,6 +25,7 @@ export async function createRide(values: typeof ridesTable.$inferInsert) {
 export async function updateRideStatus(id: number, status: string) {
   const [updated] = await db
     .update(ridesTable)
+    // any: param is widened to `string`; cast to the table's status enum without narrowing the public signature
     .set({ status: status as any, version: sql`COALESCE(${ridesTable.version}, 0) + 1`, updatedAt: new Date() })
     .where(and(eq(ridesTable.id, id), ne(ridesTable.status, "completed")))
     .returning();

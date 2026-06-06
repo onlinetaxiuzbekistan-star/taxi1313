@@ -9,29 +9,35 @@ import { eq, and, desc, inArray, sql, or, ilike, type SQL } from "drizzle-orm";
 
 // --- Tasks -----------------------------------------------------------------
 
+/** List all photo tasks, newest first. */
 export async function listTasks() {
   return db.select().from(photoTasksTable).orderBy(desc(photoTasksTable.createdAt));
 }
 
+/** List all driver groups. */
 export async function listDriverGroups() {
   return db.select().from(driverGroupsTable);
 }
 
+/** Insert a photo task and return the created row. */
 export async function createTask(values: typeof photoTasksTable.$inferInsert) {
   const [task] = await db.insert(photoTasksTable).values(values).returning();
   return task;
 }
 
+/** Patch a photo task by id and return the updated row. */
 export async function updateTask(id: number, updates: Partial<typeof photoTasksTable.$inferInsert>) {
   const [updated] = await db.update(photoTasksTable).set(updates).where(eq(photoTasksTable.id, id)).returning();
   return updated;
 }
 
+/** Delete a photo task by id and return the deleted row. */
 export async function deleteTask(id: number) {
   const [deleted] = await db.delete(photoTasksTable).where(eq(photoTasksTable.id, id)).returning();
   return deleted;
 }
 
+/** Fetch a single photo task by id, or undefined if absent. */
 export async function getTask(id: number) {
   const [task] = await db.select().from(photoTasksTable).where(eq(photoTasksTable.id, id));
   return task;
@@ -39,16 +45,19 @@ export async function getTask(id: number) {
 
 // --- Sending tasks to drivers ---------------------------------------------
 
+/** Driver ids belonging to a given group. */
 export async function getDriverIdsByGroup(groupId: number) {
   return db.select({ id: usersTable.id }).from(usersTable)
     .where(and(eq(usersTable.role, "driver"), eq(usersTable.groupId, groupId)));
 }
 
+/** Ids of all users with the driver role. */
 export async function getAllDriverIds() {
   return db.select({ id: usersTable.id }).from(usersTable)
     .where(eq(usersTable.role, "driver"));
 }
 
+/** Driver ids (from the given set) that have a pending/under-review request. */
 export async function getActiveRequestDriverIds(driverIds: number[]) {
   return db.select({ driverId: photoRequestsTable.driverId })
     .from(photoRequestsTable)
@@ -58,12 +67,18 @@ export async function getActiveRequestDriverIds(driverIds: number[]) {
     ));
 }
 
+/** Bulk-insert pending photo requests. */
 export async function createPendingRequests(values: (typeof photoRequestsTable.$inferInsert)[]) {
   await db.insert(photoRequestsTable).values(values);
 }
 
 // --- Requests listing ------------------------------------------------------
 
+/**
+ * Resolve driver ids matching free-text search / group / city filters.
+ * @param opts.search Matched against name, phone, car number and city (ILIKE).
+ * @returns Array of matching driver ids.
+ */
 export async function getMatchingDriverIds(opts: { search?: string; groupId?: string; city?: string }) {
   const driverConditions: (SQL | undefined)[] = [eq(usersTable.role, "driver")];
   if (opts.search) {
@@ -83,6 +98,7 @@ export async function getMatchingDriverIds(opts: { search?: string; groupId?: st
   return matchedDrivers.map(d => d.id);
 }
 
+/** Count the latest-per-driver requests matching the given filters. */
 export async function countLatestRequests(opts: {
   statusFilter: string | null;
   taskIdFilter: number | null;
@@ -90,9 +106,10 @@ export async function countLatestRequests(opts: {
 }) {
   const latestSubquery = buildLatestRequestsSubquery(opts);
   const countResult = await db.execute(sql`SELECT count(*)::int AS total FROM (${latestSubquery}) sub`);
-  return (countResult.rows[0] as any)?.total || 0;
+  return (countResult.rows[0] as { total: number } | undefined)?.total || 0;
 }
 
+/** One page of latest-per-driver requests (newest first), matching the filters. */
 export async function getLatestRequestsPage(opts: {
   statusFilter: string | null;
   taskIdFilter: number | null;
@@ -106,9 +123,11 @@ export async function getLatestRequestsPage(opts: {
     ORDER BY sub.created_at DESC
     LIMIT ${opts.perPage} OFFSET ${opts.offset}
   `);
+  // any: raw SQL `SELECT *` rows come back with snake_case DB columns, not the camelCase $inferSelect shape.
   return requestsResult.rows as any[];
 }
 
+/** Build the DISTINCT-ON-driver "latest request per driver" subquery used for listing/counting. */
 function buildLatestRequestsSubquery(opts: {
   statusFilter: string | null;
   taskIdFilter: number | null;
@@ -129,6 +148,7 @@ function buildLatestRequestsSubquery(opts: {
   `;
 }
 
+/** Driver profile + last-photo URLs for the given ids. */
 export async function getDriversByIds(driverIds: number[]) {
   return db.select({
     id: usersTable.id, name: usersTable.name, phone: usersTable.phone,
@@ -141,6 +161,7 @@ export async function getDriversByIds(driverIds: number[]) {
   }).from(usersTable).where(inArray(usersTable.id, driverIds));
 }
 
+/** Group id/label pairs for the given group ids. */
 export async function getGroupsByIds(groupIds: number[]) {
   return db.select({ id: driverGroupsTable.id, label: driverGroupsTable.label })
     .from(driverGroupsTable).where(inArray(driverGroupsTable.id, groupIds));
@@ -148,11 +169,13 @@ export async function getGroupsByIds(groupIds: number[]) {
 
 // --- Single request review -------------------------------------------------
 
+/** Fetch a single photo request by id, or undefined if absent. */
 export async function getRequest(id: number) {
   const [request] = await db.select().from(photoRequestsTable).where(eq(photoRequestsTable.id, id));
   return request;
 }
 
+/** Approve a request: set status, clear reject fields, stamp reviewer; returns updated row. */
 export async function approveRequest(id: number, comment: string | null, reviewedBy: number | null) {
   const [updated] = await db.update(photoRequestsTable).set({
     status: "approved",
@@ -166,13 +189,18 @@ export async function approveRequest(id: number, comment: string | null, reviewe
   return updated;
 }
 
+/** Persist new last-photo URLs on a driver's user row. */
 export async function updateDriverLastPhotos(driverId: number, photoUpdates: Partial<typeof usersTable.$inferInsert>) {
   await db.update(usersTable).set(photoUpdates).where(eq(usersTable.id, driverId));
 }
 
-export async function rejectRequest(id: number, finalStatus: string, comment: string | null, newRetryCount: number, reviewedBy: number | null) {
+/**
+ * Reject a request with an explicit final status and retry count; returns updated row.
+ * @param finalStatus Target status value (e.g. "rejected" / "rejected_final").
+ */
+export async function rejectRequest(id: number, finalStatus: typeof photoRequestsTable.$inferSelect["status"], comment: string | null, newRetryCount: number, reviewedBy: number | null) {
   const [updated] = await db.update(photoRequestsTable).set({
-    status: finalStatus as any,
+    status: finalStatus,
     comment: comment || null,
     rejectReason: comment || null,
     retryCount: newRetryCount,
@@ -183,6 +211,7 @@ export async function rejectRequest(id: number, finalStatus: string, comment: st
   return updated;
 }
 
+/** Insert a retry photo request and return the created row. */
 export async function createRetryRequest(values: typeof photoRequestsTable.$inferInsert) {
   const [newRequest] = await db.insert(photoRequestsTable).values(values).returning();
   return newRequest;
@@ -190,6 +219,7 @@ export async function createRetryRequest(values: typeof photoRequestsTable.$infe
 
 // --- Bulk review -----------------------------------------------------------
 
+/** Requests in the given id set that are still pending/under-review (eligible for bulk review). */
 export async function getReviewableRequests(ids: number[]) {
   return db.select().from(photoRequestsTable)
     .where(and(
@@ -198,6 +228,7 @@ export async function getReviewableRequests(ids: number[]) {
     ));
 }
 
+/** Approve a single request by id (bulk-review variant, no row returned). */
 export async function approveRequestById(id: number, comment: string | null, reviewedBy: number | null) {
   await db.update(photoRequestsTable).set({
     status: "approved",
@@ -210,6 +241,10 @@ export async function approveRequestById(id: number, comment: string | null, rev
   }).where(eq(photoRequestsTable.id, id));
 }
 
+/**
+ * Reject a single request by id (bulk-review variant, no row returned).
+ * @param isFinalReject When true, sets "rejected_final"; otherwise "rejected".
+ */
 export async function rejectRequestById(id: number, isFinalReject: boolean, comment: string | null, newRetryCount: number, reviewedBy: number | null) {
   await db.update(photoRequestsTable).set({
     status: isFinalReject ? "rejected_final" : "rejected",
@@ -222,12 +257,14 @@ export async function rejectRequestById(id: number, isFinalReject: boolean, comm
   }).where(eq(photoRequestsTable.id, id));
 }
 
+/** Insert a retry photo request (bulk-review variant, no row returned). */
 export async function insertRetryRequest(values: typeof photoRequestsTable.$inferInsert) {
   await db.insert(photoRequestsTable).values(values);
 }
 
 // --- Driver-facing pending request ----------------------------------------
 
+/** The driver's most recent request (any status), or undefined. */
 export async function getLatestRequestForDriver(driverId: number) {
   const [latest] = await db.select().from(photoRequestsTable)
     .where(eq(photoRequestsTable.driverId, driverId))
@@ -236,12 +273,14 @@ export async function getLatestRequestForDriver(driverId: number) {
   return latest;
 }
 
+/** Fetch a request by id only if it belongs to the given driver (ownership check). */
 export async function getRequestForDriver(id: number, driverId: number) {
   const [request] = await db.select().from(photoRequestsTable)
     .where(and(eq(photoRequestsTable.id, id), eq(photoRequestsTable.driverId, driverId)));
   return request;
 }
 
+/** Attach a driver's four photo URLs to a request and mark AI status as processing. */
 export async function submitPhotos(id: number, photos: {
   selfieUrl: string; carFrontUrl: string; carBackUrl: string; interiorUrl: string;
 }) {
@@ -257,6 +296,10 @@ export async function submitPhotos(id: number, photos: {
 
 // --- History & stats -------------------------------------------------------
 
+/**
+ * A driver's reviewed photo-request history (excludes pending/unblocked and photo-less rows).
+ * @param excludeId Optional request id to omit (e.g. the current request).
+ */
 export async function getDriverHistory(driverId: number, limit: number, excludeId: number | null) {
   const result = await db.execute(sql`
     SELECT id, driver_id AS "driverId", task_id AS "taskId", status,
@@ -279,6 +322,7 @@ export async function getDriverHistory(driverId: number, limit: number, excludeI
   return result.rows;
 }
 
+/** Aggregate counts of the latest-per-driver requests, bucketed by status. */
 export async function getStats() {
   const result = await db.execute(sql`
     SELECT
@@ -302,6 +346,10 @@ export async function getStats() {
 
 // --- Unblock (transactional) ----------------------------------------------
 
+/**
+ * Unblock a request and, if the driver has no open pending request, create a fresh one.
+ * Runs in a single transaction.
+ */
 export async function unblockRequest(id: number, driverId: number, taskId: number | null) {
   await db.transaction(async (tx) => {
     await tx.update(photoRequestsTable)
@@ -330,12 +378,14 @@ export async function unblockRequest(id: number, driverId: number, taskId: numbe
 
 // --- Request a specific driver --------------------------------------------
 
+/** Fetch a user's id and role by id (used to confirm they are a driver). */
 export async function getDriverRole(driverId: number) {
   const [driver] = await db.select({ id: usersTable.id, role: usersTable.role })
     .from(usersTable).where(eq(usersTable.id, driverId));
   return driver;
 }
 
+/** The driver's current pending/under-review request (id + status), or undefined. */
 export async function getActiveRequestForDriver(driverId: number) {
   const [existing] = await db.select({ id: photoRequestsTable.id, status: photoRequestsTable.status })
     .from(photoRequestsTable)
@@ -347,11 +397,13 @@ export async function getActiveRequestForDriver(driverId: number) {
   return existing;
 }
 
+/** Insert a photo request for a driver and return its new id. */
 export async function createRequestForDriver(values: typeof photoRequestsTable.$inferInsert) {
   const [created] = await db.insert(photoRequestsTable).values(values).returning({ id: photoRequestsTable.id });
   return created;
 }
 
+/** The driver's most recent active (pending/under-review) request with id, status and createdAt. */
 export async function getLatestActiveRequestForDriver(driverId: number) {
   const [active] = await db.select({
     id: photoRequestsTable.id,
@@ -367,6 +419,7 @@ export async function getLatestActiveRequestForDriver(driverId: number) {
   return active;
 }
 
+/** Delete a driver's pending requests; returns the deleted ids. */
 export async function cancelPendingRequests(driverId: number) {
   return db.delete(photoRequestsTable)
     .where(and(

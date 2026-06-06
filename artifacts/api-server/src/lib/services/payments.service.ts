@@ -6,6 +6,7 @@ import { db, usersTable, paymentsTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { credit } from "../ledger.js";
 
+/** Return the driver's current balance as a number (0 if unset/missing). */
 export async function getBalance(driverId: number): Promise<number> {
   const [u] = await db
     .select({ balance: usersTable.balance })

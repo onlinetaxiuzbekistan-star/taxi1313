@@ -65,7 +65,7 @@ router.post("/upload-my-photo", authMiddleware, requireRole("driver"), (req, res
         .jpeg({ quality: 80, mozjpeg: true })
         .toFile(safePath);
       try { fs.unlinkSync(filePath); } catch {}
-    } catch (sharpErr: any) {
+    } catch (sharpErr) {
       req.log.error({ err: sharpErr, filePath, mimetype: file.mimetype, originalname: file.originalname }, "Sharp processing error, saving raw file");
       try {
         fs.copyFileSync(filePath, safePath);
@@ -85,7 +85,7 @@ router.post("/upload-my-photo", authMiddleware, requireRole("driver"), (req, res
     const [driver] = await db.select(safeUserColumns).from(usersTable).where(eq(usersTable.id, req.userId!));
     const safeDriver = driver;
     res.json({ url, user: safeDriver });
-  } catch (err: any) {
+  } catch (err) {
     if (filePath) { try { fs.unlinkSync(filePath); } catch {} }
     req.log.error({ err, fileName: file?.originalname, mimetype: file?.mimetype }, "Driver self-upload photo error");
     res.status(500).json({ error: "server_error", message: "Ошибка сервера при загрузке фото" });

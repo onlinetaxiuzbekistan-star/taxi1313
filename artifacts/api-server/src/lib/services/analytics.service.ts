@@ -40,12 +40,17 @@ export async function getCommissionTotalSince(start: Date) {
     .where(and(eq(transactionsTable.type, "commission"), gte(transactionsTable.createdAt, start)));
 }
 
-/** Total of all transactions of a given type (defaults to 0). Returns the single row. */
+/**
+ * Sums all transaction amounts for a given type, coalescing to 0.
+ * @param type transaction type label (e.g. "commission", "income")
+ * @returns the single aggregate row shaped `{ total }`
+ */
 export async function getTransactionTotalByType(type: string) {
   const [row] = await db
     .select({ total: sql<string>`coalesce(sum(amount), 0)` })
     .from(transactionsTable)
-    .where(eq(transactionsTable.type, type as any));
+    // Narrow the wider `string` param to the enum-typed column eq() expects.
+    .where(eq(transactionsTable.type, type as typeof transactionsTable.$inferSelect["type"]));
   return row;
 }
 

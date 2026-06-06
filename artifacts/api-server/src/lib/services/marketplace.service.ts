@@ -46,6 +46,7 @@ export async function listListings(excludeUserId: number) {
     .orderBy(desc(marketplaceListingsTable.createdAt));
 }
 
+/** Insert a marketplace listing within a transaction and return the created row. */
 export async function createListing(tx: DbTransaction, values: typeof marketplaceListingsTable.$inferInsert) {
   const [listing] = await tx.insert(marketplaceListingsTable).values(values).returning();
   return listing;

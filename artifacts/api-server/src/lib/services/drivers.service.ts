@@ -4,6 +4,7 @@
 import { db, usersTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 
+/** Fetch a user by id, restricted to the driver role; undefined if none. */
 export async function getDriver(id: number) {
   const [driver] = await db
     .select()
@@ -12,6 +13,7 @@ export async function getDriver(id: number) {
   return driver;
 }
 
+/** Patch a driver's fields (stamping updatedAt) and return the updated row. */
 export async function updateDriver(id: number, fields: Partial<typeof usersTable.$inferInsert>) {
   const [updated] = await db
     .update(usersTable)
@@ -21,6 +23,7 @@ export async function updateDriver(id: number, fields: Partial<typeof usersTable
   return updated;
 }
 
+/** Return the driver's balance as a number (0 if unset/missing). */
 export async function getDriverBalance(id: number): Promise<number> {
   const [row] = await db
     .select({ balance: usersTable.balance })

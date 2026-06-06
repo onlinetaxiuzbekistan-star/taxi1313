@@ -85,7 +85,7 @@ router.post("/:kind", authMiddleware, requireRole("dispatcher", "admin"), (req: 
       await setSetting(k.urlKey, url, k.label);
       await setSetting(k.nameKey, req.file.originalname, k.label + " (имя файла)");
       res.json({ ok: true, url, name: req.file.originalname });
-    } catch (e: any) {
+    } catch (e) {
       req.log?.error({ err: e }, "audio upload save failed");
       res.status(500).json({ error: "server_error", message: "Не удалось сохранить" });
     }

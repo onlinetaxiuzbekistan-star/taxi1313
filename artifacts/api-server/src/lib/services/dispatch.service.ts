@@ -9,6 +9,7 @@ type RideStatus = (typeof ridesTable.$inferSelect)["status"];
 const ACTIVE_STATUSES = ["pending", "offered", "accepted", "in_progress"] as unknown as RideStatus[];
 const CLAIMABLE_STATUSES = ["pending", "offered"] as unknown as RideStatus[];
 
+/** List a driver's most recent active rides (up to 20, newest first). */
 export async function getActiveRides(driverId: number) {
   return db
     .select()

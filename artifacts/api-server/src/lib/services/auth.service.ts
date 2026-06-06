@@ -11,14 +11,17 @@ import { eq, and, gt } from "drizzle-orm";
 const LEGACY_PASSWORD_SALT = "buxtaxi-salt";
 const OTP_SALT = "buxtaxi-otp-salt";
 
+/** Legacy SHA-256 password hash (salted), kept for verifying pre-bcrypt hashes. */
 export function legacySha256(password: string): string {
   return crypto.createHash("sha256").update(password + LEGACY_PASSWORD_SALT).digest("hex");
 }
 
+/** Hash a (trimmed) password with bcrypt for storage. */
 export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password.trim(), 10);
 }
 
+/** Verify a password against a stored hash, supporting both bcrypt and legacy SHA-256 hashes. */
 export async function verifyPassword(inputPassword: string, storedHash: string): Promise<boolean> {
   const input = inputPassword.trim();
   if (storedHash.startsWith("$2a$") || storedHash.startsWith("$2b$")) {
@@ -27,15 +30,18 @@ export async function verifyPassword(inputPassword: string, storedHash: string):
   return legacySha256(input) === storedHash;
 }
 
+/** Hash an OTP code (salted SHA-256) for constant-shape comparison/storage. */
 export function hashOtp(code: string): string {
   return crypto.createHash("sha256").update(code + OTP_SALT).digest("hex");
 }
 
+/** Fetch a single user by phone number, or undefined if none. */
 export async function getUserByPhone(phone: string) {
   const [u] = await db.select().from(usersTable).where(eq(usersTable.phone, phone)).limit(1);
   return u;
 }
 
+/** Fetch a single user by login name, or undefined if none. */
 export async function getUserByLogin(login: string) {
   const [u] = await db.select().from(usersTable).where(eq(usersTable.login, login)).limit(1);
   return u;
@@ -59,6 +65,7 @@ export async function login(
   return ok ? user : null;
 }
 
+/** Insert a new user and return the created row. */
 export async function register(values: typeof usersTable.$inferInsert) {
   const [user] = await db.insert(usersTable).values(values).returning();
   return user;
