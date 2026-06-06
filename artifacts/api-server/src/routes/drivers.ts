@@ -15,6 +15,8 @@ import { applyCancelPenalty, resetConsecutiveIgnores, isDriverBanned, getBanRema
 import { completeRide } from "../lib/completion.js";
 import { stopDispatchLoop, citiesMatch, enrichRideForOffer } from "../lib/autodispatch.js";
 import { getDriver, updateDriver, getDriverBalance } from "../lib/services/drivers.service.js";
+import { validateBody } from "../middlewares/validate.js";
+import { driverStatusBodySchema, driverLocationBodySchema } from "../middlewares/request-schemas.js";
 import { notifyRideStatusChange } from "../lib/sms-notifications.js";
 import { idempotencyKey, getIdempotentResult, storeIdempotentResult } from "../lib/idempotency.js";
 import { recordDriverAccept, recordDriverReject, recordRideCompleted } from "../lib/revenue-ai-prod.js";
@@ -1264,7 +1266,7 @@ router.post("/admin/upload-photo", authMiddleware, requireRole("dispatcher", "ad
   }
 });
 
-router.patch("/status", authMiddleware, async (req: AuthRequest, res) => {
+router.patch("/status", authMiddleware, validateBody(driverStatusBodySchema), async (req: AuthRequest, res) => {
   try {
     const { status } = req.body;
 
@@ -1349,7 +1351,7 @@ router.patch("/status", authMiddleware, async (req: AuthRequest, res) => {
   }
 });
 
-router.patch("/location", authMiddleware, async (req: AuthRequest, res) => {
+router.patch("/location", authMiddleware, validateBody(driverLocationBodySchema), async (req: AuthRequest, res) => {
   try {
     const { lat, lng } = req.body;
     if (typeof lat !== "number" || typeof lng !== "number") {

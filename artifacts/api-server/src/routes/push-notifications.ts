@@ -9,6 +9,8 @@ import { broadcastToUser } from "../lib/websocket.js";
 import webpush from "web-push";
 import { logger } from "../lib/logger.js";
 import { config } from "../lib/config.js";
+import { validateBody } from "../middlewares/validate.js";
+import { pushSendBodySchema } from "../middlewares/request-schemas.js";
 
 const UPLOADS_DIR = path.resolve(process.cwd(), "artifacts", "uploads", "push");
 fs.mkdirSync(UPLOADS_DIR, { recursive: true });
@@ -51,7 +53,7 @@ router.get("/", authMiddleware, requireRole("admin", "dispatcher"), async (req: 
   }
 });
 
-router.post("/send", authMiddleware, requireRole("admin", "dispatcher"), pushUpload.array("photos", 10), async (req: AuthRequest, res: Response) => {
+router.post("/send", authMiddleware, requireRole("admin", "dispatcher"), pushUpload.array("photos", 10), validateBody(pushSendBodySchema), async (req: AuthRequest, res: Response) => {
   try {
     const { title, content, videoUrl, audience, cityId, branchId, driverGroupId } = req.body;
 

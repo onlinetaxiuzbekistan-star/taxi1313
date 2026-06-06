@@ -1,4 +1,6 @@
 import { Router, type IRouter } from "express";
+import { validateBody } from "../middlewares/validate.js";
+import { chatJoinBodySchema, chatSendBodySchema } from "../middlewares/request-schemas.js";
 import { clog } from "../lib/logger.js";
 import multer from "multer";
 import path from "path";
@@ -153,7 +155,7 @@ router.get("/participants", authMiddleware, async (req: AuthRequest, res) => {
   }
 });
 
-router.post("/join", authMiddleware, async (req: AuthRequest, res) => {
+router.post("/join", authMiddleware, validateBody(chatJoinBodySchema), async (req: AuthRequest, res) => {
   try {
     const { rideId } = req.body;
     if (!rideId) {
@@ -179,7 +181,7 @@ router.post("/join", authMiddleware, async (req: AuthRequest, res) => {
   }
 });
 
-router.post("/send", authMiddleware, async (req: AuthRequest, res) => {
+router.post("/send", authMiddleware, validateBody(chatSendBodySchema), async (req: AuthRequest, res) => {
   try {
     const { peerId, rideId, message } = req.body;
     if (!message?.trim()) {

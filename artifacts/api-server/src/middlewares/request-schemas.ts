@@ -74,3 +74,19 @@ export const depositConfirmBodySchema = z
     otp: z.union([z.string(), z.number()]),
   })
   .passthrough();
+
+// ── Marketplace ──
+export const marketplaceSellBodySchema = z.object({ rideId: numeric, price: numeric }).passthrough();
+export const marketplaceSellOrderBodySchema = z.object({ routeId: numeric, clientPhone: z.string().min(1) }).passthrough();
+export const marketplaceBuyBodySchema = z.object({ listingId: numeric }).passthrough();
+
+// ── Chat ──
+export const chatJoinBodySchema = z.object({ rideId: numeric }).passthrough();
+export const chatSendBodySchema = z.object({ message: z.string().min(1) }).passthrough();
+
+// ── Push notifications (multipart; validated after multer) ──
+export const pushSendBodySchema = z.object({ title: z.string().min(1) }).passthrough();
+
+// ── Drivers ──
+export const driverStatusBodySchema = z.object({ status: z.string().min(1) }).passthrough();
+export const driverLocationBodySchema = z.object({ lat: numeric, lng: numeric }).passthrough();

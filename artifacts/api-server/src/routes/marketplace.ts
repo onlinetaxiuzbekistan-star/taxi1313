@@ -3,6 +3,8 @@ import { clog } from "../lib/logger.js";
 import { db, marketplaceListingsTable, ridesTable, usersTable, transactionsTable, routesTable, districtsTable, ridePassengersTable, orderOffersTable } from "@workspace/db";
 import { eq, and, ne, sql, desc, count, isNull, isNotNull, inArray } from "drizzle-orm";
 import { authMiddleware, requireRole, AuthRequest } from "../middlewares/auth.js";
+import { validateBody } from "../middlewares/validate.js";
+import { marketplaceSellBodySchema, marketplaceSellOrderBodySchema, marketplaceBuyBodySchema } from "../middlewares/request-schemas.js";
 import { broadcastToUser, broadcastToAll } from "../lib/websocket.js";
 import { logger } from "../lib/logger.js";
 import { resolveCitySlug } from "../lib/route-match.js";
@@ -24,7 +26,7 @@ const router = Router();
 
 const MAX_ACTIVE_SALES = 20;
 
-router.post("/sell", authMiddleware, requireRole("driver"), async (req: AuthRequest, res) => {
+router.post("/sell", authMiddleware, requireRole("driver"), validateBody(marketplaceSellBodySchema), async (req: AuthRequest, res) => {
   try {
     const sellerId = req.userId!;
     const { rideId, price, comment } = req.body;
@@ -86,7 +88,7 @@ router.post("/sell", authMiddleware, requireRole("driver"), async (req: AuthRequ
   }
 });
 
-router.post("/sell-order", authMiddleware, requireRole("driver"), async (req: AuthRequest, res) => {
+router.post("/sell-order", authMiddleware, requireRole("driver"), validateBody(marketplaceSellOrderBodySchema), async (req: AuthRequest, res) => {
   try {
     const sellerId = req.userId!;
     const { routeId, fromDistrictId, toDistrictId, scheduledAt, clientPhone, seatsCount, baggageType, price, comment, gender, genders } = req.body;
@@ -223,7 +225,7 @@ router.post("/sell-order", authMiddleware, requireRole("driver"), async (req: Au
   }
 });
 
-router.post("/buy", authMiddleware, requireRole("driver"), async (req: AuthRequest, res) => {
+router.post("/buy", authMiddleware, requireRole("driver"), validateBody(marketplaceBuyBodySchema), async (req: AuthRequest, res) => {
   try {
     const buyerId = req.userId!;
     const { listingId } = req.body;
