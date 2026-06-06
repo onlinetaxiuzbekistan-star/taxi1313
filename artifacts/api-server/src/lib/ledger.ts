@@ -15,7 +15,7 @@ import { db, usersTable, transactionsTable } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
 
 // The transaction handle passed to db.transaction(async (tx) => ...).
-type DbTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+export type DbTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 export type LedgerType =
   | "income"

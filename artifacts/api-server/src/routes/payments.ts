@@ -10,7 +10,7 @@ import {
   atmosPreApply,
   atmosApply,
 } from "../lib/atmos.js";
-import { credit } from "../lib/ledger.js";
+import { credit, type DbTransaction } from "../lib/ledger.js";
 import { validateBody } from "../middlewares/validate.js";
 import { depositInitBodySchema, depositConfirmBodySchema } from "../middlewares/request-schemas.js";
 
@@ -200,7 +200,7 @@ router.post("/deposit/confirm", authMiddleware, validateBody(depositConfirmBodyS
 
     // Atomic + idempotent: CAS the payment pending→success, credit the balance, write the ledger row,
     // all in one transaction. The WHERE status='pending' guard stops concurrent confirms double-crediting.
-    const result = await db.transaction(async (tx) => {
+    const result = await db.transaction(async (tx: DbTransaction) => {
       const [marked] = await tx.update(paymentsTable)
         .set({ status: "success", updatedAt: new Date() })
         .where(and(eq(paymentsTable.id, paymentId), eq(paymentsTable.status, "pending")))

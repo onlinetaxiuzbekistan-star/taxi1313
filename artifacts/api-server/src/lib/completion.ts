@@ -15,7 +15,7 @@ import { checkMilestoneBonus } from "./bonuses.js";
 import { broadcastToAll } from "./websocket.js";
 import { getSettingNum } from "./settingsCache.js";
 import { recordRideCompleted } from "./revenue-ai-prod.js";
-import { debit, record } from "./ledger.js";
+import { debit, record, type DbTransaction } from "./ledger.js";
 
 const STUCK_CHILD_STATUSES = ["merged", "in_progress", "accepted", "offered", "pending"] as const;
 
@@ -96,7 +96,7 @@ async function cascadeCompleteChildren(tripRideId: number, fallbackDriverId: num
 
     // Atomic: ride status flip + balance debit + ledger rows succeed or fail together.
     // Row-lock the driver so concurrent completions serialize and balanceBefore/After stay truthful.
-    const applied = await db.transaction(async (tx) => {
+    const applied = await db.transaction(async (tx: DbTransaction) => {
       const [updated] = await tx.update(ridesTable)
         .set({
           status: "completed",
@@ -250,7 +250,7 @@ export async function completeRide(rideId: number): Promise<{ success: boolean; 
     // Atomic: ride status flip + balance debit + ledger rows succeed or fail together.
     // Row-lock the driver so concurrent completions serialize and balanceBefore/After stay truthful.
     const optsLabel = optsCom > 0 ? ` + ${optsCom.toLocaleString("ru-RU")} за опции` : "";
-    const applied = await db.transaction(async (tx) => {
+    const applied = await db.transaction(async (tx: DbTransaction) => {
       const [updated] = await tx.update(ridesTable)
         .set({
           status: "completed",
