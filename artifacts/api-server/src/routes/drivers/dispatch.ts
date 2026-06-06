@@ -338,8 +338,11 @@ router.post("/accept", authMiddleware, validateBody(rideIdBodySchema), async (re
               price: Number(pax.price) || 0,
               baggageType: pax.baggageType || "none",
               source: "autodispatch",
-              externalKey: `merged-ride-${Number(rideId)}`,
-            });
+              // Unique per source passenger so a multi-passenger child ride does
+              // not self-collide on the (ride_id, external_key) unique index, and
+              // re-accepting the same ride is idempotent (skips already-merged).
+              externalKey: `merged-ride-${Number(rideId)}-pax-${pax.id}`,
+            }).onConflictDoNothing();
           }
         } else {
           const perSeatPrice = Math.round((Number(existing.price) || 0) / rideSeats);
@@ -358,8 +361,10 @@ router.post("/accept", authMiddleware, validateBody(rideIdBodySchema), async (re
               price: perSeatPrice,
               baggageType: "none",
               source: "autodispatch",
-              externalKey: `merged-ride-${Number(rideId)}`,
-            });
+              // Unique per seat (see note above) — avoids self-collision on the
+              // (ride_id, external_key) unique index and makes re-accept idempotent.
+              externalKey: `merged-ride-${Number(rideId)}-seat-${seatToUse}`,
+            }).onConflictDoNothing();
           }
         }
 

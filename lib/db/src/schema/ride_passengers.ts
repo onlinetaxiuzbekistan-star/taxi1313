@@ -1,6 +1,7 @@
 import {
-  pgTable, serial, integer, text, real, numeric, timestamp, index
+  pgTable, serial, integer, text, real, numeric, timestamp, index, uniqueIndex
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -26,6 +27,11 @@ export const ridePassengersTable = pgTable("ride_passengers", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (t) => [
   index("ride_passengers_ride_id_idx").on(t.rideId),
+  // Dedupe merged/imported passengers per ride. Exists in production; declared
+  // here so the schema matches reality (and the test DB enforces it too).
+  uniqueIndex("ride_passengers_ride_external_key_uidx")
+    .on(t.rideId, t.externalKey)
+    .where(sql`${t.externalKey} IS NOT NULL`),
 ]);
 
 export const insertRidePassengerSchema = createInsertSchema(ridePassengersTable)
