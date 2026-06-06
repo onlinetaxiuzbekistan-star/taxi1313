@@ -10,6 +10,7 @@ import {
   atmosPreApply,
   atmosApply,
 } from "../lib/atmos.js";
+import { credit } from "../lib/ledger.js";
 
 const router: IRouter = Router();
 
@@ -205,26 +206,14 @@ router.post("/deposit/confirm", authMiddleware, async (req: AuthRequest, res) =>
 
       if (!marked) return { applied: false as const };
 
-      const [driver] = await tx.select({ balance: usersTable.balance })
-        .from(usersTable).where(eq(usersTable.id, driverId)).for("update");
-      const balBefore = parseFloat(driver?.balance?.toString() || "0");
-      const balAfter = balBefore + amount;
-
-      await tx.insert(transactionsTable).values({
+      const { balanceAfter } = await credit(tx, {
         driverId,
         type: "income",
-        amount: String(amount),
-        balanceBefore: String(balBefore),
-        balanceAfter: String(balAfter),
+        amount,
         description: `Пополнение через Atmos: ${Number(amount).toLocaleString("ru-RU")} сум`,
       });
 
-      await tx.update(usersTable).set({
-        balance: sql`balance + ${amount}`,
-        updatedAt: new Date(),
-      }).where(eq(usersTable.id, driverId));
-
-      return { applied: true as const, balAfter };
+      return { applied: true as const, balAfter: balanceAfter };
     });
 
     if (!result.applied) {

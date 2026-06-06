@@ -698,7 +698,9 @@ router.get("/pricing-info", async (_req, res) => {
   try {
     const surge = await getSurgeMultiplier(false);
     const surgeUrgent = await getSurgeMultiplier(true);
-    const commissionPercent = getSettingNum("commission_percent", 15);
+    // Default 10 to match completion.ts (the authoritative charge path) so this
+    // estimate never diverges from what the driver is actually charged.
+    const commissionPercent = getSettingNum("commission_percent", 10);
     const commissionFixed = getSettingNum("commission_fixed", 0);
 
     res.json({

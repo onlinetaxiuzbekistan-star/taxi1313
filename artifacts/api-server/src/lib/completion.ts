@@ -15,6 +15,7 @@ import { checkMilestoneBonus } from "./bonuses.js";
 import { broadcastToAll } from "./websocket.js";
 import { getSettingNum } from "./settingsCache.js";
 import { recordRideCompleted } from "./revenue-ai-prod.js";
+import { debit, record } from "./ledger.js";
 
 const STUCK_CHILD_STATUSES = ["merged", "in_progress", "accepted", "offered", "pending"] as const;
 
@@ -109,36 +110,27 @@ async function cascadeCompleteChildren(tripRideId: number, fallbackDriverId: num
 
       if (!updated) return false;
 
-      const [drv] = await tx.select({ balance: usersTable.balance })
-        .from(usersTable).where(eq(usersTable.id, childDriverId)).for("update");
-      const balBefore = parseFloat(drv?.balance?.toString() || "0");
-      const balAfter = balBefore - childCommission;
-
       // Информационная запись: водитель получил наличные у клиента (баланс не меняется)
-      await tx.insert(transactionsTable).values({
+      await record(tx, {
         driverId: childDriverId,
         rideId: child.id,
         type: "income",
-        amount: String(childPayout),
-        balanceBefore: String(balBefore),
-        balanceAfter: String(balBefore),
+        amount: childPayout,
         description: `Поездка #${child.id} (через trip #${tripRideId}): ${childPayout.toLocaleString("ru-RU")} сум наличными у клиента`,
       });
 
       const optsLabel = optsCom > 0 ? ` + ${optsCom.toLocaleString("ru-RU")} за опции` : "";
       // Списание комиссии с баланса
-      await tx.insert(transactionsTable).values({
+      await debit(tx, {
         driverId: childDriverId,
         rideId: child.id,
         type: "commission",
-        amount: String(childCommission),
-        balanceBefore: String(balBefore),
-        balanceAfter: String(balAfter),
+        amount: childCommission,
         description: `Комиссия ${commissionPercentLabel}%${commissionFixed > 0 ? ` + ${commissionFixed} сум` : ""}${optsLabel} за поездку #${child.id} (через trip #${tripRideId})`,
       });
 
+      // Driver activity counters (balance is handled by debit() above).
       await tx.update(usersTable).set({
-        balance: sql`balance - ${childCommission}`,
         acceptedOrders: sql`accepted_orders + 1`,
         activityScore: sql`activity_score + 1`,
         updatedAt: new Date(),
@@ -272,34 +264,26 @@ export async function completeRide(rideId: number): Promise<{ success: boolean; 
 
       if (!updated) return false;
 
-      const [driver] = await tx.select({ balance: usersTable.balance })
-        .from(usersTable).where(eq(usersTable.id, driverId)).for("update");
-      const balBefore = parseFloat(driver?.balance?.toString() || "0");
-      const balAfter = balBefore - commission;
-
       // Информационная запись: водитель получил наличные у клиента (баланс не меняется)
-      await tx.insert(transactionsTable).values({
-        driverId, rideId,
+      await record(tx, {
+        driverId,
+        rideId,
         type: "income",
-        amount: String(driverEarning),
-        balanceBefore: String(balBefore),
-        balanceAfter: String(balBefore),
+        amount: driverEarning,
         description: `Поездка #${rideId}: ${driverEarning.toLocaleString("ru-RU")} сум наличными у клиента`,
       });
 
       // Списание комиссии с баланса (наличные у водителя — он должен платформе только комиссию)
-      await tx.insert(transactionsTable).values({
+      await debit(tx, {
         driverId,
         rideId,
         type: "commission",
-        amount: String(commission),
-        balanceBefore: String(balBefore),
-        balanceAfter: String(balAfter),
+        amount: commission,
         description: `Комиссия ${commissionPercentLabel}%${commissionFixed > 0 ? ` + ${commissionFixed} сум × ${existing.passengers || 1} мест${existing.roundTrip ? " × 2 (туда-обратно)" : ""}` : ""}${optsLabel} за поездку #${rideId}`,
       });
 
+      // Driver activity counters (balance is handled by debit() above).
       await tx.update(usersTable).set({
-        balance: sql`balance - ${commission}`,
         totalRides: sql`total_rides + 1`,
         acceptedOrders: sql`accepted_orders + 1`,
         activityScore: sql`activity_score + 2`,
