@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { clog } from "../lib/logger.js";
 import { db, usersTable, paymentsTable, transactionsTable, paymeTransactionsTable, settingsTable } from "@workspace/db";
 import { eq, and, gte, lte, sql } from "drizzle-orm";
+import { timingSafeEqualStr } from "../lib/secure-compare.js";
 
 const router: IRouter = Router();
 
@@ -41,9 +42,10 @@ async function getPaymeSettings() {
 
 function authenticatePayme(authHeader: string | undefined, merchantKey: string): boolean {
   if (!authHeader || !authHeader.startsWith("Basic ")) return false;
+  if (!merchantKey) return false; // never authenticate against a blank configured key
   const decoded = Buffer.from(authHeader.slice(6), "base64").toString("utf-8");
   const [login, key] = decoded.split(":");
-  return login === "Paycom" && key === merchantKey;
+  return login === "Paycom" && timingSafeEqualStr(key || "", merchantKey);
 }
 
 async function findDriverByPhone(phone: string) {

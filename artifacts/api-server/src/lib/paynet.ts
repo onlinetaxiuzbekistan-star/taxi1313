@@ -1,5 +1,6 @@
 import { db, usersTable, transactionsTable, paynetTransactionsTable, settingsTable } from "@workspace/db";
 import { eq, and, gte, lte, sql } from "drizzle-orm";
+import { timingSafeEqualStr } from "./secure-compare.js";
 
 export const PaynetCode = {
   OK: 0,
@@ -78,7 +79,7 @@ export function authenticatePaynet(authHeader: string | undefined, s: PaynetSett
   if (idx < 0) return false;
   const u = decoded.slice(0, idx);
   const p = decoded.slice(idx + 1);
-  return u === s.username && p === s.password;
+  return timingSafeEqualStr(u, s.username) && timingSafeEqualStr(p, s.password);
 }
 
 function tsNow(): string {
