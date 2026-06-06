@@ -52,6 +52,13 @@ else
   echo "[BUILD] Using existing keystore"
 fi
 
+# Monotonic versionCode (minutes since the Unix epoch) so every build is treated
+# as an upgrade over the last; versionName carries a human-readable datestamp.
+VERSION=$(date +"%Y%m%d.%H%M")
+export APK_VERSION_CODE=$(( $(date +%s) / 60 ))
+export APK_VERSION_NAME="1.0.${VERSION}"
+echo "[BUILD] versionCode: $APK_VERSION_CODE  versionName: $APK_VERSION_NAME"
+
 echo "[BUILD] Starting Gradle build..."
 cd "$PROJECT_DIR"
 
@@ -70,7 +77,6 @@ if [ ! -f "$APK_PATH" ]; then
   fi
 fi
 
-VERSION=$(date +"%Y%m%d.%H%M")
 FINAL_NAME="buxtaxi-driver-v${VERSION}.apk"
 
 mkdir -p "$OUTPUT_DIR"
