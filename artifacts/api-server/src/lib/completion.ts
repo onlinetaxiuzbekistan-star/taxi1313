@@ -8,7 +8,7 @@
  * - Options commission (Variant A): fixed per-option fee deducted from driver,
  *   percent commission applied to (price - optionsTotal). Added 2026-05-02.
  */
-import { db, ridesTable, usersTable, transactionsTable, marketplaceListingsTable } from "@workspace/db";
+import { db, ridesTable, usersTable, transactionsTable, marketplaceListingsTable, ridePassengersTable } from "@workspace/db";
 import { eq, and, ne, sql, inArray } from "drizzle-orm";
 import { logger } from "./logger.js";
 import { checkMilestoneBonus } from "./bonuses.js";
@@ -55,10 +55,12 @@ async function cascadeCompleteChildren(tripRideId: number, fallbackDriverId: num
   const allRideIds: number[] = [tripRideId];
 
   if (children.length === 0) {
-    await db.execute(sql`
-      UPDATE ride_passengers SET status = 'dropped_off'
-      WHERE ride_id = ${tripRideId} AND status = 'waiting'
-    `);
+    await db.update(ridePassengersTable)
+      .set({ status: "dropped_off" })
+      .where(and(
+        eq(ridePassengersTable.rideId, tripRideId),
+        eq(ridePassengersTable.status, "waiting"),
+      ));
     return;
   }
 
@@ -159,10 +161,15 @@ async function cascadeCompleteChildren(tripRideId: number, fallbackDriverId: num
   }
 
   if (allRideIds.length > 0) {
-    await db.execute(sql`
-      UPDATE ride_passengers SET status = 'dropped_off'
-      WHERE ride_id = ANY(${allRideIds}::int[]) AND status = 'waiting'
-    `);
+    // Use the query builder's inArray — a raw `ANY(${allRideIds}::int[])` makes
+    // Drizzle expand the JS array into `($1, $2)` and then casts that *row* to
+    // int[], which Postgres rejects (the cause of the cascade failures).
+    await db.update(ridePassengersTable)
+      .set({ status: "dropped_off" })
+      .where(and(
+        inArray(ridePassengersTable.rideId, allRideIds),
+        eq(ridePassengersTable.status, "waiting"),
+      ));
   }
 
   for (const childId of allRideIds) {
