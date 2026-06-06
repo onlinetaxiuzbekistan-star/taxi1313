@@ -137,7 +137,10 @@ export function getGuardianStatus() {
   };
 }
 
+let memTimers: ReturnType<typeof setInterval>[] = [];
+
 export function startMemoryGuardian() {
+  if (memTimers.length) return;
   const gcTimer = setInterval(autoGC, GC_INTERVAL_MS);
   gcTimer.unref();
 
@@ -147,9 +150,16 @@ export function startMemoryGuardian() {
   const logTimer = setInterval(logMemory, LOG_INTERVAL_MS);
   logTimer.unref();
 
+  memTimers = [gcTimer, checkTimer, logTimer];
+
   checkMemory();
   logMemory();
 
   const gcStatus = typeof global.gc === "function" ? "enabled" : "unavailable (add --expose-gc)";
   console.log(`[MEM GUARDIAN] Started: GC=${gcStatus}, RSS limit=${RSS_LIMIT_MB}MB, heap warn=${HEAP_WARN_PCT}%, log every 30s, check every 10s, auto-GC every 2min`);
+}
+
+export function stopMemoryGuardian() {
+  for (const t of memTimers) clearInterval(t);
+  memTimers = [];
 }

@@ -62,8 +62,15 @@ async function expireOnce() {
   }
 }
 
+let cleanupIntervalId: ReturnType<typeof setInterval> | null = null;
+
 export function startListingsCleanupScheduler(): void {
+  if (cleanupIntervalId) return;
   expireOnce().catch(() => {});
-  setInterval(() => { expireOnce().catch(() => {}); }, SCAN_INTERVAL_MS);
+  cleanupIntervalId = setInterval(() => { expireOnce().catch(() => {}); }, SCAN_INTERVAL_MS);
   logger.info({ intervalMs: SCAN_INTERVAL_MS }, "[listings-cleanup] scheduler started");
+}
+
+export function stopListingsCleanupScheduler(): void {
+  if (cleanupIntervalId) { clearInterval(cleanupIntervalId); cleanupIntervalId = null; }
 }

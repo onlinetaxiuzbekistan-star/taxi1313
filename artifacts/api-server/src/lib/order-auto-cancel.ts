@@ -124,6 +124,8 @@ async function autoCancelStaleOrders() {
 }
 
 let intervalId: ReturnType<typeof setInterval> | null = null;
+let rideCleanupIntervalId: ReturnType<typeof setInterval> | null = null;
+let bootTimeouts: ReturnType<typeof setTimeout>[] = [];
 
 
 
@@ -155,11 +157,18 @@ export function startAutoCancelScheduler() {
   if (intervalId) return;
   console.log(`[AUTO-CANCEL] Scheduler started (every ${CHECK_INTERVAL_MS / 1000}s, by scheduledAt+grace)`);
   intervalId = setInterval(autoCancelStaleOrders, CHECK_INTERVAL_MS);
-  setTimeout(autoCancelStaleOrders, 15_000);
+  bootTimeouts.push(setTimeout(autoCancelStaleOrders, 15_000));
 
-  setInterval(cleanupExpiredRides, RIDE_CLEANUP_INTERVAL_MS);
-  setTimeout(cleanupExpiredRides, 30_000);
+  rideCleanupIntervalId = setInterval(cleanupExpiredRides, RIDE_CLEANUP_INTERVAL_MS);
+  bootTimeouts.push(setTimeout(cleanupExpiredRides, 30_000));
   console.log(`[RIDE-CLEANUP] Scheduler started (every ${RIDE_CLEANUP_INTERVAL_MS / 1000}s, grace=1h after expiry)`);
+}
+
+export function stopAutoCancelScheduler() {
+  if (intervalId) { clearInterval(intervalId); intervalId = null; }
+  if (rideCleanupIntervalId) { clearInterval(rideCleanupIntervalId); rideCleanupIntervalId = null; }
+  for (const t of bootTimeouts) clearTimeout(t);
+  bootTimeouts = [];
 }
 
 export { autoCancelStaleOrders };

@@ -1,18 +1,20 @@
 import { initSentry } from "./lib/sentry.js";
-import { startListingsCleanupScheduler } from "./lib/listings-cleanup.js";
+import { startListingsCleanupScheduler, stopListingsCleanupScheduler } from "./lib/listings-cleanup.js";
 initSentry();
 import http from "http";
 import app from "./app.js";
 import { logger } from "./lib/logger.js";
-import { setupWebSocket, forceLogoutDriver } from "./lib/websocket.js";
+import { setupWebSocket, forceLogoutDriver, closeWebSocket } from "./lib/websocket.js";
 import { onForceLogout, setSessionCacheInvalidator } from "./routes/auth.js";
 import { invalidateSessionCache } from "./middlewares/auth.js";
 import { loadSettingsCache } from "./lib/settingsCache.js";
-import { startPhotoScheduler } from "./lib/photo-scheduler.js";
+import { startPhotoScheduler, stopPhotoScheduler } from "./lib/photo-scheduler.js";
 import { warmupModels } from "./lib/photo-ai-validator.js";
-import { startMemoryGuardian } from "./lib/memory-guardian.js";
+import { startMemoryGuardian, stopMemoryGuardian } from "./lib/memory-guardian.js";
 import { seedDatabase } from "./lib/seed.js";
-import { startAutoCancelScheduler } from "./lib/order-auto-cancel.js";
+import { startAutoCancelScheduler, stopAutoCancelScheduler } from "./lib/order-auto-cancel.js";
+import { pool } from "@workspace/db";
+import { redis } from "./lib/redis.js";
 
 function summarizeDatabaseUrl(url: string): string {
   const host = url.match(/@([^/?:]+)/)?.[1] || "unknown";
@@ -82,3 +84,49 @@ seedDatabase().then(() => {
     warmupModels().catch(() => {});
   });
 });
+
+// ───────────────────────── Graceful shutdown ─────────────────────────
+let shuttingDown = false;
+async function shutdown(signal: string) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  logger.info({ signal }, "Graceful shutdown started");
+
+  // Hard cap: must finish before systemd's TimeoutStopSec (30s) sends SIGKILL.
+  const force = setTimeout(() => {
+    logger.error("Graceful shutdown timed out — forcing exit");
+    process.exit(1);
+  }, 25_000);
+  force.unref();
+
+  try {
+    // 1) Stop background schedulers so no new work/queries start mid-shutdown.
+    stopPhotoScheduler();
+    stopAutoCancelScheduler();
+    stopListingsCleanupScheduler();
+    stopMemoryGuardian();
+
+    // 2) Stop accepting new HTTP connections; wait for in-flight requests to finish.
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    server.closeIdleConnections?.();
+
+    // 3) Close WebSocket clients (1001 going-away) and the WS server.
+    await closeWebSocket();
+
+    // 4) Drain the PostgreSQL pool (waits for active queries).
+    await pool.end();
+
+    // 5) Close Redis.
+    try { await redis.quit(); } catch { redis.disconnect(); }
+
+    clearTimeout(force);
+    logger.info("Graceful shutdown complete");
+    process.exit(0);
+  } catch (err) {
+    logger.error({ err }, "Error during graceful shutdown");
+    process.exit(1);
+  }
+}
+
+process.on("SIGTERM", () => { void shutdown("SIGTERM"); });
+process.on("SIGINT", () => { void shutdown("SIGINT"); });

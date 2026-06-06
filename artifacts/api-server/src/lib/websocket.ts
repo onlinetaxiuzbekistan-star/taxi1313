@@ -518,6 +518,28 @@ export function setupWebSocket(server: Server) {
   wss.on("close", () => clearInterval(heartbeat));
 }
 
+/**
+ * Graceful WebSocket shutdown: tell every client we're going away (code 1001 → clients
+ * reconnect to the new instance), force-terminate any laggards after 2s, then close the
+ * server. Resolves once the WS server is fully closed.
+ */
+export function closeWebSocket(): Promise<void> {
+  return new Promise((resolve) => {
+    if (!wss) { resolve(); return; }
+    const server = wss;
+    try {
+      server.clients.forEach((ws: AuthenticatedWS) => {
+        try { ws.close(1001, "Server shutting down"); } catch {}
+      });
+    } catch {}
+    const term = setTimeout(() => {
+      try { server.clients.forEach((ws: AuthenticatedWS) => { try { ws.terminate(); } catch {} }); } catch {}
+    }, 2000);
+    term.unref();
+    server.close(() => { clearTimeout(term); wss = null; resolve(); });
+  });
+}
+
 function injectVersion(data: Record<string, any>): Record<string, any> {
   if (data.version !== undefined) return data;
   const ride = data.ride || data.trip;
