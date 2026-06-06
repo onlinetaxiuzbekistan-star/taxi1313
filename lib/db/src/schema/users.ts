@@ -3,7 +3,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
-import { branchesTable } from "./branches.js";
+import { branchesTable } from "./branches";
 
 export const userRoleEnum     = pgEnum("user_role",     ["rider", "driver", "dispatcher", "admin"]);
 export const driverStatusEnum = pgEnum("driver_status", ["offline", "online", "busy"]);

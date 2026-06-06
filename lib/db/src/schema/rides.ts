@@ -3,7 +3,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
-import { branchesTable } from "./branches.js";
+import { branchesTable } from "./branches";
 
 export const rideStatusEnum = pgEnum("ride_status", [
   "pending",
