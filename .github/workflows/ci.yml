@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Typecheck is currently NON-BLOCKING: the repo has a large backlog of
+      # pre-existing TypeScript errors (implicit-any across legacy routes, plus
+      # the unbuilt lib/db project reference). It runs so new type errors are
+      # visible in CI; flip continue-on-error to false once the backlog is clear.
+      - name: Typecheck (api-server)
+        run: pnpm --filter @workspace/api-server typecheck
+        continue-on-error: true
+
+      - name: Test (api-server)
+        run: pnpm --filter @workspace/api-server test
