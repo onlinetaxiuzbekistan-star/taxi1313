@@ -2,18 +2,24 @@ import https from "https";
 import { clog } from "./logger.js";
 import { config } from "./config.js";
 import { makeBreaker } from "./circuit.js";
+import { errorMessage } from "./errors.js";
 
+// chat-id lookup is an idempotent GET → safe to retry.
 const telegramBreaker = makeBreaker("telegram-gateway");
+// Bot API sendMessage is NOT idempotent (retry → duplicate message) → breaker only.
+const telegramApiBreaker = makeBreaker("telegram-api", { retries: 0 });
 
 // Required in production (validated in config.ts); empty in dev/test.
 const TELEGRAM_BOT_TOKEN = config.telegram.botToken;
 const SMS_GATEWAY_URL = config.telegram.gatewayUrl;
 
-function telegramRequest(
+// Raw call: rejects on transport error / timeout / non-ok response so the
+// circuit breaker can observe failures.
+function rawTelegramRequest(
   method: string,
   payload: object
 ): Promise<{ ok: boolean; description?: string }> {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const body = JSON.stringify(payload);
     const req = https.request(
       {
@@ -32,18 +38,30 @@ function telegramRequest(
         res.on("end", () => {
           try {
             const json = JSON.parse(data);
-            resolve({ ok: json.ok, description: json.description });
+            if (json.ok) resolve({ ok: true, description: json.description });
+            else reject(new Error(json.description || "telegram api returned ok=false"));
           } catch {
-            resolve({ ok: false, description: data });
+            reject(new Error(data || "telegram api parse error"));
           }
         });
       }
     );
-    req.on("error", (err: Error) => resolve({ ok: false, description: err.message }));
-    req.on("timeout", () => { req.destroy(); resolve({ ok: false, description: "timeout" }); });
+    req.on("error", (err: Error) => reject(err));
+    req.on("timeout", () => { req.destroy(); reject(new Error("timeout")); });
     req.write(body);
     req.end();
   });
+}
+
+// Breaker-guarded wrapper. Preserves the original resolve-only contract:
+// returns { ok:false, description } on any failure (including an open circuit).
+function telegramRequest(
+  method: string,
+  payload: object
+): Promise<{ ok: boolean; description?: string }> {
+  return telegramApiBreaker
+    .execute(() => rawTelegramRequest(method, payload))
+    .catch((err) => ({ ok: false, description: errorMessage(err) }));
 }
 
 async function getChatIdFromSmsGateway(phone: string): Promise<string | null> {

@@ -6,7 +6,8 @@ import { makeBreaker } from "./circuit.js";
 
 const SMS_GATEWAY_URL = "http://217.30.171.176:3000/api/messages/send";
 
-const smsBreaker = makeBreaker("sms-gateway");
+// retries: 0 — sending an SMS is not idempotent; a retry could double-send.
+const smsBreaker = makeBreaker("sms-gateway", { retries: 0 });
 
 interface SmsSettings {
   enabled: boolean;

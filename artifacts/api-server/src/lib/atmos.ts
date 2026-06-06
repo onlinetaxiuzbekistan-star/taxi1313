@@ -5,7 +5,10 @@ import { makeBreaker } from "./circuit.js";
 
 const ATMOS_BASE = "https://apigw.atmos.uz";
 
-const atmosBreaker = makeBreaker("atmos");
+// retries: 0 — atmosFetch carries payment mutations (createTransaction, etc.);
+// blindly retrying could double-charge. The breaker still fails fast when Atmos
+// is down. Idempotent reads tolerate the gateway's own retry semantics.
+const atmosBreaker = makeBreaker("atmos", { retries: 0 });
 
 let cachedToken: { token: string; expiresAt: number } | null = null;
 

@@ -7,6 +7,7 @@ import { getDriverCache } from "../lib/driver-cache.js";
 import { getWsStats } from "../lib/websocket.js";
 import { config } from "../lib/config.js";
 import { timingSafeEqualStr } from "../lib/secure-compare.js";
+import { getExternalHealth } from "../lib/circuit.js";
 import os from "os";
 
 const router: IRouter = Router();
@@ -60,6 +61,17 @@ router.get("/health-deep", async (req, res) => {
 
   const driverCache = getDriverCache();
   checks.driver_cache = { status: "ok", details: { online_drivers: driverCache.size } };
+
+  // External dependencies — reported from each service's circuit-breaker state
+  // (cheap; reflects the outcome of recent real calls, makes no probe of its
+  // own). A down (open) external dependency degrades overall health.
+  // Reported for observability, but a down auxiliary dependency does NOT flip
+  // overall health to 503 — the node can still serve core traffic. Only
+  // Postgres/Redis outages are treated as critical above.
+  const external = getExternalHealth();
+  for (const [name, info] of Object.entries(external.services)) {
+    checks[`ext_${name}`] = { status: info.status, details: { circuit: info.circuit } };
+  }
 
   const totalConnections = (pool as any).totalCount ?? 0;
   const idleConnections = (pool as any).idleCount ?? 0;

@@ -1,5 +1,6 @@
 import webpush from "web-push";
 import { UnrecoverableError } from "bullmq";
+import { makeBreaker } from "./circuit.js";
 import { db, deviceTokensTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { broadcastToUser, broadcastToRole } from "./websocket.js";
@@ -10,6 +11,10 @@ import { config } from "./config.js";
 const VAPID_PUBLIC_KEY = config.vapid.publicKey;
 const VAPID_PRIVATE_KEY = config.vapid.privateKey;
 const VAPID_SUBJECT = config.vapid.subject;
+
+// Guards the outbound web-push endpoint (FCM / Mozilla / Apple push gateways).
+// retries:0 — BullMQ already retries push jobs with backoff.
+const pushBreaker = makeBreaker("web-push", { retries: 0 });
 
 if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
   webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
@@ -74,18 +79,35 @@ export async function deliverPushJob(data: PushJobData): Promise<void> {
 
   const pushSubscription = { endpoint, keys: { p256dh, auth } };
 
+  // Fail fast when the push service is broadly down (breaker), but a single
+  // gone subscription (410/404) is NOT a service outage — handle it inside the
+  // execute so it doesn't count toward opening the circuit. BullMQ owns the
+  // retry/backoff for transient failures, so retries:0 here (no double-send).
+  let goneStatus: number | null = null;
   try {
-    await webpush.sendNotification(pushSubscription, pushPayload);
-    logger.info({ userId, title: payload.title }, "Web Push sent");
+    await pushBreaker.execute(async () => {
+      try {
+        await webpush.sendNotification(pushSubscription, pushPayload);
+      } catch (err: any) {
+        if (err.statusCode === 410 || err.statusCode === 404) {
+          goneStatus = err.statusCode;
+          return; // treat as handled — not a breaker-tripping failure
+        }
+        throw err; // real failure → breaker observes it
+      }
+    });
   } catch (err: any) {
-    if (err.statusCode === 410 || err.statusCode === 404) {
-      await db.delete(deviceTokensTable).where(eq(deviceTokensTable.id, subId));
-      logger.info({ userId, subId, statusCode: err.statusCode }, "Removed expired push subscription");
-      throw new UnrecoverableError(`subscription_gone_${err.statusCode}`);
-    }
     logger.warn({ err: err.message, statusCode: err.statusCode, userId }, "Web Push send error");
-    throw err;
+    throw err; // includes open-circuit; BullMQ retries with backoff
   }
+
+  if (goneStatus !== null) {
+    await db.delete(deviceTokensTable).where(eq(deviceTokensTable.id, subId));
+    logger.info({ userId, subId, statusCode: goneStatus }, "Removed expired push subscription");
+    throw new UnrecoverableError(`subscription_gone_${goneStatus}`);
+  }
+
+  logger.info({ userId, title: payload.title }, "Web Push sent");
 }
 
 export async function notifyNewOrder(driverId: number, rideId: number, fromCity: string, toCity: string, price: number): Promise<void> {
