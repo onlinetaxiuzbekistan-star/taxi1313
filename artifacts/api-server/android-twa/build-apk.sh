@@ -38,19 +38,13 @@ sed -i "s|https://PLACEHOLDER_URL|${SERVER_URL}|g" "$STRINGS_FILE"
 echo "[BUILD] Updated strings.xml with server URL"
 
 if [ ! -f "$KEYSTORE_DIR/buxtaxi.keystore" ]; then
-  mkdir -p "$KEYSTORE_DIR"
-  keytool -genkeypair \
-    -alias buxtaxi \
-    -keyalg RSA -keysize 2048 \
-    -validity 10000 \
-    -keystore "$KEYSTORE_DIR/buxtaxi.keystore" \
-    -storepass "$APK_KEYSTORE_PASS" \
-    -keypass "$APK_KEYSTORE_PASS" \
-    -dname "CN=BuxTaxi, OU=Development, O=BuxTaxi, L=Bukhara, ST=Bukhara, C=UZ"
-  echo "[BUILD] Generated signing keystore"
-else
-  echo "[BUILD] Using existing keystore"
+  echo "ERROR: Signing keystore not found at $KEYSTORE_DIR/buxtaxi.keystore" >&2
+  echo "ERROR: Keystore not found — restore from backup. Do NOT generate a new one:" >&2
+  echo "ERROR: a new key changes the app's signature, and every existing user would" >&2
+  echo "ERROR: have to UNINSTALL before they could install the new APK." >&2
+  exit 1
 fi
+echo "[BUILD] Using existing keystore"
 
 # Monotonic versionCode (minutes since the Unix epoch) so every build is treated
 # as an upgrade over the last; versionName carries a human-readable datestamp.
