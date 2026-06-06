@@ -24,6 +24,7 @@ import { hashPassword } from "../auth.js";
 import { generateReferralCode } from "../../lib/bonuses.js";
 import { getSettingNum } from "../../lib/settingsCache.js";
 import { parseBranchIdFromBody, checkMinBalance, PHOTOS_DIR, photoStorage, photoUpload, enrichPassengersWithRouteInfo, nearestNeighborPickup, totalRouteDistance, permutations, optimizePickupOrder } from "./shared.js";
+import { getActiveRides } from "../../lib/services/dispatch.service.js";
 
 const router: IRouter = Router();
 
@@ -297,14 +298,7 @@ router.get("/:driverId/active-rides", authMiddleware, requireRole("dispatcher", 
     const driverId = Number(req.params.driverId);
     if (!driverId) return res.status(400).json({ error: "invalid_driver_id" });
 
-    const activeStatuses = ["pending", "offered", "accepted", "in_progress"];
-    const rides = await db.select().from(ridesTable)
-      .where(and(
-        eq(ridesTable.driverId, driverId),
-        inArray(ridesTable.status, activeStatuses as any)
-      ))
-      .orderBy(desc(ridesTable.createdAt))
-      .limit(20);
+    const rides = await getActiveRides(driverId);
 
     const rideIds = rides.map(r => r.id);
     let allPassengers: any[] = [];

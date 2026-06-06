@@ -11,6 +11,8 @@ import { resolveCitySlug } from "../lib/route-match.js";
 import { getSettingNum } from "../lib/settingsCache.js";
 import { getMarketplaceSettings } from "../lib/settings.js";
 import { startMarketplaceDispatch, stopDispatchLoop } from "../lib/autodispatch.js";
+import { listListings, createListing, buyListing } from "../lib/services/marketplace.service.js";
+import { assignDriver } from "../lib/services/dispatch.service.js";
 
 const CITIES_RU_TO_ID: Record<string, string> = {
   "бухара": "bukhara", "самарканд": "samarkand", "ташкент": "tashkent",
@@ -59,7 +61,7 @@ router.post("/sell", authMiddleware, requireRole("driver"), validateBody(marketp
         return { error: `Maximum ${MAX_ACTIVE_SALES} active listings allowed`, status: 400 };
       }
 
-      const [listing] = await tx.insert(marketplaceListingsTable).values({
+      const listing = await createListing(tx, {
         rideId,
         sellerId,
         price,
@@ -69,7 +71,7 @@ router.post("/sell", authMiddleware, requireRole("driver"), validateBody(marketp
         toCity: ride.toCity,
         scheduledAt: ride.scheduledAt,
         seatsCount: ride.passengers,
-      }).returning();
+      });
 
       return { listing };
     });
@@ -250,12 +252,7 @@ router.post("/buy", authMiddleware, requireRole("driver"), validateBody(marketpl
       result = await db.transaction(async (tx) => {
       // [ADVISORY_LOCK] сериализация buy на уровне buyer
       await tx.execute(sql`SELECT pg_advisory_xact_lock(${buyerId})`);
-        const [listing] = await tx.select().from(marketplaceListingsTable)
-          .where(and(
-            eq(marketplaceListingsTable.id, listingId),
-            eq(marketplaceListingsTable.status, "active")
-          ))
-          .for("update");
+        const listing = await buyListing(tx, listingId);
 
         if (!listing) throw new BuyError("Объявление уже продано или недоступно");
         if (listing.sellerId === buyerId) throw new BuyError("Нельзя купить своё объявление");
@@ -270,19 +267,14 @@ router.post("/buy", authMiddleware, requireRole("driver"), validateBody(marketpl
 
           if (!ride) throw new BuyError("Заказ уже принят другим водителем");
 
-          const [acceptedRide] = await tx.update(ridesTable).set({
-            driverId: buyerId,
-            driverName: buyer.name,
-            driverPhone: buyer.phone,
-            driverCar: buyer.carModel,
-            driverCarNumber: buyer.carNumber,
-            driverRating: buyer.rating ? parseFloat(String(buyer.rating)) : null,
-            status: "accepted",
-            version: sql`COALESCE(${ridesTable.version}, 0) + 1`,
-            updatedAt: new Date(),
-          })
-          .where(and(eq(ridesTable.id, listing.rideId), inArray(ridesTable.status, ["pending", "offered"])))
-          .returning();
+          const acceptedRide = await assignDriver(tx, listing.rideId, {
+            id: buyerId,
+            name: buyer.name,
+            phone: buyer.phone,
+            carModel: buyer.carModel,
+            carNumber: buyer.carNumber,
+            rating: buyer.rating,
+          });
 
           if (!acceptedRide) throw new BuyError("Заказ уже принят другим водителем");
 
@@ -450,45 +442,7 @@ router.post("/buy", authMiddleware, requireRole("driver"), validateBody(marketpl
 router.get("/listings", authMiddleware, requireRole("driver"), async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
-    const listings = await db.select({
-      id: marketplaceListingsTable.id,
-      rideId: marketplaceListingsTable.rideId,
-      sellerId: marketplaceListingsTable.sellerId,
-      price: marketplaceListingsTable.price,
-      comment: marketplaceListingsTable.comment,
-      status: marketplaceListingsTable.status,
-      createdAt: marketplaceListingsTable.createdAt,
-      fromCity: marketplaceListingsTable.fromCity,
-      toCity: marketplaceListingsTable.toCity,
-      scheduledAt: marketplaceListingsTable.scheduledAt,
-      seatsCount: marketplaceListingsTable.seatsCount,
-      clientName: marketplaceListingsTable.clientName,
-      clientPhone: marketplaceListingsTable.clientPhone,
-      baggageType: marketplaceListingsTable.baggageType,
-      basePrice: marketplaceListingsTable.basePrice,
-      routeId: marketplaceListingsTable.routeId,
-      fromDistrictId: marketplaceListingsTable.fromDistrictId,
-      toDistrictId: marketplaceListingsTable.toDistrictId,
-      rideFromCity: ridesTable.fromCity,
-      rideToCity: ridesTable.toCity,
-      rideScheduledAt: ridesTable.scheduledAt,
-      passengers: ridesTable.passengers,
-      carClass: ridesTable.carClass,
-      ridePrice: ridesTable.price,
-      sellerName: usersTable.name,
-      sellerPhone: usersTable.phone,
-      sellerCar: usersTable.carModel,
-      sellerCarNumber: usersTable.carNumber,
-      sellerRating: usersTable.rating,
-    })
-    .from(marketplaceListingsTable)
-    .leftJoin(ridesTable, eq(marketplaceListingsTable.rideId, ridesTable.id))
-    .innerJoin(usersTable, eq(marketplaceListingsTable.sellerId, usersTable.id))
-    .where(and(
-      eq(marketplaceListingsTable.status, "active"),
-      ne(marketplaceListingsTable.sellerId, userId)
-    ))
-    .orderBy(desc(marketplaceListingsTable.createdAt));
+    const listings = await listListings(userId);
 
     // Фильтр: показываем листинг только водителям, чей активный маршрут (или последний маршрут)
     // совпадает по from/to и попадает во временное окно листинга.
