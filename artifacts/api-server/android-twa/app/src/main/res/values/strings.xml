@@ -6,6 +6,7 @@
     <!-- Splash screen -->
     <string name="splash_app_name">Такси 1313</string>
     <string name="splash_tagline">Межгород</string>
+    <string name="splash_version">v1.0</string>
 
     <!-- UI feedback -->
     <string name="back_press_to_exit">Нажмите ещё раз для выхода</string>

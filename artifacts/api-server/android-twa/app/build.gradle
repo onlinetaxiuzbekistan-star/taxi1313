@@ -49,6 +49,18 @@ android {
     }
 }
 
+// Multiple androidx libs pull conflicting kotlin-stdlib versions (1.8.22 vs the
+// legacy stdlib-jdk7/jdk8 1.6.21) → R8 reports 'Duplicate class kotlin.*'.
+// Forcing a single recent stdlib resolves all conflicts (the legacy jdk7/jdk8
+// artifacts are no-ops with the modern unified stdlib).
+configurations.all {
+    resolutionStrategy {
+        force 'org.jetbrains.kotlin:kotlin-stdlib:1.9.10'
+        force 'org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.10'
+        force 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.10'
+    }
+}
+
 dependencies {
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'androidx.webkit:webkit:1.8.0'

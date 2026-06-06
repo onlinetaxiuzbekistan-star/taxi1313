@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Legacy backup-content rules for API 24-30 (Android 12+ uses
+    data_extraction_rules.xml instead). With allowBackup="false" this would
+    not be consulted; included so lint is satisfied and the policy is
+    explicit on older devices. Mirrors the extraction rules: exclude all.
+-->
+<full-backup-content>
+    <exclude domain="root" />
+    <exclude domain="file" />
+    <exclude domain="database" />
+    <exclude domain="sharedpref" />
+    <exclude domain="external" />
+</full-backup-content>

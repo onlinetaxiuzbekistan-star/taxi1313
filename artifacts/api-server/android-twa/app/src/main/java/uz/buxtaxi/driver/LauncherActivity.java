@@ -436,7 +436,7 @@ public class LauncherActivity extends ComponentActivity {
         splash.addView(center, centerParams);
 
         TextView version = new TextView(this);
-        version.setText("v1.0");
+        version.setText(getString(R.string.splash_version));
         version.setTextColor(Color.parseColor("#52525b"));
         version.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
         version.setGravity(Gravity.CENTER);
@@ -902,6 +902,11 @@ public class LauncherActivity extends ComponentActivity {
         }
 
         @android.webkit.JavascriptInterface
+        // The full Android-11+ result requires the Play-restricted
+        // QUERY_ALL_PACKAGES permission. We intentionally do NOT request it;
+        // the partial result (apps matched by our <queries> declarations) is
+        // enough for the dispatch web client's nav-app detection.
+        @SuppressLint("QueryPermissionsNeeded")
         public String getInstalledPackages() {
             try {
                 List<android.content.pm.ApplicationInfo> apps =
