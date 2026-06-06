@@ -1,6 +1,7 @@
 import {
   pgTable, text, serial, integer, real, numeric, timestamp, pgEnum, index, boolean, jsonb
 } from "drizzle-orm/pg-core";
+import { getTableColumns } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { branchesTable } from "./branches";
@@ -102,5 +103,18 @@ export const usersTable = pgTable("users", {
 
 export const insertUserSchema = createInsertSchema(usersTable)
   .omit({ id: true, createdAt: true, updatedAt: true });
+
+/**
+ * Projection of all user columns EXCEPT the secrets (passwordHash, sipPassword).
+ *
+ * Use this for any `db.select(safeUserColumns).from(usersTable)` whose result is
+ * NOT performing password / SIP-credential verification — i.e. anything that
+ * may be returned to a client or logged. It avoids over-fetching credentials
+ * (narrower rows, no accidental leak). The two genuinely auth-related queries
+ * that need passwordHash keep using the full `db.select()`.
+ */
+const { passwordHash: _omitPasswordHash, sipPassword: _omitSipPassword, ...safeUserColumns } =
+  getTableColumns(usersTable);
+export { safeUserColumns };
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof usersTable.$inferSelect;

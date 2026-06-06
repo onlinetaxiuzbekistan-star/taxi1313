@@ -4,7 +4,7 @@ import multer from "multer";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
-import { db, usersTable, ridesTable, orderOffersTable, transactionsTable, ridePassengersTable, marketplaceListingsTable, photoRequestsTable, driverAuditLogsTable } from "@workspace/db";
+import { db, usersTable, ridesTable, orderOffersTable, transactionsTable, ridePassengersTable, marketplaceListingsTable, photoRequestsTable, driverAuditLogsTable, safeUserColumns } from "@workspace/db";
 import { eq, and, ne, desc, sql, gte, lte, inArray, notInArray } from "drizzle-orm";
 import { CITIES } from "../rides/index.js";
 import { getOsrmRoute, haversineDistance } from "../../lib/osrm.js";
@@ -45,13 +45,13 @@ router.get("/", authMiddleware, requireRole("dispatcher", "admin"), async (req: 
     if (req.userRole !== "admin" && branchScope != null) {
       baseConds.push(eq(usersTable.branchId, branchScope));
     }
-    let query = db.select().from(usersTable).where(and(...baseConds)).$dynamic();
+    let query = db.select(safeUserColumns).from(usersTable).where(and(...baseConds)).$dynamic();
     if (status) {
       const statusConds = [...baseConds, eq(usersTable.status, status as any)];
       query = query.where(and(...statusConds));
     }
     const drivers = await query.orderBy(desc(usersTable.createdAt));
-    const safeDrivers = drivers.map(({ passwordHash, ...d }) => d);
+    const safeDrivers = drivers;
     res.json({ drivers: safeDrivers, total: safeDrivers.length });
   } catch (err) {
     req.log.error({ err }, "Get drivers error");
@@ -62,7 +62,7 @@ router.get("/", authMiddleware, requireRole("dispatcher", "admin"), async (req: 
 
 router.get("/crm", authMiddleware, requireRole("dispatcher", "admin"), async (req: AuthRequest, res) => {
   try {
-    const drivers = await db.select().from(usersTable)
+    const drivers = await db.select(safeUserColumns).from(usersTable)
       .where(eq(usersTable.role, "driver"))
       .orderBy(desc(usersTable.createdAt));
 
@@ -117,7 +117,7 @@ router.get("/crm", authMiddleware, requireRole("dispatcher", "admin"), async (re
     }
 
     const enriched = drivers.map(driver => {
-      const { passwordHash, ...safe } = driver;
+      const safe = driver;
 
       const t = txAgg.get(driver.id) || { todayIncome: 0, todayDeduct: 0, totalIncome: 0, totalDeduct: 0 };
       const todayEarnings = t.todayIncome - t.todayDeduct;
@@ -202,11 +202,11 @@ router.get("/crm/:id/profile", authMiddleware, requireRole("dispatcher", "admin"
     const driverId = parseInt(req.params.id);
     if (isNaN(driverId)) return res.status(400).json({ error: "invalid_id" });
 
-    const [driver] = await db.select().from(usersTable)
+    const [driver] = await db.select(safeUserColumns).from(usersTable)
       .where(and(eq(usersTable.id, driverId), eq(usersTable.role, "driver")));
     if (!driver) return res.status(404).json({ error: "not_found" });
 
-    const { passwordHash, ...safe } = driver;
+    const safe = driver;
 
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -393,7 +393,7 @@ router.get("/:id/finance", authMiddleware, requireRole("dispatcher", "admin"), a
     const driverId = parseInt(req.params.id);
     if (isNaN(driverId) || driverId <= 0) return res.status(400).json({ error: "invalid_id" });
 
-    const [driver] = await db.select().from(usersTable)
+    const [driver] = await db.select(safeUserColumns).from(usersTable)
       .where(and(eq(usersTable.id, driverId), eq(usersTable.role, "driver")));
     if (!driver) return res.status(404).json({ error: "not_found" });
 

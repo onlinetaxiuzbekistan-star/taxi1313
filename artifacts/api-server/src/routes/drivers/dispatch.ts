@@ -4,7 +4,7 @@ import multer from "multer";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
-import { db, usersTable, ridesTable, orderOffersTable, transactionsTable, ridePassengersTable, marketplaceListingsTable, photoRequestsTable, driverAuditLogsTable } from "@workspace/db";
+import { db, usersTable, ridesTable, orderOffersTable, transactionsTable, ridePassengersTable, marketplaceListingsTable, photoRequestsTable, driverAuditLogsTable, safeUserColumns} from "@workspace/db";
 import { eq, and, ne, desc, sql, gte, lte, inArray, notInArray } from "drizzle-orm";
 import { CITIES } from "../rides/index.js";
 import { getOsrmRoute, haversineDistance } from "../../lib/osrm.js";
@@ -103,7 +103,7 @@ router.post("/accept", authMiddleware, validateBody(rideIdBodySchema), async (re
       return;
     }
 
-    const [driver] = await db.select().from(usersTable).where(eq(usersTable.id, driverId));
+    const [driver] = await db.select(safeUserColumns).from(usersTable).where(eq(usersTable.id, driverId));
     if (!driver) {
       res.status(404).json({ error: "not_found", message: "Driver not found" });
       return;
@@ -831,7 +831,7 @@ router.post("/create-ride", authMiddleware, validateBody(createDriverRideBodySch
       return;
     }
 
-    const [driver] = await db.select().from(usersTable).where(eq(usersTable.id, driverId));
+    const [driver] = await db.select(safeUserColumns).from(usersTable).where(eq(usersTable.id, driverId));
     if (!driver || driver.role !== "driver") {
       res.status(403).json({ error: "forbidden", message: "Доступ только для водителей" });
       return;

@@ -123,7 +123,8 @@ interface SlowQuery {
 }
 
 const slowQueries: SlowQuery[] = [];
-const SLOW_QUERY_THRESHOLD_MS = 100;
+// Log/track any query slower than 50ms (configurable via SLOW_QUERY_MS).
+const SLOW_QUERY_THRESHOLD_MS = Number(process.env.SLOW_QUERY_MS) || 50;
 const MAX_SLOW_QUERIES = 100;
 
 export function logSlowQuery(query: string, durationMs: number) {

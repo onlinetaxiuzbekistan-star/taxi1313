@@ -5,7 +5,7 @@
  */
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
-import { db, usersTable, driverLoginCodesTable } from "@workspace/db";
+import { db, usersTable, driverLoginCodesTable, safeUserColumns } from "@workspace/db";
 import { eq, and, gt } from "drizzle-orm";
 
 const LEGACY_PASSWORD_SALT = "buxtaxi-salt";

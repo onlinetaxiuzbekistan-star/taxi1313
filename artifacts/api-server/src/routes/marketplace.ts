@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { clog } from "../lib/logger.js";
-import { db, marketplaceListingsTable, ridesTable, usersTable, transactionsTable, routesTable, districtsTable, ridePassengersTable, orderOffersTable } from "@workspace/db";
+import { db, marketplaceListingsTable, ridesTable, usersTable, transactionsTable, routesTable, districtsTable, ridePassengersTable, orderOffersTable, safeUserColumns} from "@workspace/db";
 import { eq, and, ne, sql, desc, count, isNull, isNotNull, inArray } from "drizzle-orm";
 import { authMiddleware, requireRole, AuthRequest } from "../middlewares/auth.js";
 import { validateBody } from "../middlewares/validate.js";
@@ -234,7 +234,7 @@ router.post("/buy", authMiddleware, requireRole("driver"), validateBody(marketpl
 
     if (!listingId) return res.status(400).json({ message: "listingId required" });
 
-    const [buyer] = await db.select().from(usersTable).where(eq(usersTable.id, buyerId));
+    const [buyer] = await db.select(safeUserColumns).from(usersTable).where(eq(usersTable.id, buyerId));
     if (!buyer) return res.status(404).json({ message: "Driver not found" });
 
     const balance = parseFloat(buyer.balance?.toString() || "0");

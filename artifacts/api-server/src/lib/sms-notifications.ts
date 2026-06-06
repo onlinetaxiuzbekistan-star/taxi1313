@@ -1,4 +1,4 @@
-import { db, ridesTable, usersTable } from "@workspace/db";
+import { db, ridesTable, usersTable, safeUserColumns} from "@workspace/db";
 import { clog } from "./logger.js";
 import { eq } from "drizzle-orm";
 import { sendSms, getNotificationSettings } from "./sms.js";
@@ -44,7 +44,7 @@ export async function notifyRideStatusChange(rideId: number, newStatus: string) 
 
     let driver: any = null;
     if (ride.driverId) {
-      const [d] = await db.select().from(usersTable).where(eq(usersTable.id, ride.driverId));
+      const [d] = await db.select(safeUserColumns).from(usersTable).where(eq(usersTable.id, ride.driverId));
       driver = d;
     }
 

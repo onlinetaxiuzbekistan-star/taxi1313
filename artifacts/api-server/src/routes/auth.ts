@@ -1,7 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { clog } from "../lib/logger.js";
 
-import { db, usersTable, driverLoginCodesTable, driverSessionsTable, loginAuditLogsTable, driverAuditLogsTable } from "@workspace/db";
+import { db, usersTable, driverLoginCodesTable, driverSessionsTable, loginAuditLogsTable, driverAuditLogsTable, safeUserColumns } from "@workspace/db";
 import { and, desc, eq, gt, inArray, lt, sql } from "drizzle-orm";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
@@ -142,7 +142,7 @@ router.post("/register", validateBody(registerBodySchema), async (req, res) => {
 
     const phone = normalizePhone(rawPhone);
 
-    const existing = await db.select().from(usersTable).where(eq(usersTable.phone, phone)).limit(1);
+    const existing = await db.select(safeUserColumns).from(usersTable).where(eq(usersTable.phone, phone)).limit(1);
     if (existing.length > 0) {
       res.status(400).json({ error: "phone_taken", message: "Phone number already registered" });
       return;
@@ -210,6 +210,7 @@ router.post("/login", loginRateLimit, validateBody(loginBodySchema), async (req,
         res.status(400).json({ error: "validation_error", message: "Login/phone and password are required" });
         return;
       }
+      // login flow needs passwordHash for verifyPassword → full select
       [user] = await db.select().from(usersTable).where(eq(usersTable.login, trimmed)).limit(1);
     } else {
       const phone = normalizePhone(rawPhone);
@@ -295,14 +296,14 @@ router.get("/me", async (req, res) => {
         .where(eq(driverSessionsTable.id, session.id));
     }
 
-    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, decoded.userId)).limit(1);
+    const [user] = await db.select(safeUserColumns).from(usersTable).where(eq(usersTable.id, decoded.userId)).limit(1);
     if (!user) {
       res.status(401).json({ error: "unauthorized", message: "User not found" });
       return;
     }
 
-    const { passwordHash: _, ...userWithoutPassword } = user;
-    res.json(userWithoutPassword);
+    // user was fetched with safeUserColumns (no passwordHash) — return as-is.
+    res.json(user);
   } catch (err) {
     res.status(401).json({ error: "unauthorized", message: "Invalid token" });
   }
@@ -571,7 +572,7 @@ router.post("/driver-code/verify", loginRateLimit, validateBody(driverCodeVerify
       return;
     }
 
-    const [user] = await db.select().from(usersTable).where(and(eq(usersTable.phone, phone), eq(usersTable.role, "driver"))).limit(1);
+    const [user] = await db.select(safeUserColumns).from(usersTable).where(and(eq(usersTable.phone, phone), eq(usersTable.role, "driver"))).limit(1);
 
     if (!user || user.role !== "driver") {
       res.status(401).json({ error: "invalid_credentials", message: "Неверный номер или код" });
@@ -610,7 +611,8 @@ router.post("/driver-code/verify", loginRateLimit, validateBody(driverCodeVerify
 
     await logAudit(user.id, loginCode.type, ip, deviceId);
 
-    const { passwordHash: _, ...userWithoutPassword } = user;
+    // user fetched with safeUserColumns (no passwordHash).
+    const userWithoutPassword = user;
 
     clog.log(`[LOGIN CODE] Driver ${user.id} logged in via ${loginCode.type} code`);
 
@@ -649,7 +651,7 @@ router.post("/driver-code/verify-code-only", codeOnlyRateLimit, validateBody(dri
       return;
     }
 
-    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, loginCode.driverId)).limit(1);
+    const [user] = await db.select(safeUserColumns).from(usersTable).where(eq(usersTable.id, loginCode.driverId)).limit(1);
     if (!user || user.role !== "driver") {
       res.status(401).json({ error: "invalid_credentials", message: "Водитель не найден" });
       return;
@@ -667,7 +669,8 @@ router.post("/driver-code/verify-code-only", codeOnlyRateLimit, validateBody(dri
     const { token, sessionToken } = await createDriverSession(user.id, ip, deviceId, deviceName);
     await logAudit(user.id, loginCode.type, ip, deviceId);
 
-    const { passwordHash: _, ...userWithoutPassword } = user;
+    // user fetched with safeUserColumns (no passwordHash).
+    const userWithoutPassword = user;
     clog.log(`[LOGIN CODE-ONLY] Driver ${user.id} logged in via code-only`);
 
     res.json({ user: userWithoutPassword, token, sessionToken });

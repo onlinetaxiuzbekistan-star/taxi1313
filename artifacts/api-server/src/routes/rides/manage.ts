@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { clog } from "../../lib/logger.js";
-import { db, ridesTable, usersTable, tariffsTable, orderOffersTable, ridePassengersTable, districtsTable, settingsTable, routesTable, routeOptionsTable, transactionsTable, driverGroupsTable, citiesTable } from "@workspace/db";
+import { db, ridesTable, usersTable, tariffsTable, orderOffersTable, ridePassengersTable, districtsTable, settingsTable, routesTable, routeOptionsTable, transactionsTable, driverGroupsTable, citiesTable, safeUserColumns} from "@workspace/db";
 import { eq, desc, asc, and, sql, inArray, gte, lte, like, or, ilike } from "drizzle-orm";
 import { broadcastToAll, broadcastToUser } from "../../lib/websocket.js";
 import { startAutoDispatch, getOfferStatus, stopDispatchLoop, citiesMatch, addUnassignCooldown } from "../../lib/autodispatch.js";
@@ -65,7 +65,7 @@ router.post("/:id/transactions", authMiddleware, requireRole("dispatcher", "admi
 
     if (driverId) {
       const result = await db.transaction(async (tx) => {
-        const [driver] = await tx.select().from(usersTable).where(eq(usersTable.id, driverId)).for("update");
+        const [driver] = await tx.select(safeUserColumns).from(usersTable).where(eq(usersTable.id, driverId)).for("update");
         if (!driver) return null;
         balanceBefore = driver.balance?.toString() || "0";
         const newBalance = parseFloat(balanceBefore) + numAmount;
@@ -127,7 +127,7 @@ router.patch("/:rideId/transactions/:txId", authMiddleware, requireRole("dispatc
         const oldAmount = parseFloat(existing.amount);
         const diff = newAmount - oldAmount;
 
-        const [driver] = await tx.select().from(usersTable).where(eq(usersTable.id, existing.driverId)).for("update");
+        const [driver] = await tx.select(safeUserColumns).from(usersTable).where(eq(usersTable.id, existing.driverId)).for("update");
         if (!driver) throw new Error("driver_not_found");
         const currentBalance = parseFloat(driver.balance?.toString() || "0");
         const updatedBalance = (currentBalance + diff).toFixed(2);

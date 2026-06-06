@@ -4,7 +4,7 @@ import multer from "multer";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
-import { db, usersTable, ridesTable, orderOffersTable, transactionsTable, ridePassengersTable, marketplaceListingsTable, photoRequestsTable, driverAuditLogsTable } from "@workspace/db";
+import { db, usersTable, ridesTable, orderOffersTable, transactionsTable, ridePassengersTable, marketplaceListingsTable, photoRequestsTable, driverAuditLogsTable, safeUserColumns} from "@workspace/db";
 import { eq, and, ne, desc, sql, gte, lte, inArray, notInArray } from "drizzle-orm";
 import { CITIES } from "../rides/index.js";
 import { getOsrmRoute, haversineDistance } from "../../lib/osrm.js";
@@ -53,8 +53,8 @@ router.patch("/profile", authMiddleware, requireRole("driver"), async (req: Auth
     if (carColor !== undefined) updates.carColor = carColor;
 
     await db.update(usersTable).set(updates).where(eq(usersTable.id, req.userId!));
-    const [driver] = await db.select().from(usersTable).where(eq(usersTable.id, req.userId!));
-    const { passwordHash: _, ...safeDriver } = driver;
+    const [driver] = await db.select(safeUserColumns).from(usersTable).where(eq(usersTable.id, req.userId!));
+    const safeDriver = driver;
     res.json(safeDriver);
   } catch (err) {
     req.log.error({ err }, "Update driver profile error");

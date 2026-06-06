@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { db, usersTable, branchesTable } from "@workspace/db";
+import { db, usersTable, branchesTable, safeUserColumns } from "@workspace/db";
 import { eq, and, inArray, desc } from "drizzle-orm";
 import { authMiddleware, requireRole, AuthRequest, invalidatePermCache, invalidateBranchCache } from "../middlewares/auth.js";
 import { logActivity } from "../lib/activity.js";
@@ -18,10 +18,10 @@ async function ensureBranchExists(branchId: number | null | undefined): Promise<
 
 router.get("/", authMiddleware, requireRole("admin", "dispatcher"), async (req: AuthRequest, res) => {
   try {
-    const staff = await db.select().from(usersTable)
+    const staff = await db.select(safeUserColumns).from(usersTable)
       .where(inArray(usersTable.role, ["dispatcher", "admin"]))
       .orderBy(desc(usersTable.createdAt));
-    const safeStaff = staff.map(({ passwordHash, sipPassword, ...s }) => ({ ...s, hasSip: !!s.sipLogin }));
+    const safeStaff = staff.map((s) => ({ ...s, hasSip: !!s.sipLogin }));
     res.json({ staff: safeStaff });
   } catch (err) {
     res.status(500).json({ error: "server_error", message: "Internal server error" });

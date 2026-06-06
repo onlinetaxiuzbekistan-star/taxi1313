@@ -4,7 +4,7 @@ import multer from "multer";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
-import { db, usersTable, ridesTable, orderOffersTable, transactionsTable, ridePassengersTable, marketplaceListingsTable, photoRequestsTable, driverAuditLogsTable } from "@workspace/db";
+import { db, usersTable, ridesTable, orderOffersTable, transactionsTable, ridePassengersTable, marketplaceListingsTable, photoRequestsTable, driverAuditLogsTable, safeUserColumns} from "@workspace/db";
 import { eq, and, ne, desc, sql, gte, lte, inArray, notInArray } from "drizzle-orm";
 import { CITIES } from "../rides/index.js";
 import { getOsrmRoute, haversineDistance } from "../../lib/osrm.js";
@@ -182,7 +182,7 @@ router.patch("/admin/:id", authMiddleware, requireRole("dispatcher", "admin"), v
     const driverId = parseInt(req.params.id);
     if (isNaN(driverId)) { res.status(400).json({ error: "invalid_id" }); return; }
 
-    const [existing] = await db.select().from(usersTable)
+    const [existing] = await db.select(safeUserColumns).from(usersTable)
       .where(and(eq(usersTable.id, driverId), eq(usersTable.role, "driver")));
     if (!existing) { res.status(404).json({ error: "not_found" }); return; }
 
@@ -250,8 +250,8 @@ router.patch("/admin/:id", authMiddleware, requireRole("dispatcher", "admin"), v
     }
 
     await db.update(usersTable).set(updates).where(eq(usersTable.id, driverId));
-    const [updated] = await db.select().from(usersTable).where(eq(usersTable.id, driverId));
-    const { passwordHash: _, ...safe } = updated;
+    const [updated] = await db.select(safeUserColumns).from(usersTable).where(eq(usersTable.id, driverId));
+    const safe = updated;
     broadcastToUser(driverId, { type: "driver_update", driver: safe });
 
     const actorId = (req as AuthRequest).userId!;

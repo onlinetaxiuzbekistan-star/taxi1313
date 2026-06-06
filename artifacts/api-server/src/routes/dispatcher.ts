@@ -2,7 +2,7 @@ import { z } from "zod";
 import { Router, type IRouter } from "express";
 import { validateBody } from "../middlewares/validate.js";
 import { clog } from "../lib/logger.js";
-import { db, ridesTable, usersTable, orderOffersTable } from "@workspace/db";
+import { db, ridesTable, usersTable, orderOffersTable, safeUserColumns } from "@workspace/db";
 import { eq, and, desc, sql, inArray } from "drizzle-orm";
 import { broadcastToAll, broadcastToUser } from "../lib/websocket.js";
 import { completeRide } from "../lib/completion.js";
@@ -31,8 +31,8 @@ router.get("/stats", async (req, res) => {
     todayStart.setHours(0, 0, 0, 0);
 
     const allRides = await db.select().from(ridesTable).orderBy(desc(ridesTable.createdAt)).limit(200);
-    const allDrivers = await db.select().from(usersTable).where(eq(usersTable.role, "driver"));
-    const safeDrivers = allDrivers.map(({ passwordHash: _, ...d }) => d);
+    const allDrivers = await db.select(safeUserColumns).from(usersTable).where(eq(usersTable.role, "driver"));
+    const safeDrivers = allDrivers;
 
     const todayRides = allRides.filter(r => r.createdAt >= todayStart);
     const activeRides = allRides.filter(r => r.status === "in_progress").length;
@@ -59,7 +59,7 @@ router.get("/stats", async (req, res) => {
 async function sendOfferToDriver(
   numRideId: number, numDriverId: number, log: any
 ): Promise<{ success: boolean; ride?: any; error?: string; status?: number }> {
-  const [driver] = await db.select().from(usersTable).where(eq(usersTable.id, numDriverId));
+  const [driver] = await db.select(safeUserColumns).from(usersTable).where(eq(usersTable.id, numDriverId));
   if (!driver) return { success: false, error: "Водитель не найден", status: 404 };
 
   if (driver.status !== "online" && driver.status !== "busy") {

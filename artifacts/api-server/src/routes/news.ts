@@ -3,7 +3,7 @@ import { z } from "zod";
 import { Router, type IRouter, type Response } from "express";
 import { validateBody } from "../middlewares/validate.js";
 import { type AuthRequest, authMiddleware, requireRole } from "../middlewares/auth.js";
-import { db, newsTable, newsReadsTable, usersTable, deviceTokensTable } from "@workspace/db";
+import { db, newsTable, newsReadsTable, usersTable, deviceTokensTable, safeUserColumns} from "@workspace/db";
 import { eq, desc, and, sql, inArray, notInArray } from "drizzle-orm";
 import multer from "multer";
 import path from "path";
@@ -41,7 +41,7 @@ router.get("/", authMiddleware, async (req: AuthRequest, res: Response) => {
     const { page = "1", limit = "20" } = req.query as Record<string, string>;
     const offset = (parseInt(page) - 1) * parseInt(limit);
 
-    const user = await db.select().from(usersTable).where(eq(usersTable.id, req.userId!)).then(r => r[0]);
+    const user = await db.select(safeUserColumns).from(usersTable).where(eq(usersTable.id, req.userId!)).then(r => r[0]);
     const isAdmin = user && (user.role === "admin" || user.role === "dispatcher");
 
     let conditions: any[] = [eq(newsTable.isPublished, true)];
@@ -81,7 +81,7 @@ router.get("/", authMiddleware, async (req: AuthRequest, res: Response) => {
 router.get("/unread", authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.userId!;
-    const user = await db.select().from(usersTable).where(eq(usersTable.id, userId)).then(r => r[0]);
+    const user = await db.select(safeUserColumns).from(usersTable).where(eq(usersTable.id, userId)).then(r => r[0]);
     if (!user) { res.json({ items: [] }); return; }
 
     const audienceFilter = user.role === "driver"
@@ -131,7 +131,7 @@ router.get("/:id", authMiddleware, async (req: AuthRequest, res: Response) => {
     const [item] = await db.select().from(newsTable).where(eq(newsTable.id, id));
     if (!item) { res.status(404).json({ error: "Not found" }); return; }
 
-    const user = await db.select().from(usersTable).where(eq(usersTable.id, req.userId!)).then(r => r[0]);
+    const user = await db.select(safeUserColumns).from(usersTable).where(eq(usersTable.id, req.userId!)).then(r => r[0]);
     const isAdmin = user && (user.role === "admin" || user.role === "dispatcher");
 
     if (!isAdmin && !item.isPublished) {

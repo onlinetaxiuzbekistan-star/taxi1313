@@ -4,7 +4,7 @@ import multer from "multer";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
-import { db, usersTable, ridesTable, orderOffersTable, transactionsTable, ridePassengersTable, marketplaceListingsTable, photoRequestsTable, driverAuditLogsTable } from "@workspace/db";
+import { db, usersTable, ridesTable, orderOffersTable, transactionsTable, ridePassengersTable, marketplaceListingsTable, photoRequestsTable, driverAuditLogsTable, safeUserColumns } from "@workspace/db";
 import { eq, and, ne, desc, sql, gte, lte, inArray, notInArray } from "drizzle-orm";
 import { CITIES } from "../rides/index.js";
 import { getOsrmRoute, haversineDistance } from "../../lib/osrm.js";
@@ -82,8 +82,8 @@ router.post("/upload-my-photo", authMiddleware, requireRole("driver"), (req, res
     else updates.carPhoto = url;
 
     await db.update(usersTable).set(updates).where(eq(usersTable.id, req.userId!));
-    const [driver] = await db.select().from(usersTable).where(eq(usersTable.id, req.userId!));
-    const { passwordHash: _, ...safeDriver } = driver;
+    const [driver] = await db.select(safeUserColumns).from(usersTable).where(eq(usersTable.id, req.userId!));
+    const safeDriver = driver;
     res.json({ url, user: safeDriver });
   } catch (err: any) {
     if (filePath) { try { fs.unlinkSync(filePath); } catch {} }
