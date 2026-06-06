@@ -86,6 +86,9 @@ public class LauncherActivity extends Activity {
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
+        // Allocate (don't acquire) here; acquire is done in onResume so the
+        // lock follows the visible-activity lifecycle and is released in
+        // onPause. Prevents a never-released wakelock if onDestroy is skipped.
         try {
             PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
             if (pm != null) {
@@ -93,7 +96,6 @@ public class LauncherActivity extends Activity {
                     PowerManager.SCREEN_BRIGHT_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP,
                     "Taxi1313:DriverWakeLock"
                 );
-                wakeLock.acquire();
             }
         } catch (Exception ignored) {}
 
@@ -648,13 +650,17 @@ public class LauncherActivity extends Activity {
         }
     }
 
+    // Wakelock cap: bounded so the OS will reclaim if onPause is somehow skipped
+    // (we still release in onPause normally; this is a safety net, see lint W2).
+    private static final long WAKELOCK_TIMEOUT_MS = 10L * 60 * 1000; // 10 minutes
+
     @Override
     protected void onResume() {
         super.onResume();
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         try {
             if (wakeLock != null && !wakeLock.isHeld()) {
-                wakeLock.acquire();
+                wakeLock.acquire(WAKELOCK_TIMEOUT_MS);
             }
         } catch (Exception ignored) {}
         if (webView != null) {
@@ -666,6 +672,13 @@ public class LauncherActivity extends Activity {
 
     @Override
     protected void onPause() {
+        // Release the wakelock here, NOT in onDestroy: backgrounded activities
+        // may have onDestroy skipped, and lint flags that pattern (Wakelock).
+        try {
+            if (wakeLock != null && wakeLock.isHeld()) {
+                wakeLock.release();
+            }
+        } catch (Exception ignored) {}
         if (webView != null) {
             webView.evaluateJavascript(
                 "if(window.dispatchEvent) window.dispatchEvent(new CustomEvent('nativePause'));", null);
@@ -682,11 +695,7 @@ public class LauncherActivity extends Activity {
                 try { cm.unregisterNetworkCallback(networkCallback); } catch (Exception ignored) {}
             }
         }
-        try {
-            if (wakeLock != null && wakeLock.isHeld()) {
-                wakeLock.release();
-            }
-        } catch (Exception ignored) {}
+        // wakelock was released in onPause; nothing more to do here.
         if (webView != null) {
             webView.destroy();
         }
