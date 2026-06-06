@@ -1,0 +1,72 @@
+# Prometheus alerting rules for the Taxi 1313 API.
+# Load via prometheus.yml: rule_files: [ "monitoring/alerts.yml" ]
+# Targets the metrics exposed at GET /metrics (lib/metrics.ts):
+#   http_request_duration_seconds_{count,bucket}{method,route,status_code}
+#   payment_failures_total{stage}, sms_failures_total, dispatch_failures_total, up
+groups:
+  - name: taxi-api
+    rules:
+      - alert: HighErrorRate
+        # >5% of requests returning 5xx over the last 5m (needs some traffic).
+        expr: >
+          sum(rate(http_request_duration_seconds_count{status_code=~"5.."}[5m]))
+            /
+          clamp_min(sum(rate(http_request_duration_seconds_count[5m])), 1e-9)
+            > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High 5xx error rate (>5%)"
+          description: "{{ $value | humanizePercentage }} of requests are failing (5xx) over the last 5 minutes."
+
+      - alert: PaymentFailures
+        # More than 3 payment failures in 5 minutes.
+        expr: increase(payment_failures_total[5m]) > 3
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Elevated payment failures"
+          description: "{{ $value }} payment failures in the last 5 minutes (stage={{ $labels.stage }})."
+
+      - alert: SmsFailures
+        # More than 10 SMS send failures in 5 minutes.
+        expr: increase(sms_failures_total[5m]) > 10
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Elevated SMS gateway failures"
+          description: "{{ $value }} SMS failures in the last 5 minutes."
+
+      - alert: DispatchFailures
+        # Ride-dispatch failures (max-cycles reached) in 5 minutes.
+        expr: increase(dispatch_failures_total[5m]) > 5
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Elevated ride-dispatch failures"
+          description: "{{ $value }} dispatch failures in the last 5 minutes."
+
+      - alert: ServiceDown
+        # No successful scrape for 1 minute.
+        expr: up{job="taxi-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Taxi API is down"
+          description: "Prometheus has not scraped the Taxi API for over 1 minute."
+
+      - alert: HighResponseTime
+        # p99 request latency above 2s over 5m.
+        expr: >
+          histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[5m])) by (le)) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High p99 response time (>2s)"
+          description: "p99 request latency is {{ $value }}s over the last 5 minutes."
