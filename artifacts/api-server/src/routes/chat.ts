@@ -8,11 +8,10 @@ import multer from "multer";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
-import { db, messagesTable, usersTable, ridesTable, chatParticipantsTable } from "@workspace/db";
-import { eq, and, or, asc, desc, sql, inArray } from "drizzle-orm";
 import { authMiddleware, requireRole, AuthRequest } from "../middlewares/auth.js";
 import { broadcastToUser, broadcastToRole, onChatMessage, onTyping, onMessageRead, onMessageDelivered } from "../lib/websocket.js";
 import { notifyNewChatMessage, notifyChatMessageToRecipients } from "../lib/notifications.js";
+import * as chatService from "../lib/services/chat.service.js";
 
 const chatReadBodySchema = z.object({
   messageIds: z.array(z.union([z.number(), z.string()])).optional(),
@@ -65,10 +64,7 @@ const photoUpload = multer({
 const router: IRouter = Router();
 
 async function getRideParticipantIds(rideId: number): Promise<number[]> {
-  const participants = await db.select({ userId: chatParticipantsTable.userId })
-    .from(chatParticipantsTable)
-    .where(eq(chatParticipantsTable.rideId, rideId));
-  return participants.map(p => p.userId);
+  return chatService.getRideParticipantIds(rideId);
 }
 
 async function broadcastToRideParticipants(rideId: number, senderId: number, payload: object) {
@@ -84,21 +80,16 @@ async function broadcastToRideParticipants(rideId: number, senderId: number, pay
 }
 
 async function ensureParticipant(rideId: number, userId: number, role: string, name: string) {
-  try {
-    await db.insert(chatParticipantsTable).values({
-      rideId, userId, role, name,
-    }).onConflictDoNothing();
-  } catch {}
+  await chatService.ensureParticipant(rideId, userId, role, name);
 }
 
 async function getSenderName(userId: number): Promise<string> {
-  const user = await db.select({ name: usersTable.name, role: usersTable.role, id: usersTable.id }).from(usersTable)
-    .where(eq(usersTable.id, userId)).limit(1);
-  if (!user[0]) return "Пользователь";
-  if (user[0].role === "driver") {
-    return `${user[0].name} (#${user[0].id})`;
+  const user = await chatService.getUserNameInfo(userId);
+  if (!user) return "Пользователь";
+  if (user.role === "driver") {
+    return `${user.name} (#${user.id})`;
   }
-  return user[0].name || "Пользователь";
+  return user.name || "Пользователь";
 }
 
 router.get("/messages", authMiddleware, async (req: AuthRequest, res) => {
@@ -112,28 +103,16 @@ router.get("/messages", authMiddleware, async (req: AuthRequest, res) => {
       const myRole = req.userRole;
       if (myRole !== "dispatcher" && myRole !== "admin") {
         const participantIds = await getRideParticipantIds(rideId);
-        const ride = await db.select({ driverId: ridesTable.driverId }).from(ridesTable)
-          .where(eq(ridesTable.id, rideId)).limit(1);
-        const isDriver = ride.length > 0 && ride[0].driverId === myId;
+        const rideDriverId = await chatService.getRideDriverId(rideId);
+        const isDriver = rideDriverId === myId;
         if (!participantIds.includes(myId) && !isDriver) {
           res.status(403).json({ error: "forbidden" });
           return;
         }
       }
-      messages = await db.select().from(messagesTable)
-        .where(eq(messagesTable.rideId, rideId))
-        .orderBy(asc(messagesTable.createdAt))
-        .limit(200);
+      messages = await chatService.getMessagesByRide(rideId);
     } else if (peerId) {
-      messages = await db.select().from(messagesTable)
-        .where(
-          or(
-            and(eq(messagesTable.senderId, myId), eq(messagesTable.recipientId, peerId)),
-            and(eq(messagesTable.senderId, peerId), eq(messagesTable.recipientId, myId)),
-          )
-        )
-        .orderBy(asc(messagesTable.createdAt))
-        .limit(200);
+      messages = await chatService.getMessagesBetween(myId, peerId);
     } else {
       messages = [];
     }
@@ -152,8 +131,7 @@ router.get("/participants", authMiddleware, async (req: AuthRequest, res) => {
       return;
     }
 
-    const participants = await db.select().from(chatParticipantsTable)
-      .where(eq(chatParticipantsTable.rideId, rideId));
+    const participants = await chatService.getRideParticipants(rideId);
 
     res.json({ participants });
   } catch {
@@ -201,7 +179,7 @@ router.post("/send", authMiddleware, validateBody(chatSendBodySchema), async (re
       await ensureParticipant(rideId, req.userId!, req.userRole!, senderName);
     }
 
-    const [msg] = await db.insert(messagesTable).values({
+    const msg = await chatService.insertMessage({
       rideId: rideId || 0,
       senderId: req.userId!,
       senderRole: req.userRole!,
@@ -210,7 +188,7 @@ router.post("/send", authMiddleware, validateBody(chatSendBodySchema), async (re
       message: message.trim(),
       type: "text",
       status: "sent",
-    }).returning();
+    });
 
     const payload = { type: "new_chat_message", message: msg };
 
@@ -264,7 +242,7 @@ router.post("/send-voice", authMiddleware, (req, res, next) => {
     const audioUrl = `/api/uploads/voice/${file.filename}`;
     const messageText = JSON.stringify({ audioUrl, duration: Math.round(duration) });
 
-    const [msg] = await db.insert(messagesTable).values({
+    const msg = await chatService.insertMessage({
       rideId: rideId || 0,
       senderId: req.userId!,
       senderRole: req.userRole!,
@@ -273,7 +251,7 @@ router.post("/send-voice", authMiddleware, (req, res, next) => {
       message: messageText,
       type: "voice",
       status: "sent",
-    }).returning();
+    });
 
     const payload = { type: "new_chat_message", message: msg };
     const voicePreview = "🎤 Голосовое сообщение";
@@ -331,7 +309,7 @@ router.post("/send-photo", authMiddleware, (req, res, next) => {
     const photoUrl = `/api/uploads/chat/${file.filename}`;
     const messageText = JSON.stringify({ photoUrl, caption });
 
-    const [msg] = await db.insert(messagesTable).values({
+    const msg = await chatService.insertMessage({
       rideId: rideId || 0,
       senderId: req.userId!,
       senderRole: req.userRole!,
@@ -340,7 +318,7 @@ router.post("/send-photo", authMiddleware, (req, res, next) => {
       message: messageText,
       type: "photo",
       status: "sent",
-    }).returning();
+    });
 
     const payload = { type: "new_chat_message", message: msg };
     const photoPreview = caption ? `📷 ${caption}` : "📷 Фото";
@@ -375,14 +353,7 @@ router.post("/read", authMiddleware, validateBody(chatReadBodySchema), async (re
       return;
     }
 
-    await db.update(messagesTable)
-      .set({ status: "read" })
-      .where(
-        and(
-          sql`${messagesTable.id} IN ${messageIds}`,
-          sql`${messagesTable.senderId} != ${req.userId!}`,
-        )
-      );
+    await chatService.markMessagesRead(messageIds, req.userId!);
 
     const payload = {
       type: "messages_read",
@@ -394,12 +365,9 @@ router.post("/read", authMiddleware, validateBody(chatReadBodySchema), async (re
     if (rideId && rideId > 0) {
       await broadcastToRideParticipants(rideId, req.userId!, payload);
     } else {
-      const msgs = await db.select({ senderId: messagesTable.senderId })
-        .from(messagesTable)
-        .where(sql`${messagesTable.id} IN ${messageIds}`)
-        .limit(1);
-      if (msgs.length > 0) {
-        broadcastToUser(msgs[0].senderId, payload);
+      const senderId = await chatService.getMessageSenderId(messageIds);
+      if (senderId !== null) {
+        broadcastToUser(senderId, payload);
         broadcastToUser(req.userId!, payload);
       }
     }
@@ -414,38 +382,20 @@ router.get("/conversations", authMiddleware, async (req: AuthRequest, res) => {
   try {
     const myId = req.userId!;
 
-    const rows = await db.execute(sql`
-      SELECT 
-        CASE WHEN sender_id = ${myId} THEN recipient_id ELSE sender_id END AS peer_id,
-        MAX(id) AS last_msg_id,
-        COUNT(*) AS total,
-        COUNT(*) FILTER (WHERE sender_id != ${myId} AND status != 'read') AS unread_count,
-        MAX(CASE WHEN sender_id != ${myId} THEN type END) AS last_type
-      FROM messages
-      WHERE (sender_id = ${myId} OR recipient_id = ${myId}) AND ride_id = 0
-      GROUP BY peer_id
-      ORDER BY last_msg_id DESC
-      LIMIT 50
-    `);
+    const rows = await chatService.getConversationRows(myId);
 
-    const peerIds = (rows.rows as any[]).map(r => r.peer_id).filter(Boolean);
+    const peerIds = rows.map(r => r.peer_id).filter(Boolean);
     if (peerIds.length === 0) {
       res.json({ conversations: [] });
       return;
     }
 
-    const peers = await db.select({
-      id: usersTable.id,
-      name: usersTable.name,
-      phone: usersTable.phone,
-      role: usersTable.role,
-    }).from(usersTable).where(sql`${usersTable.id} IN ${peerIds}`);
+    const peers = await chatService.getPeerProfiles(peerIds);
 
-    const lastMsgIds = (rows.rows as any[]).map(r => r.last_msg_id);
-    const lastMessages = lastMsgIds.length > 0 ? await db.select().from(messagesTable)
-      .where(sql`${messagesTable.id} IN ${lastMsgIds}`) : [];
+    const lastMsgIds = rows.map(r => r.last_msg_id);
+    const lastMessages = lastMsgIds.length > 0 ? await chatService.getMessagesByIds(lastMsgIds) : [];
 
-    const conversations = (rows.rows as any[]).map(r => {
+    const conversations = rows.map(r => {
       const peer = peers.find(p => p.id === r.peer_id);
       const lastMsg = lastMessages.find(m => m.id === r.last_msg_id);
       let preview = lastMsg?.message || "";
@@ -473,14 +423,7 @@ router.get("/conversations", authMiddleware, async (req: AuthRequest, res) => {
 router.get("/dispatcher-info", authMiddleware, async (req: AuthRequest, res) => {
   try {
     const { isUserOnline } = await import("../lib/websocket.js");
-    const dispatchers = await db.select({
-      id: usersTable.id,
-      name: usersTable.name,
-      phone: usersTable.phone,
-      acceptsCalls: usersTable.acceptsCalls,
-    }).from(usersTable).where(
-      or(eq(usersTable.role, "dispatcher"), eq(usersTable.role, "admin"))
-    );
+    const dispatchers = await chatService.getDispatchers();
     if (dispatchers.length > 0) {
       const onlineDispatcher = dispatchers.find(d => isUserOnline(d.id) && d.acceptsCalls !== false);
       const anyOnline = dispatchers.find(d => isUserOnline(d.id));
@@ -498,11 +441,7 @@ router.get("/dispatcher-info", authMiddleware, async (req: AuthRequest, res) => 
 router.get("/unread-total", authMiddleware, async (req: AuthRequest, res) => {
   try {
     const myId = req.userId!;
-    const dmResult = (await db.execute(sql`
-      SELECT COUNT(*) AS cnt FROM messages
-      WHERE recipient_id = ${myId} AND status != 'read' AND ride_id = 0
-    `)).rows as any[];
-    const dmCount = parseInt(dmResult[0]?.cnt || "0");
+    const dmCount = await chatService.getUnreadDmCount(myId);
     res.json({ total: dmCount });
   } catch (e) {
     res.status(500).json({ error: errorMessage(e) });
@@ -520,7 +459,7 @@ onChatMessage(async (ws, payload) => {
       await ensureParticipant(rideId, ws.userId, ws.userRole || "unknown", senderName);
     }
 
-    const [msg] = await db.insert(messagesTable).values({
+    const msg = await chatService.insertMessage({
       rideId: rideId || 0,
       senderId: ws.userId,
       senderRole: ws.userRole || "unknown",
@@ -529,7 +468,7 @@ onChatMessage(async (ws, payload) => {
       message: message.trim(),
       type: "text",
       status: "sent",
-    }).returning();
+    });
 
     const wsPayload = { type: "new_chat_message", message: msg };
     if (rideId && rideId > 0) {
@@ -570,14 +509,7 @@ onMessageRead(async (ws, payload) => {
     const { rideId, messageIds } = payload;
     if (!ws.userId || !messageIds?.length) return;
 
-    await db.update(messagesTable)
-      .set({ status: "read" })
-      .where(
-        and(
-          sql`${messagesTable.id} IN ${messageIds}`,
-          sql`${messagesTable.senderId} != ${ws.userId}`,
-        )
-      );
+    await chatService.markMessagesRead(messageIds, ws.userId);
 
     const readPayload = {
       type: "messages_read",
@@ -589,12 +521,9 @@ onMessageRead(async (ws, payload) => {
     if (rideId && rideId > 0) {
       await broadcastToRideParticipants(rideId, ws.userId, readPayload);
     } else {
-      const msgs = await db.select({ senderId: messagesTable.senderId })
-        .from(messagesTable)
-        .where(sql`${messagesTable.id} IN ${messageIds}`)
-        .limit(1);
-      if (msgs.length > 0) {
-        broadcastToUser(msgs[0].senderId, readPayload);
+      const senderId = await chatService.getMessageSenderId(messageIds);
+      if (senderId !== null) {
+        broadcastToUser(senderId, readPayload);
         broadcastToUser(ws.userId, readPayload);
       }
     }
@@ -606,15 +535,7 @@ onMessageDelivered(async (ws, payload) => {
     const { messageIds, rideId } = payload;
     if (!ws.userId || !messageIds?.length) return;
 
-    await db.update(messagesTable)
-      .set({ status: "delivered" })
-      .where(
-        and(
-          sql`${messagesTable.id} IN ${messageIds}`,
-          sql`${messagesTable.senderId} != ${ws.userId}`,
-          eq(messagesTable.status, "sent"),
-        )
-      );
+    await chatService.markMessagesDelivered(messageIds, ws.userId);
 
     const deliveredPayload = {
       type: "messages_delivered",
@@ -626,12 +547,9 @@ onMessageDelivered(async (ws, payload) => {
     if (rideId && rideId > 0) {
       await broadcastToRideParticipants(rideId, ws.userId, deliveredPayload);
     } else {
-      const msgs = await db.select({ senderId: messagesTable.senderId })
-        .from(messagesTable)
-        .where(sql`${messagesTable.id} IN ${messageIds}`)
-        .limit(1);
-      if (msgs.length > 0) {
-        broadcastToUser(msgs[0].senderId, deliveredPayload);
+      const senderId = await chatService.getMessageSenderId(messageIds);
+      if (senderId !== null) {
+        broadcastToUser(senderId, deliveredPayload);
       }
     }
   } catch {}

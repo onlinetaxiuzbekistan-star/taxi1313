@@ -1,11 +1,10 @@
 import { Router } from "express";
 import { clog } from "../lib/logger.js";
-import { db, photoTasksTable, photoRequestsTable, photoHistoryTable, usersTable, driverGroupsTable } from "@workspace/db";
-import { eq, and, desc, inArray, sql, or, ilike, type SQL } from "drizzle-orm";
 import { authMiddleware, requireRole } from "../middlewares/auth.js";
 import type { AuthRequest } from "../middlewares/auth.js";
 import { broadcastToUser } from "../lib/websocket.js";
 import { enqueuePhotoValidation } from "../lib/queues/photo.queue.js";
+import * as photoService from "../lib/services/photo.service.js";
 import multer from "multer";
 import path from "path";
 import crypto from "crypto";
@@ -69,8 +68,8 @@ const router = Router();
 
 router.get("/tasks", authMiddleware, requireRole("admin", "dispatcher"), async (_req, res) => {
   try {
-    const tasks = await db.select().from(photoTasksTable).orderBy(desc(photoTasksTable.createdAt));
-    const groups = await db.select().from(driverGroupsTable);
+    const tasks = await photoService.listTasks();
+    const groups = await photoService.listDriverGroups();
     const groupMap = Object.fromEntries(groups.map(g => [g.id, g.label]));
     res.json({ tasks: tasks.map(t => ({ ...t, groupLabel: t.groupId ? groupMap[t.groupId] || null : null })) });
   } catch (err) {
@@ -82,12 +81,12 @@ router.post("/tasks", authMiddleware, requireRole("admin", "dispatcher"), valida
   try {
     const { name, groupId, scheduleType, isActive } = req.body;
     if (!name) return res.status(400).json({ error: "name_required" });
-    const [task] = await db.insert(photoTasksTable).values({
+    const task = await photoService.createTask({
       name,
       groupId: groupId ? parseInt(groupId) : null,
       scheduleType: scheduleType || "manual",
       isActive: isActive !== false,
-    }).returning();
+    });
     res.json({ task });
   } catch (err) {
     res.status(500).json({ error: "server_error" });
@@ -104,7 +103,7 @@ router.patch("/tasks/:id", authMiddleware, requireRole("admin", "dispatcher"), v
     if (req.body.scheduleType !== undefined) updates.scheduleType = req.body.scheduleType;
     if (req.body.isActive !== undefined) updates.isActive = req.body.isActive;
     if (Object.keys(updates).length === 0) return res.status(400).json({ error: "no_updates" });
-    const [updated] = await db.update(photoTasksTable).set(updates).where(eq(photoTasksTable.id, id)).returning();
+    const updated = await photoService.updateTask(id, updates);
     if (!updated) return res.status(404).json({ error: "not_found" });
     res.json({ task: updated });
   } catch (err) {
@@ -116,7 +115,7 @@ router.delete("/tasks/:id", authMiddleware, requireRole("admin"), async (req: Au
   try {
     const id = parseInt(req.params.id);
     if (isNaN(id)) return res.status(400).json({ error: "invalid_id" });
-    const [deleted] = await db.delete(photoTasksTable).where(eq(photoTasksTable.id, id)).returning();
+    const deleted = await photoService.deleteTask(id);
     if (!deleted) return res.status(404).json({ error: "not_found" });
     res.json({ success: true });
   } catch (err) {
@@ -129,32 +128,25 @@ router.post("/tasks/:id/send", authMiddleware, requireRole("admin", "dispatcher"
     const taskId = parseInt(req.params.id);
     if (isNaN(taskId)) return res.status(400).json({ error: "invalid_id" });
 
-    const [task] = await db.select().from(photoTasksTable).where(eq(photoTasksTable.id, taskId));
+    const task = await photoService.getTask(taskId);
     if (!task) return res.status(404).json({ error: "task_not_found" });
 
     let drivers;
     if (task.groupId) {
-      drivers = await db.select({ id: usersTable.id }).from(usersTable)
-        .where(and(eq(usersTable.role, "driver"), eq(usersTable.groupId, task.groupId)));
+      drivers = await photoService.getDriverIdsByGroup(task.groupId);
     } else {
-      drivers = await db.select({ id: usersTable.id }).from(usersTable)
-        .where(eq(usersTable.role, "driver"));
+      drivers = await photoService.getAllDriverIds();
     }
 
     if (drivers.length === 0) return res.json({ created: 0 });
 
-    const existingActive = await db.select({ driverId: photoRequestsTable.driverId })
-      .from(photoRequestsTable)
-      .where(and(
-        inArray(photoRequestsTable.driverId, drivers.map(d => d.id)),
-        inArray(photoRequestsTable.status, ["pending", "under_review"]),
-      ));
+    const existingActive = await photoService.getActiveRequestDriverIds(drivers.map(d => d.id));
     const alreadyActive = new Set(existingActive.map(e => e.driverId));
 
     const toCreate = drivers.filter(d => !alreadyActive.has(d.id));
     if (toCreate.length === 0) return res.json({ created: 0, message: "Все водители уже имеют активные запросы" });
 
-    await db.insert(photoRequestsTable).values(
+    await photoService.createPendingRequests(
       toCreate.map(d => ({
         driverId: d.id,
         taskId,
@@ -185,68 +177,31 @@ router.get("/requests", authMiddleware, requireRole("admin", "dispatcher"), asyn
 
     let searchDriverIds: number[] | null = null;
     if (search || groupId || city) {
-      const driverConditions: (SQL | undefined)[] = [eq(usersTable.role, "driver")];
-      if (search) {
-        const s = `%${search}%`;
-        driverConditions.push(or(
-          ilike(usersTable.name, s),
-          ilike(usersTable.phone, s),
-          ilike(usersTable.carNumber, s),
-          ilike(usersTable.city, s),
-        ));
-      }
-      if (groupId) driverConditions.push(eq(usersTable.groupId, parseInt(groupId as string)));
-      if (city) driverConditions.push(ilike(usersTable.city, city as string));
-
-      const matchedDrivers = await db.select({ id: usersTable.id }).from(usersTable)
-        .where(and(...driverConditions));
-      searchDriverIds = matchedDrivers.map(d => d.id);
+      searchDriverIds = await photoService.getMatchingDriverIds({
+        search: search as string | undefined,
+        groupId: groupId as string | undefined,
+        city: city as string | undefined,
+      });
       if (searchDriverIds.length === 0) {
         return res.json({ requests: [], total: 0, page: pageNum, perPage });
       }
     }
 
-    const latestSubquery = sql`
-      SELECT DISTINCT ON (driver_id) *
-      FROM photo_requests
-      WHERE TRUE
-      ${statusFilter ? sql`AND status = ${statusFilter}` : sql``}
-      ${taskIdFilter ? sql`AND task_id = ${taskIdFilter}` : sql``}
-      ${searchDriverIds && searchDriverIds.length > 0
-        ? sql`AND driver_id IN (${sql.join(searchDriverIds.map((id) => sql`${id}`), sql`, `)})`
-        : sql``}
-      AND status != 'unblocked'
-      ORDER BY driver_id, created_at DESC
-    `;
+    const total = await photoService.countLatestRequests({ statusFilter, taskIdFilter, searchDriverIds });
 
-    const countResult = await db.execute(sql`SELECT count(*)::int AS total FROM (${latestSubquery}) sub`);
-    const total = (countResult.rows[0] as any)?.total || 0;
-
-    const requestsResult = await db.execute(sql`
-      SELECT * FROM (${latestSubquery}) sub
-      ORDER BY sub.created_at DESC
-      LIMIT ${perPage} OFFSET ${offset}
-    `);
-    const requests = requestsResult.rows as any[];
+    const requests = await photoService.getLatestRequestsPage({
+      statusFilter, taskIdFilter, searchDriverIds, perPage, offset,
+    });
 
     const driverIds = [...new Set(requests.map(r => r.driver_id))];
     let driversMap: Record<number, any> = {};
     if (driverIds.length > 0) {
-      const drivers = await db.select({
-        id: usersTable.id, name: usersTable.name, phone: usersTable.phone,
-        carBrand: usersTable.carBrand, carModel: usersTable.carModel, carNumber: usersTable.carNumber,
-        groupId: usersTable.groupId, city: usersTable.city,
-        lastSelfieUrl: usersTable.lastSelfieUrl,
-        lastCarFrontUrl: usersTable.lastCarFrontUrl,
-        lastCarBackUrl: usersTable.lastCarBackUrl,
-        lastInteriorUrl: usersTable.lastInteriorUrl,
-      }).from(usersTable).where(inArray(usersTable.id, driverIds));
+      const drivers = await photoService.getDriversByIds(driverIds);
 
       const groupIds = [...new Set(drivers.map(d => d.groupId).filter(Boolean))] as number[];
       let groupMap: Record<number, string> = {};
       if (groupIds.length > 0) {
-        const groups = await db.select({ id: driverGroupsTable.id, label: driverGroupsTable.label })
-          .from(driverGroupsTable).where(inArray(driverGroupsTable.id, groupIds));
+        const groups = await photoService.getGroupsByIds(groupIds);
         groupMap = Object.fromEntries(groups.map(g => [g.id, g.label]));
       }
 
@@ -297,7 +252,7 @@ router.patch("/requests/:id/review", authMiddleware, requireRole("admin", "dispa
       return res.status(400).json({ error: "invalid_status" });
     }
 
-    const [existing] = await db.select().from(photoRequestsTable).where(eq(photoRequestsTable.id, id));
+    const existing = await photoService.getRequest(id);
     if (!existing) return res.status(404).json({ error: "not_found" });
     if (existing.status === "approved" || existing.status === "rejected" || existing.status === "rejected_final" || existing.status === "rejected_auto") {
       return res.status(400).json({ error: "already_reviewed", message: "Запрос уже проверен" });
@@ -307,15 +262,7 @@ router.patch("/requests/:id/review", authMiddleware, requireRole("admin", "dispa
     }
 
     if (status === "approved") {
-      const [updated] = await db.update(photoRequestsTable).set({
-        status: "approved",
-        comment: comment || null,
-        rejectReason: null,
-        retryCount: 0,
-        reviewedBy: (req as AuthRequest).userId || null,
-        reviewedAt: new Date(),
-        updatedAt: new Date(),
-      }).where(eq(photoRequestsTable.id, id)).returning();
+      const updated = await photoService.approveRequest(id, comment || null, (req as AuthRequest).userId || null);
 
       const photoUpdates: any = {};
       if (existing.selfieUrl) photoUpdates.lastSelfieUrl = existing.selfieUrl;
@@ -323,7 +270,7 @@ router.patch("/requests/:id/review", authMiddleware, requireRole("admin", "dispa
       if (existing.carBackUrl) photoUpdates.lastCarBackUrl = existing.carBackUrl;
       if (existing.interiorUrl) photoUpdates.lastInteriorUrl = existing.interiorUrl;
       if (Object.keys(photoUpdates).length > 0) {
-        await db.update(usersTable).set(photoUpdates).where(eq(usersTable.id, existing.driverId));
+        await photoService.updateDriverLastPhotos(existing.driverId, photoUpdates);
       }
       broadcastToUser(existing.driverId, { type: "photo_control_approved" });
       return res.json({ request: updated });
@@ -334,15 +281,7 @@ router.patch("/requests/:id/review", authMiddleware, requireRole("admin", "dispa
     const isFinalReject = newRetryCount >= 2;
     const finalStatus = isFinalReject ? "rejected_final" : "rejected";
 
-    const [updated] = await db.update(photoRequestsTable).set({
-      status: finalStatus,
-      comment: comment || null,
-      rejectReason: comment || null,
-      retryCount: newRetryCount,
-      reviewedBy: (req as AuthRequest).userId || null,
-      reviewedAt: new Date(),
-      updatedAt: new Date(),
-    }).where(eq(photoRequestsTable.id, id)).returning();
+    const updated = await photoService.rejectRequest(id, finalStatus, comment || null, newRetryCount, (req as AuthRequest).userId || null);
 
     if (isFinalReject) {
       broadcastToUser(existing.driverId, {
@@ -352,14 +291,14 @@ router.patch("/requests/:id/review", authMiddleware, requireRole("admin", "dispa
         retryCount: newRetryCount,
       });
     } else {
-      const [newRequest] = await db.insert(photoRequestsTable).values({
+      const newRequest = await photoService.createRetryRequest({
         driverId: existing.driverId,
         taskId: existing.taskId,
         status: "pending",
         retryCount: newRetryCount,
         rejectReason: comment || null,
         previousRequestId: existing.id,
-      }).returning();
+      });
 
       broadcastToUser(existing.driverId, {
         type: "photo_control_rejected",
@@ -385,25 +324,13 @@ router.post("/requests/bulk-review", authMiddleware, requireRole("admin", "dispa
     const numIds = ids.map((id: any) => parseInt(id)).filter((n: number) => !isNaN(n));
     if (numIds.length === 0) return res.status(400).json({ error: "invalid_ids" });
 
-    const existing = await db.select().from(photoRequestsTable)
-      .where(and(
-        inArray(photoRequestsTable.id, numIds),
-        inArray(photoRequestsTable.status, ["pending", "under_review"]),
-      ));
+    const existing = await photoService.getReviewableRequests(numIds);
 
     if (existing.length === 0) return res.json({ updated: 0 });
 
     for (const r of existing) {
       if (status === "approved") {
-        await db.update(photoRequestsTable).set({
-          status: "approved",
-          comment: comment || null,
-          rejectReason: null,
-          retryCount: 0,
-          reviewedBy: (req as AuthRequest).userId || null,
-          reviewedAt: new Date(),
-          updatedAt: new Date(),
-        }).where(eq(photoRequestsTable.id, r.id));
+        await photoService.approveRequestById(r.id, comment || null, (req as AuthRequest).userId || null);
 
         const photoUpdates: any = {};
         if (r.selfieUrl) photoUpdates.lastSelfieUrl = r.selfieUrl;
@@ -411,7 +338,7 @@ router.post("/requests/bulk-review", authMiddleware, requireRole("admin", "dispa
         if (r.carBackUrl) photoUpdates.lastCarBackUrl = r.carBackUrl;
         if (r.interiorUrl) photoUpdates.lastInteriorUrl = r.interiorUrl;
         if (Object.keys(photoUpdates).length > 0) {
-          await db.update(usersTable).set(photoUpdates).where(eq(usersTable.id, r.driverId));
+          await photoService.updateDriverLastPhotos(r.driverId, photoUpdates);
         }
         broadcastToUser(r.driverId, { type: "photo_control_approved" });
       }
@@ -421,15 +348,7 @@ router.post("/requests/bulk-review", authMiddleware, requireRole("admin", "dispa
         const newRetryCount = currentRetry + 1;
         const isFinalReject = newRetryCount >= 2;
 
-        await db.update(photoRequestsTable).set({
-          status: isFinalReject ? "rejected_final" : "rejected",
-          comment: comment || null,
-          rejectReason: comment || null,
-          retryCount: newRetryCount,
-          reviewedBy: (req as AuthRequest).userId || null,
-          reviewedAt: new Date(),
-          updatedAt: new Date(),
-        }).where(eq(photoRequestsTable.id, r.id));
+        await photoService.rejectRequestById(r.id, isFinalReject, comment || null, newRetryCount, (req as AuthRequest).userId || null);
 
         if (isFinalReject) {
           broadcastToUser(r.driverId, {
@@ -439,7 +358,7 @@ router.post("/requests/bulk-review", authMiddleware, requireRole("admin", "dispa
             retryCount: newRetryCount,
           });
         } else {
-          await db.insert(photoRequestsTable).values({
+          await photoService.insertRetryRequest({
             driverId: r.driverId,
             taskId: r.taskId,
             status: "pending",
@@ -468,10 +387,7 @@ router.get("/my-pending", authMiddleware, async (req: AuthRequest, res) => {
     const driverId = (req as AuthRequest).userId;
     if (!driverId) return res.status(401).json({ error: "unauthorized" });
 
-    const [latest] = await db.select().from(photoRequestsTable)
-      .where(eq(photoRequestsTable.driverId, driverId))
-      .orderBy(desc(photoRequestsTable.createdAt))
-      .limit(1);
+    const latest = await photoService.getLatestRequestForDriver(driverId);
 
     if (!latest) {
       return res.json({ request: null, blocked: false });
@@ -537,8 +453,7 @@ router.patch("/my-pending/:id/submit", authMiddleware, validateBody(submitPendin
       return res.status(400).json({ error: "all_photos_required", message: "Все 4 фото обязательны" });
     }
 
-    const [request] = await db.select().from(photoRequestsTable)
-      .where(and(eq(photoRequestsTable.id, id), eq(photoRequestsTable.driverId, driverId!)));
+    const request = await photoService.getRequestForDriver(id, driverId!);
     if (!request) return res.status(404).json({ error: "not_found" });
     if (request.status !== "pending") return res.status(400).json({ error: "already_processed" });
     if (request.aiStatus === "processing") {
@@ -547,11 +462,7 @@ router.patch("/my-pending/:id/submit", authMiddleware, validateBody(submitPendin
 
     // Persist the submitted photos and mark AI-processing so the request can't be
     // re-submitted while the (CPU-heavy) validation runs off the request thread.
-    await db.update(photoRequestsTable).set({
-      selfieUrl, carFrontUrl, carBackUrl, interiorUrl,
-      aiStatus: "processing",
-      updatedAt: new Date(),
-    }).where(eq(photoRequestsTable.id, id));
+    await photoService.submitPhotos(id, { selfieUrl, carFrontUrl, carBackUrl, interiorUrl });
 
     await enqueuePhotoValidation({
       requestId: id,
@@ -577,26 +488,9 @@ router.get("/history/:driverId", authMiddleware, requireRole("admin", "dispatche
     const excludeIdRaw = req.query.excludeId ? parseInt(String(req.query.excludeId)) : null;
     const excludeId = excludeIdRaw !== null && Number.isFinite(excludeIdRaw) ? excludeIdRaw : null;
 
-    const result = await db.execute(sql`
-      SELECT id, driver_id AS "driverId", task_id AS "taskId", status,
-             selfie_url AS "selfieUrl", car_front_url AS "carFrontUrl",
-             car_back_url AS "carBackUrl", interior_url AS "interiorUrl",
-             comment, reject_reason AS "rejectReason",
-             retry_count AS "retryCount",
-             ai_results AS "aiResults", ai_status AS "aiStatus",
-             reviewed_by AS "reviewedBy", reviewed_at AS "reviewedAt",
-             created_at AS "createdAt", updated_at AS "updatedAt"
-      FROM photo_requests
-      WHERE driver_id = ${driverId}
-        AND status NOT IN ('pending', 'unblocked')
-        AND (selfie_url IS NOT NULL OR car_front_url IS NOT NULL
-             OR car_back_url IS NOT NULL OR interior_url IS NOT NULL)
-        ${excludeId !== null ? sql`AND id <> ${excludeId}` : sql``}
-      ORDER BY created_at DESC
-      LIMIT ${limit}
-    `);
+    const history = await photoService.getDriverHistory(driverId, limit, excludeId);
 
-    res.json({ history: result.rows });
+    res.json({ history });
   } catch (err) {
     clog.error("[PHOTO-CONTROL] history error:", err);
     res.status(500).json({ error: "server_error" });
@@ -605,24 +499,8 @@ router.get("/history/:driverId", authMiddleware, requireRole("admin", "dispatche
 
 router.get("/stats", authMiddleware, requireRole("admin", "dispatcher"), async (_req, res) => {
   try {
-    const result = await db.execute(sql`
-      SELECT
-        count(*)::int AS total,
-        count(*) filter (where status = 'pending')::int AS pending,
-        count(*) filter (where status = 'under_review')::int AS "underReview",
-        count(*) filter (where status = 'approved')::int AS approved,
-        count(*) filter (where status = 'rejected')::int AS rejected,
-        count(*) filter (where status = 'rejected_auto')::int AS "rejectedAuto",
-        count(*) filter (where status = 'rejected_final')::int AS "rejectedFinal",
-        count(*) filter (where selfie_url is not null)::int AS "withPhotos"
-      FROM (
-        SELECT DISTINCT ON (driver_id) status, selfie_url
-        FROM photo_requests
-        WHERE status != 'unblocked'
-        ORDER BY driver_id, created_at DESC
-      ) sub
-    `);
-    res.json({ stats: result.rows[0] || {} });
+    const stats = await photoService.getStats();
+    res.json({ stats });
   } catch (err) {
     clog.error("[PHOTO-CONTROL] stats error:", err);
     res.status(500).json({ error: "server_error" });
@@ -632,36 +510,14 @@ router.get("/stats", authMiddleware, requireRole("admin", "dispatcher"), async (
 router.post("/requests/:id/unblock", authMiddleware, requireRole("admin", "dispatcher"), validateBody(unblockBodySchema), async (req, res) => {
   try {
     const id = Number(req.params.id);
-    const [request] = await db.select().from(photoRequestsTable).where(eq(photoRequestsTable.id, id));
+    const request = await photoService.getRequest(id);
     if (!request) return res.status(404).json({ error: "not_found" });
 
     if (!["rejected_final", "rejected_auto", "rejected"].includes(request.status)) {
       return res.status(400).json({ error: "can_only_unblock_rejected_drivers" });
     }
 
-    await db.transaction(async (tx) => {
-      await tx.update(photoRequestsTable)
-        .set({ retryCount: 0, status: "unblocked", rejectReason: null, updatedAt: new Date() })
-        .where(eq(photoRequestsTable.id, id));
-
-      const [existingPending] = await tx.select({ id: photoRequestsTable.id })
-        .from(photoRequestsTable)
-        .where(and(
-          eq(photoRequestsTable.driverId, request.driverId),
-          eq(photoRequestsTable.status, "pending"),
-        ))
-        .limit(1);
-
-      if (!existingPending) {
-        await tx.insert(photoRequestsTable).values({
-          driverId: request.driverId,
-          taskId: request.taskId,
-          status: "pending",
-          retryCount: 0,
-          previousRequestId: id,
-        });
-      }
-    });
+    await photoService.unblockRequest(id, request.driverId, request.taskId);
 
     broadcastToUser(request.driverId, {
       type: "photo_control_required",
@@ -680,30 +536,23 @@ router.post("/request-driver/:driverId", authMiddleware, requireRole("admin", "d
     const driverId = parseInt(req.params.driverId);
     if (isNaN(driverId)) return res.status(400).json({ error: "invalid_driver_id" });
 
-    const [driver] = await db.select({ id: usersTable.id, role: usersTable.role })
-      .from(usersTable).where(eq(usersTable.id, driverId));
+    const driver = await photoService.getDriverRole(driverId);
     if (!driver || driver.role !== "driver") {
       return res.status(404).json({ error: "driver_not_found" });
     }
 
-    const [existing] = await db.select({ id: photoRequestsTable.id, status: photoRequestsTable.status })
-      .from(photoRequestsTable)
-      .where(and(
-        eq(photoRequestsTable.driverId, driverId),
-        inArray(photoRequestsTable.status, ["pending", "under_review"]),
-      ))
-      .limit(1);
+    const existing = await photoService.getActiveRequestForDriver(driverId);
 
     if (existing) {
       broadcastToUser(driverId, { type: "photo_control_required" });
       return res.json({ created: false, message: "У водителя уже есть активный запрос фотоконтроля", requestId: existing.id });
     }
 
-    const [created] = await db.insert(photoRequestsTable).values({
+    const created = await photoService.createRequestForDriver({
       driverId,
       status: "pending",
       retryCount: 0,
-    }).returning({ id: photoRequestsTable.id });
+    });
 
     broadcastToUser(driverId, { type: "photo_control_required" });
 
@@ -719,17 +568,7 @@ router.get("/request-driver/:driverId/status", authMiddleware, requireRole("admi
     const driverId = parseInt(req.params.driverId);
     if (isNaN(driverId)) return res.status(400).json({ error: "invalid_driver_id" });
 
-    const [active] = await db.select({
-      id: photoRequestsTable.id,
-      status: photoRequestsTable.status,
-      createdAt: photoRequestsTable.createdAt,
-    }).from(photoRequestsTable)
-      .where(and(
-        eq(photoRequestsTable.driverId, driverId),
-        inArray(photoRequestsTable.status, ["pending", "under_review"]),
-      ))
-      .orderBy(desc(photoRequestsTable.createdAt))
-      .limit(1);
+    const active = await photoService.getLatestActiveRequestForDriver(driverId);
 
     res.json(active ? { hasActive: true, requestId: active.id, status: active.status, createdAt: active.createdAt } : { hasActive: false });
   } catch (err) {
@@ -743,12 +582,7 @@ router.delete("/request-driver/:driverId", authMiddleware, requireRole("admin", 
     const driverId = parseInt(req.params.driverId);
     if (isNaN(driverId)) return res.status(400).json({ error: "invalid_driver_id" });
 
-    const cancelled = await db.delete(photoRequestsTable)
-      .where(and(
-        eq(photoRequestsTable.driverId, driverId),
-        eq(photoRequestsTable.status, "pending"),
-      ))
-      .returning({ id: photoRequestsTable.id });
+    const cancelled = await photoService.cancelPendingRequests(driverId);
 
     if (cancelled.length === 0) {
       return res.status(404).json({ error: "no_pending_request" });

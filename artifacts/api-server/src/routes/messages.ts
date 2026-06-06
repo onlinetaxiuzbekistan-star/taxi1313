@@ -1,10 +1,9 @@
 import { z } from "zod";
 import { Router, type IRouter } from "express";
 import { validateBody } from "../middlewares/validate.js";
-import { db, messagesTable } from "@workspace/db";
-import { eq, asc } from "drizzle-orm";
 import { authMiddleware, AuthRequest } from "../middlewares/auth.js";
 import { broadcastToAll } from "../lib/websocket.js";
+import * as chatService from "../lib/services/chat.service.js";
 
 const messageCreateBodySchema = z.object({
   message: z.string(),
@@ -14,9 +13,7 @@ const router: IRouter = Router();
 
 router.get("/:rideId/messages", async (req, res) => {
   try {
-    const messages = await db.select().from(messagesTable)
-      .where(eq(messagesTable.rideId, parseInt(req.params.rideId)))
-      .orderBy(asc(messagesTable.createdAt));
+    const messages = await chatService.getRideMessagesOrdered(parseInt(req.params.rideId));
     res.json({ messages });
   } catch (err) {
     req.log.error({ err }, "Get messages error");
@@ -29,12 +26,12 @@ router.post("/:rideId/messages", authMiddleware, validateBody(messageCreateBodyS
     const { message } = req.body;
     const rideId = parseInt(req.params.rideId);
 
-    const [msg] = await db.insert(messagesTable).values({
+    const msg = await chatService.insertMessage({
       rideId,
       senderId: req.userId!,
       senderRole: req.userRole!,
       message,
-    }).returning();
+    });
 
     broadcastToAll({ type: "new_message", message: msg });
     res.status(201).json(msg);

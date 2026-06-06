@@ -1,7 +1,7 @@
 import { Router, type IRouter, type Response } from "express";
 import { type AuthRequest, authMiddleware, requireRole } from "../middlewares/auth.js";
-import { db, pushNotificationsTable, usersTable, deviceTokensTable } from "@workspace/db";
-import { eq, desc, and, sql } from "drizzle-orm";
+import { pushNotificationsTable } from "@workspace/db";
+import * as notificationsService from "../lib/services/notifications.service.js";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -38,16 +38,11 @@ router.get("/", authMiddleware, requireRole("admin", "dispatcher"), async (req: 
     const { page = "1", limit = "50" } = req.query as Record<string, string>;
     const offset = (parseInt(page) - 1) * parseInt(limit);
 
-    const items = await db.select()
-      .from(pushNotificationsTable)
-      .orderBy(desc(pushNotificationsTable.createdAt))
-      .limit(parseInt(limit))
-      .offset(offset);
+    const items = await notificationsService.listPushNotifications(parseInt(limit), offset);
 
-    const [countResult] = await db.select({ count: sql<number>`count(*)` })
-      .from(pushNotificationsTable);
+    const total = await notificationsService.countPushNotifications();
 
-    res.json({ items, total: Number(countResult.count), page: parseInt(page), limit: parseInt(limit) });
+    res.json({ items, total, page: parseInt(page), limit: parseInt(limit) });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -65,7 +60,7 @@ router.post("/send", authMiddleware, requireRole("admin", "dispatcher"), pushUpl
     const files = (req as any).files as Express.Multer.File[] || [];
     const photos = files.map(f => `/api/uploads/push/${f.filename}`);
 
-    const [created] = await db.insert(pushNotificationsTable).values({
+    const created = await notificationsService.createPushNotification({
       title,
       content,
       photos,
@@ -75,13 +70,11 @@ router.post("/send", authMiddleware, requireRole("admin", "dispatcher"), pushUpl
       branchId: branchId ? parseInt(branchId) : null,
       driverGroupId: driverGroupId ? parseInt(driverGroupId) : null,
       authorId: req.userId!,
-    }).returning();
+    });
 
     const result = await sendPushToAudience(created);
 
-    await db.update(pushNotificationsTable)
-      .set({ sentCount: result.sent, deliveredCount: result.delivered })
-      .where(eq(pushNotificationsTable.id, created.id));
+    await notificationsService.updatePushNotificationCounts(created.id, result.sent, result.delivered);
 
     res.json({
       ...created,
@@ -97,7 +90,7 @@ router.delete("/:id", authMiddleware, requireRole("admin", "dispatcher"), async 
   try {
     const id = parseInt(req.params.id);
     if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-    const [deleted] = await db.delete(pushNotificationsTable).where(eq(pushNotificationsTable.id, id)).returning();
+    const deleted = await notificationsService.deletePushNotification(id);
     if (!deleted) { res.status(404).json({ error: "Not found" }); return; }
     res.json({ deleted: true });
   } catch (err: any) {
@@ -112,19 +105,12 @@ async function sendPushToAudience(push: typeof pushNotificationsTable.$inferSele
   let targetUsers: { id: number }[] = [];
 
   if (push.audience === "driver" || push.audience === "all") {
-    let conditions: any[] = [eq(usersTable.role, "driver")];
-    if (push.cityId) {
-      conditions.push(sql`${usersTable.city} = ${String(push.cityId)}`);
-    }
-    if (push.driverGroupId) {
-      conditions.push(eq(usersTable.groupId, push.driverGroupId));
-    }
-    const drivers = await db.select({ id: usersTable.id }).from(usersTable).where(and(...conditions));
+    const drivers = await notificationsService.getDriverAudience(push.cityId, push.driverGroupId);
     targetUsers.push(...drivers);
   }
 
   if (push.audience === "client" || push.audience === "all") {
-    const clients = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.role, "rider"));
+    const clients = await notificationsService.getClientAudience();
     targetUsers.push(...clients);
   }
 
@@ -142,7 +128,7 @@ async function sendPushToAudience(push: typeof pushNotificationsTable.$inferSele
 
     if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) continue;
 
-    const subs = await db.select().from(deviceTokensTable).where(eq(deviceTokensTable.userId, user.id));
+    const subs = await notificationsService.getDeviceTokensForUser(user.id);
     for (const sub of subs) {
       if (!sub.endpoint || !sub.p256dh || !sub.auth) continue;
       sent++;
@@ -162,7 +148,7 @@ async function sendPushToAudience(push: typeof pushNotificationsTable.$inferSele
         delivered++;
       } catch (err: any) {
         if (err.statusCode === 410 || err.statusCode === 404) {
-          await db.delete(deviceTokensTable).where(eq(deviceTokensTable.id, sub.id));
+          await notificationsService.deleteDeviceToken(sub.id);
         }
       }
     }

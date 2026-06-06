@@ -6,8 +6,7 @@
  * POST /api/analytics/refresh — recalculate today's analytics_daily row
  */
 import { Router, type IRouter } from "express";
-import { db, ridesTable, usersTable, transactionsTable, clientsTable, analyticsDailyTable } from "@workspace/db";
-import { eq, gte, lte, and, desc, sql } from "drizzle-orm";
+import * as analyticsService from "../lib/services/analytics.service.js";
 import { validateBody } from "../middlewares/validate.js";
 import { z } from "zod";
 
@@ -36,14 +35,10 @@ router.get("/summary", async (req, res) => {
       drivers,
       commissionRows,
     ] = await Promise.all([
-      db.select({ status: ridesTable.status, price: ridesTable.price }).from(ridesTable),
-      db.select({ status: ridesTable.status, price: ridesTable.price })
-        .from(ridesTable)
-        .where(and(gte(ridesTable.createdAt, start), lte(ridesTable.createdAt, end))),
-      db.select({ status: usersTable.status }).from(usersTable).where(eq(usersTable.role, "driver")),
-      db.select({ amount: sql<string>`sum(amount)` })
-        .from(transactionsTable)
-        .where(and(eq(transactionsTable.type, "commission"), gte(transactionsTable.createdAt, start))),
+      analyticsService.getAllRidesStatusPrice(),
+      analyticsService.getRidesStatusPriceBetween(start, end),
+      analyticsService.getDriverStatuses(),
+      analyticsService.getCommissionSumSince(start),
     ]);
 
     const revenueToday = todayRides
@@ -62,14 +57,11 @@ router.get("/summary", async (req, res) => {
       ? Math.round(allCompleted.reduce((s, r) => s + (r.price || 0), 0) / allCompleted.length)
       : 0;
 
-    const [totalCommission] = await db.select({ total: sql<string>`coalesce(sum(amount), 0)` })
-      .from(transactionsTable).where(eq(transactionsTable.type, "commission"));
+    const totalCommission = await analyticsService.getTransactionTotalByType("commission");
 
-    const [totalBonuses] = await db.select({ total: sql<string>`coalesce(sum(amount), 0)` })
-      .from(transactionsTable).where(eq(transactionsTable.type, "bonus"));
+    const totalBonuses = await analyticsService.getTransactionTotalByType("bonus");
 
-    const [totalPenalties] = await db.select({ total: sql<string>`coalesce(sum(amount), 0)` })
-      .from(transactionsTable).where(eq(transactionsTable.type, "penalty"));
+    const totalPenalties = await analyticsService.getTransactionTotalByType("penalty");
 
     res.json({
       totalOrdersToday: todayRides.length,
@@ -108,11 +100,7 @@ router.get("/daily", async (req, res) => {
     const since = new Date(); since.setDate(since.getDate() - days);
 
     // Try pre-aggregated first, fall back to live query for today
-    const preAgg = await db
-      .select()
-      .from(analyticsDailyTable)
-      .where(gte(analyticsDailyTable.date, since.toISOString().slice(0, 10)))
-      .orderBy(desc(analyticsDailyTable.date));
+    const preAgg = await analyticsService.getDailySince(since.toISOString().slice(0, 10));
 
     res.json({ days: preAgg, total: preAgg.length });
   } catch (err) {
@@ -132,14 +120,9 @@ router.post("/refresh", validateBody(refreshBodySchema), async (req, res) => {
     const { start, end } = dayBounds(new Date());
 
     const [todayRides, commRow, clientRow] = await Promise.all([
-      db.select().from(ridesTable)
-        .where(and(gte(ridesTable.createdAt, start), lte(ridesTable.createdAt, end))),
-      db.select({ total: sql<string>`coalesce(sum(amount),0)` })
-        .from(transactionsTable)
-        .where(and(eq(transactionsTable.type, "commission"), gte(transactionsTable.createdAt, start))),
-      db.select({ count: sql<number>`count(*)` })
-        .from(clientsTable)
-        .where(and(gte(clientsTable.createdAt, start), lte(clientsTable.createdAt, end))),
+      analyticsService.getRidesBetween(start, end),
+      analyticsService.getCommissionTotalSince(start),
+      analyticsService.getNewClientsCountBetween(start, end),
     ]);
 
     const completed  = todayRides.filter(r => r.status === "completed");
@@ -148,9 +131,7 @@ router.post("/refresh", validateBody(refreshBodySchema), async (req, res) => {
     const commission = parseFloat(commRow[0]?.total || "0");
     const avgPrice   = completed.length ? revenue / completed.length : 0;
 
-    const activeDrivers = (await db.select({ count: sql<number>`count(*)` })
-      .from(usersTable)
-      .where(and(eq(usersTable.role, "driver"))))[0].count;
+    const activeDrivers = await analyticsService.getActiveDriversCount();
 
     const row = {
       date: today,
@@ -164,10 +145,7 @@ router.post("/refresh", validateBody(refreshBodySchema), async (req, res) => {
       newClients: Number(clientRow[0]?.count || 0),
     };
 
-    await db
-      .insert(analyticsDailyTable)
-      .values(row)
-      .onConflictDoUpdate({ target: analyticsDailyTable.date, set: row });
+    await analyticsService.upsertDaily(row);
 
     res.json(row);
   } catch (err) {
