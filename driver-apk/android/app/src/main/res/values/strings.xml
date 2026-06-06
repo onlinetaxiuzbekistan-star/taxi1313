@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">BuxTaxi Водитель</string>
+    <string name="title_activity_main">BuxTaxi Водитель</string>
+    <string name="package_name">com.buxtaxi.driver</string>
+    <string name="custom_url_scheme">com.buxtaxi.driver</string>
+</resources>

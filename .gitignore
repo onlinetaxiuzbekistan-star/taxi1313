@@ -1,0 +1,93 @@
+# See https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files for more about ignoring files.
+
+# ───────────────────────────── SECRETS — NEVER COMMIT ─────────────────────────────
+.env
+.env.*
+*.env
+.replit
+# APK / Android signing keys
+*.keystore
+*.jks
+*.p12
+*.pfx
+*.pem
+*.key
+artifacts/api-server/android-twa/keystore/
+
+# ───────────────────────────── Backups / editing debris ─────────────────────────────
+*.bak
+*.bak.*
+*.bak2.*
+*.orig
+*.taxi-backup
+backups/
+exports/
+
+# ───────────────────────────── Build output ─────────────────────────────
+dist
+build
+tmp
+out-tsc
+*.tsbuildinfo
+.expo
+.expo-shared
+
+# ───────────────────────────── Dependencies ─────────────────────────────
+node_modules
+
+# ───────────────────────────── Android / Gradle build caches ─────────────────────────────
+.gradle/
+.android/
+**/android/.gradle/
+**/android/app/build/
+**/android/build/
+*.apk
+*.aab
+build-server/
+
+# ───────────────────────────── Large / generated assets ─────────────────────────────
+# Tesseract OCR trained data (large, downloadable)
+*.traineddata
+# User-uploaded content (private data, not source)
+artifacts/uploads/
+
+# ───────────────────────────── Logs ─────────────────────────────
+*.log
+npm-debug.log
+yarn-error.log
+testem.log
+logs/
+
+# ───────────────────────────── IDEs and editors ─────────────────────────────
+/.idea
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.cursor/rules/nx-rules.mdc
+.github/instructions/nx.instructions.md
+
+# ───────────────────────────── Misc ─────────────────────────────
+/.sass-cache
+/connect.lock
+/coverage
+/libpeerconnection.log
+/typings
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Replit
+.cache/
+.local/
+.config/
+.canvas/
+.agents/

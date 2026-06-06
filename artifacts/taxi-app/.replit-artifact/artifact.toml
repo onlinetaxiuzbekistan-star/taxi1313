@@ -1,0 +1,22 @@
+kind = "web"
+previewPath = "/"
+title = "BuxTaxi — Межгородское такси"
+version = "1.0.0"
+id = "artifacts/taxi-app"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 23292
+
+[services.development]
+run = "pnpm --filter @workspace/taxi-app run dev"
+
+[services.env]
+PORT = "23292"
+BASE_PATH = "/"

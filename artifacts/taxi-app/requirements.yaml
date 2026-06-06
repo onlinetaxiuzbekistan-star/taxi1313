@@ -1,0 +1,20 @@
+packages:
+  "framer-motion": "Animations and smooth page transitions"
+  "lucide-react": "Beautiful vector icons"
+  "date-fns": "Date manipulation and formatting"
+  "clsx": "Utility for constructing className strings conditionally"
+  "tailwind-merge": "Utility to cleanly merge Tailwind classes"
+  "react-hook-form": "Performant, flexible and extensible forms"
+  "@hookform/resolvers": "Zod schema resolver for react-hook-form"
+
+images:
+  - path: "artifacts/taxi-app/public/images/hero-bg.png"
+    description: "Cinematic, luxury dark navy background with abstract glowing warm amber light streaks, subtle bokeh, premium elegant aesthetic, 8k resolution"
+    aspect_ratio: "16:9"
+  - path: "artifacts/taxi-app/public/images/logo-icon.png"
+    description: "Minimalist modern geometric icon of a taxi in bright amber gold and deep dark navy blue on a transparent background"
+    aspect_ratio: "1:1"
+
+notes:
+  - We assume standard websocket at window.location.host + /ws
+  - We implement custom auth bearer token injection via interceptor-like wrapper around hooks

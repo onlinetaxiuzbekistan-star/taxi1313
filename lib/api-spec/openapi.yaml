@@ -1,0 +1,946 @@
+openapi: 3.1.0
+info:
+  title: Api
+  version: 0.1.0
+  description: BuxTaxi API — межгородское такси
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: auth
+    description: Authentication
+  - name: rides
+    description: Ride booking and management
+  - name: drivers
+    description: Driver operations
+  - name: dispatcher
+    description: Dispatcher dashboard
+  - name: chat
+    description: In-ride chat messages
+  - name: tariffs
+    description: Tariff management
+
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /auth/register:
+    post:
+      operationId: registerUser
+      tags: [auth]
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "201":
+          description: Registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/login:
+    post:
+      operationId: loginUser
+      tags: [auth]
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current user
+      responses:
+        "200":
+          description: Current user info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /auth/logout:
+    post:
+      operationId: logoutUser
+      tags: [auth]
+      summary: Logout
+      responses:
+        "200":
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /rides:
+    get:
+      operationId: getRides
+      tags: [rides]
+      summary: Get rides list
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, accepted, in_progress, completed, cancelled]
+        - name: limit
+          in: query
+          schema:
+            type: number
+        - name: offset
+          in: query
+          schema:
+            type: number
+      responses:
+        "200":
+          description: Rides list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RidesListResponse"
+
+    post:
+      operationId: createRide
+      tags: [rides]
+      summary: Create a ride booking
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRideRequest"
+      responses:
+        "201":
+          description: Ride created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ride"
+
+  /rides/price-estimate:
+    post:
+      operationId: estimateRidePrice
+      tags: [rides]
+      summary: Estimate ride price
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PriceEstimateRequest"
+      responses:
+        "200":
+          description: Price estimate
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PriceEstimateResponse"
+
+  /rides/{id}:
+    get:
+      operationId: getRide
+      tags: [rides]
+      summary: Get ride by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        "200":
+          description: Ride details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ride"
+
+    patch:
+      operationId: updateRide
+      tags: [rides]
+      summary: Update ride status
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRideRequest"
+      responses:
+        "200":
+          description: Ride updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ride"
+
+  /rides/{id}/cancel:
+    post:
+      operationId: cancelRide
+      tags: [rides]
+      summary: Cancel a ride
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        "200":
+          description: Ride cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ride"
+
+  /rides/{id}/messages:
+    get:
+      operationId: getRideMessages
+      tags: [chat]
+      summary: Get chat messages for a ride
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        "200":
+          description: Messages
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessagesListResponse"
+
+    post:
+      operationId: sendRideMessage
+      tags: [chat]
+      summary: Send a chat message
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendMessageRequest"
+      responses:
+        "201":
+          description: Message sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatMessage"
+
+  /drivers:
+    get:
+      operationId: getDrivers
+      tags: [drivers]
+      summary: Get drivers list
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [offline, online, busy]
+      responses:
+        "200":
+          description: Drivers list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DriversListResponse"
+
+  /drivers/available-rides:
+    get:
+      operationId: getAvailableRides
+      tags: [drivers]
+      summary: Get available rides for a driver
+      responses:
+        "200":
+          description: Available rides
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RidesListResponse"
+
+  /drivers/my-rides:
+    get:
+      operationId: getDriverRides
+      tags: [drivers]
+      summary: Get rides for the current driver
+      responses:
+        "200":
+          description: Driver rides
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RidesListResponse"
+
+  /drivers/earnings:
+    get:
+      operationId: getDriverEarnings
+      tags: [drivers]
+      summary: Get driver earnings summary
+      responses:
+        "200":
+          description: Earnings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EarningsResponse"
+
+  /drivers/status:
+    patch:
+      operationId: updateDriverStatus
+      tags: [drivers]
+      summary: Update driver online status
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateDriverStatusRequest"
+      responses:
+        "200":
+          description: Status updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /drivers/location:
+    patch:
+      operationId: updateDriverLocation
+      tags: [drivers]
+      summary: Update driver GPS location
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateLocationRequest"
+      responses:
+        "200":
+          description: Location updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /drivers/{id}/accept-ride/{rideId}:
+    post:
+      operationId: acceptRide
+      tags: [drivers]
+      summary: Driver accepts a ride
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+        - name: rideId
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        "200":
+          description: Ride accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ride"
+
+  /dispatcher/stats:
+    get:
+      operationId: getDispatcherStats
+      tags: [dispatcher]
+      summary: Get dispatcher dashboard stats
+      responses:
+        "200":
+          description: Dashboard statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DispatcherStats"
+
+  /dispatcher/assign:
+    post:
+      operationId: assignDriverToRide
+      tags: [dispatcher]
+      summary: Manually assign driver to ride
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssignDriverRequest"
+      responses:
+        "200":
+          description: Driver assigned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ride"
+
+  /tariffs:
+    get:
+      operationId: getTariffs
+      tags: [tariffs]
+      summary: Get all tariffs
+      responses:
+        "200":
+          description: Tariffs list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TariffsListResponse"
+
+  /cities:
+    get:
+      operationId: getCities
+      tags: [rides]
+      summary: Get supported cities
+      responses:
+        "200":
+          description: Cities list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CitiesListResponse"
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+      required:
+        - error
+
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+      required:
+        - success
+
+    RegisterRequest:
+      type: object
+      properties:
+        phone:
+          type: string
+        name:
+          type: string
+        password:
+          type: string
+        role:
+          type: string
+          enum: [rider, driver, dispatcher]
+        carModel:
+          type: string
+        carNumber:
+          type: string
+        carClass:
+          type: string
+          enum: [economy, comfort, business]
+      required:
+        - phone
+        - name
+        - password
+        - role
+
+    LoginRequest:
+      type: object
+      properties:
+        phone:
+          type: string
+        password:
+          type: string
+      required:
+        - phone
+        - password
+
+    AuthResponse:
+      type: object
+      properties:
+        user:
+          $ref: "#/components/schemas/User"
+        token:
+          type: string
+      required:
+        - user
+        - token
+
+    User:
+      type: object
+      properties:
+        id:
+          type: number
+        phone:
+          type: string
+        name:
+          type: string
+        role:
+          type: string
+          enum: [rider, driver, dispatcher]
+        status:
+          type: string
+        carModel:
+          type: string
+        carNumber:
+          type: string
+        carClass:
+          type: string
+        lat:
+          type: number
+        lng:
+          type: number
+        rating:
+          type: number
+        totalRides:
+          type: number
+        createdAt:
+          type: string
+      required:
+        - id
+        - phone
+        - name
+        - role
+
+    Ride:
+      type: object
+      properties:
+        id:
+          type: number
+        riderId:
+          type: number
+        driverId:
+          type: number
+        fromCity:
+          type: string
+        toCity:
+          type: string
+        fromAddress:
+          type: string
+        toAddress:
+          type: string
+        scheduledAt:
+          type: string
+        passengers:
+          type: number
+        carClass:
+          type: string
+          enum: [economy, comfort, business]
+        status:
+          type: string
+          enum: [pending, accepted, in_progress, completed, cancelled]
+        price:
+          type: number
+        distance:
+          type: number
+        duration:
+          type: number
+        riderName:
+          type: string
+        riderPhone:
+          type: string
+        driverName:
+          type: string
+        driverPhone:
+          type: string
+        driverCar:
+          type: string
+        driverCarNumber:
+          type: string
+        driverRating:
+          type: number
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - fromCity
+        - toCity
+        - status
+        - price
+        - passengers
+        - carClass
+        - createdAt
+
+    RidesListResponse:
+      type: object
+      properties:
+        rides:
+          type: array
+          items:
+            $ref: "#/components/schemas/Ride"
+        total:
+          type: number
+      required:
+        - rides
+        - total
+
+    CreateRideRequest:
+      type: object
+      properties:
+        fromCity:
+          type: string
+        toCity:
+          type: string
+        fromAddress:
+          type: string
+        toAddress:
+          type: string
+        scheduledAt:
+          type: string
+        passengers:
+          type: number
+        carClass:
+          type: string
+          enum: [economy, comfort, business]
+        riderName:
+          type: string
+        riderPhone:
+          type: string
+        distance:
+          type: number
+        duration:
+          type: number
+        price:
+          type: number
+      required:
+        - fromCity
+        - toCity
+        - scheduledAt
+        - passengers
+        - carClass
+
+    UpdateRideRequest:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [pending, accepted, in_progress, completed, cancelled]
+        driverId:
+          type: number
+
+    PriceEstimateRequest:
+      type: object
+      properties:
+        fromCity:
+          type: string
+        toCity:
+          type: string
+        passengers:
+          type: number
+        carClass:
+          type: string
+          enum: [economy, comfort, business]
+        distance:
+          type: number
+      required:
+        - fromCity
+        - toCity
+        - passengers
+        - carClass
+
+    PriceEstimateResponse:
+      type: object
+      properties:
+        price:
+          type: number
+        distance:
+          type: number
+        duration:
+          type: number
+        breakdown:
+          type: object
+          properties:
+            baseRate:
+              type: number
+            perKmRate:
+              type: number
+            intercityFee:
+              type: number
+            passengerFee:
+              type: number
+            classFee:
+              type: number
+          required:
+            - baseRate
+            - perKmRate
+            - intercityFee
+            - passengerFee
+            - classFee
+      required:
+        - price
+        - distance
+        - duration
+        - breakdown
+
+    UpdateDriverStatusRequest:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [offline, online, busy]
+      required:
+        - status
+
+    UpdateLocationRequest:
+      type: object
+      properties:
+        lat:
+          type: number
+        lng:
+          type: number
+      required:
+        - lat
+        - lng
+
+    DriversListResponse:
+      type: object
+      properties:
+        drivers:
+          type: array
+          items:
+            $ref: "#/components/schemas/User"
+        total:
+          type: number
+      required:
+        - drivers
+        - total
+
+    EarningsResponse:
+      type: object
+      properties:
+        today:
+          type: number
+        thisWeek:
+          type: number
+        thisMonth:
+          type: number
+        totalRides:
+          type: number
+        completedRides:
+          type: number
+      required:
+        - today
+        - thisWeek
+        - thisMonth
+        - totalRides
+        - completedRides
+
+    DispatcherStats:
+      type: object
+      properties:
+        totalRidesToday:
+          type: number
+        activeRides:
+          type: number
+        pendingRides:
+          type: number
+        completedRidesToday:
+          type: number
+        revenueToday:
+          type: number
+        driversOnline:
+          type: number
+        totalDrivers:
+          type: number
+        driversWithRide:
+          type: number
+        rides:
+          type: array
+          items:
+            $ref: "#/components/schemas/Ride"
+        drivers:
+          type: array
+          items:
+            $ref: "#/components/schemas/User"
+      required:
+        - totalRidesToday
+        - activeRides
+        - pendingRides
+        - completedRidesToday
+        - revenueToday
+        - driversOnline
+        - totalDrivers
+        - driversWithRide
+        - rides
+        - drivers
+
+    AssignDriverRequest:
+      type: object
+      properties:
+        rideId:
+          type: number
+        driverId:
+          type: number
+      required:
+        - rideId
+        - driverId
+
+    Tariff:
+      type: object
+      properties:
+        id:
+          type: number
+        carClass:
+          type: string
+          enum: [economy, comfort, business]
+        baseRate:
+          type: number
+        perKmRate:
+          type: number
+        intercityFee:
+          type: number
+        minPrice:
+          type: number
+      required:
+        - id
+        - carClass
+        - baseRate
+        - perKmRate
+        - intercityFee
+        - minPrice
+
+    TariffsListResponse:
+      type: object
+      properties:
+        tariffs:
+          type: array
+          items:
+            $ref: "#/components/schemas/Tariff"
+      required:
+        - tariffs
+
+    City:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        nameRu:
+          type: string
+        lat:
+          type: number
+        lng:
+          type: number
+      required:
+        - id
+        - name
+        - nameRu
+        - lat
+        - lng
+
+    CitiesListResponse:
+      type: object
+      properties:
+        cities:
+          type: array
+          items:
+            $ref: "#/components/schemas/City"
+      required:
+        - cities
+
+    ChatMessage:
+      type: object
+      properties:
+        id:
+          type: number
+        rideId:
+          type: number
+        senderId:
+          type: number
+        senderRole:
+          type: string
+          enum: [rider, driver]
+        message:
+          type: string
+        createdAt:
+          type: string
+      required:
+        - id
+        - rideId
+        - senderId
+        - senderRole
+        - message
+        - createdAt
+
+    MessagesListResponse:
+      type: object
+      properties:
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChatMessage"
+      required:
+        - messages

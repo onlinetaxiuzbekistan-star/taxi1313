@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html translate="no" lang="ru" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="google" content="notranslate" />
+    <script>
+(function(){
+  function SafeMessageChannel(){
+    var h1={},h2={};
+    function pm(t){return function(m){setTimeout(function(){var e={data:m};if(t.message)t.message.forEach(function(f){f(e)})},0)}}
+    this.port1={postMessage:pm(h2),addEventListener:function(t,f){if(!h2[t])h2[t]=[];h2[t].push(f)},removeEventListener:function(t,f){if(h2[t])h2[t]=h2[t].filter(function(x){return x!==f})},onmessage:null,close:function(){},start:function(){}};
+    this.port2={postMessage:pm(h1),addEventListener:function(t,f){if(!h1[t])h1[t]=[];h1[t].push(f)},removeEventListener:function(t,f){if(h1[t])h1[t]=h1[t].filter(function(x){return x!==f})},onmessage:null,close:function(){},start:function(){}};
+  }
+  if(typeof window!=="undefined"){
+    try{new window.MessageChannel()}catch(e){window.MessageChannel=SafeMessageChannel;console.warn("[poly] MessageChannel replaced")}
+    try{new window.BroadcastChannel("t")}catch(e){window.BroadcastChannel=function(n){this.name=n;this.postMessage=function(){};this.close=function(){};this.addEventListener=function(){};this.removeEventListener=function(){}};console.warn("[poly] BroadcastChannel replaced")}
+    try{if(typeof window.PerformanceObserver==="undefined")throw 1;new window.PerformanceObserver(function(){})}catch(e){window.PerformanceObserver=function(){this.observe=function(){};this.disconnect=function(){};this.takeRecords=function(){return[]}}}
+    try{if(typeof window.ResizeObserver==="undefined")throw 1;new window.ResizeObserver(function(){})}catch(e){window.ResizeObserver=function(){this.observe=function(){};this.unobserve=function(){};this.disconnect=function(){}}}
+    var danger=["RTCPeerConnection","AudioContext","webkitAudioContext","Notification","MediaRecorder"];
+    for(var i=0;i<danger.length;i++){var a=danger[i];if(typeof window[a]!=="undefined"){try{new window[a]()}catch(e){if(e.message&&e.message.indexOf("Illegal")>-1){window[a]=undefined;console.warn("[poly] "+a+" disabled")}}}}
+  }
+})();
+</script>
+    <meta name="build-time" content="1777812866" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+    <title>Такси 1313 — Межгород</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#F59E0B" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="1313 Водитель" />
+    <meta name="format-detection" content="telephone=no" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-180.png" />
+    <link rel="apple-touch-icon" sizes="167x167" href="/images/apple-touch-icon-167.png" />
+    <link rel="apple-touch-icon" sizes="152x152" href="/images/apple-touch-icon-152.png" />
+    <link rel="apple-touch-icon" sizes="120x120" href="/images/apple-touch-icon-120.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+      #_splash{position:fixed;inset:0;background:#09090b;display:flex;align-items:center;justify-content:center;z-index:99999;font-family:Inter,sans-serif}
+      #_splash.hide{opacity:0;pointer-events:none;transition:opacity .3s}
+      #_splash .logo{font-size:28px;font-weight:700;color:#F59E0B;letter-spacing:-0.5px}
+      #_splash .dot{display:flex;gap:6px;margin-top:20px;justify-content:center}
+      #_splash .dot span{width:8px;height:8px;border-radius:50%;background:#F59E0B;opacity:.3;animation:pulse 1.2s ease-in-out infinite}
+      #_splash .dot span:nth-child(2){animation-delay:.2s}
+      #_splash .dot span:nth-child(3){animation-delay:.4s}
+      @keyframes pulse{0%,100%{opacity:.3;transform:scale(.8)}50%{opacity:1;transform:scale(1)}}
+    </style>
+  <script>
+if (location.search.indexOf("debug=1") >= 0 || localStorage.getItem("erudaOn") === "1") {
+  localStorage.setItem("erudaOn","1");
+  var es = document.createElement("script");
+  es.src = "https://cdn.jsdelivr.net/npm/eruda";
+  es.onload = function(){ try { window.eruda && window.eruda.init(); console.log("[eruda] ready"); } catch(e){} };
+  document.head.appendChild(es);
+}
+</script>
+    <script type="module" crossorigin src="/assets/index-CfR4mnz8.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-93ZFB3NB.css">
+  </head>
+  <body class="notranslate">
+    <div id="_splash"><div style="text-align:center"><div class="logo">Такси 1313</div><div class="dot"><span></span><span></span><span></span></div></div></div>
+    <script>
+      (function(){try{var s=localStorage.getItem('buxtaxi_settings');var t='dark';if(s){var p=JSON.parse(s);if(p.theme==='light')t='light';else if(p.theme==='auto'&&window.matchMedia('(prefers-color-scheme:light)').matches)t='light'}else{var l=localStorage.getItem('buxtaxi_theme');if(l==='light')t='light';else if(l==='auto'&&window.matchMedia('(prefers-color-scheme:light)').matches)t='light'}document.documentElement.setAttribute('data-theme',t);document.documentElement.classList.toggle('dark',t==='dark');document.documentElement.classList.toggle('light',t==='light');if(t==='light'){var sp=document.getElementById('_splash');if(sp)sp.style.background='#fff';var lg=sp&&sp.querySelector('.logo');if(lg)lg.style.color='#d97706'}}catch(e){}})();
+    </script>
+    <div id="root"></div>
+    <script>
+(function(){
+  if(window.__chunkGuardInstalled)return;window.__chunkGuardInstalled=true;
+  function recover(reason){
+    var KEY="buxtaxi_html_reload_at";
+    try{
+      var last=parseInt(sessionStorage.getItem(KEY)||"0",10);
+      if(Date.now()-last<60000){console.warn("[chunkGuard] suppressed (throttle):",reason);return;}
+      sessionStorage.setItem(KEY,String(Date.now()));
+    }catch(e){}
+    console.warn("[chunkGuard] recovering, reason:",reason);
+    var done=false;function go(){if(done)return;done=true;location.reload();}
+    setTimeout(go,3000);
+    Promise.resolve().then(function(){
+      try{localStorage.removeItem("buxtaxi_offline_queue")}catch(e){}
+      try{localStorage.removeItem("buxtaxi_offline_applied")}catch(e){}
+    }).then(function(){
+      if("serviceWorker" in navigator){
+        return navigator.serviceWorker.getRegistrations().then(function(rs){return Promise.all(rs.map(function(r){return r.unregister().catch(function(){})}))});
+      }
+    }).then(function(){
+      if("caches" in window){
+        return caches.keys().then(function(ks){return Promise.all(ks.map(function(k){return caches.delete(k).catch(function(){})}))});
+      }
+    }).catch(function(){}).then(go);
+  }
+  // Catch <script src=...> 404 / network errors (capture phase — error events don't bubble)
+  window.addEventListener("error",function(ev){
+    var t=ev&&ev.target;
+    if(!t||t===window)return;
+    if(t.tagName==="SCRIPT"&&t.src){
+      console.warn("[chunkGuard] script failed:",t.src);
+      recover("script-error:"+t.src);
+    }else if(t.tagName==="LINK"&&t.rel==="stylesheet"&&t.href){
+      console.warn("[chunkGuard] stylesheet failed:",t.href);
+      recover("css-error:"+t.href);
+    }
+  },true);
+  // Catch dynamic-import promise rejections (Vite lazy chunks)
+  window.addEventListener("unhandledrejection",function(ev){
+    var m=String(ev&&ev.reason&&(ev.reason.message||ev.reason)||"");
+    if(/Failed to fetch dynamically imported module/i.test(m)||/Importing a module script failed/i.test(m)||/Loading chunk/i.test(m)){
+      recover("dynamic-import:"+m);
+    }
+  });
+})();
+</script>
+    <script>
+      setTimeout(function(){var sp=document.getElementById('_splash');if(sp&&!sp.classList.contains('hide')){sp.innerHTML='<div style="text-align:center;color:#fff;font-family:sans-serif"><div style="font-size:48px;margin-bottom:16px">⚠</div><h2 style="font-size:18px;margin:0 0 8px">Ошибка загрузки</h2><p style="color:#71717a;font-size:14px;margin:0 0 20px">Приложение не удалось загрузить</p><button onclick="try{localStorage.clear()}catch(e){};if(navigator.serviceWorker){navigator.serviceWorker.getRegistrations().then(function(r){return Promise.all(r.map(function(x){return x.unregister()}))}).catch(function(){}).then(function(){return caches.keys()}).then(function(k){return Promise.all(k.map(function(n){return caches.delete(n)}))}).catch(function(){}).then(function(){location.reload()})}else{caches.keys().then(function(k){return Promise.all(k.map(function(n){return caches.delete(n)}))}).catch(function(){}).then(function(){location.reload()})}" style="background:#F59E0B;color:#09090b;border:none;padding:14px 40px;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer">Очистить и перезагрузить</button></div>'}},60000);
+    </script>
+  </body>
+</html>

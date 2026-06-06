@@ -1,0 +1,376 @@
+const http = require('http');
+const dgram = require('dgram');
+const { WebSocketServer } = require('ws');
+
+const SIP_HOST = process.env.SIP_HOST || '217.30.169.139';
+const SIP_PORT = 5060;
+const WS_PORT = 5065;
+const LOCAL_SIP_PORT = 5066;
+const LOCAL_IP = process.env.LOCAL_IP || '62.113.58.155';
+const RTP_PORT = 20000;
+const RTP_PROXY_API = 'http://127.0.0.1:5067';
+
+const server = http.createServer((req, res) => {
+  res.writeHead(200);
+  res.end('SIP WS Proxy OK (UDP v5 - SDP rewrite)');
+});
+
+const wss = new WebSocketServer({ server, handleProtocols: () => 'sip' });
+
+let activeWs = null;
+const udpSocket = dgram.createSocket('udp4');
+
+const waitingCallers = new Map();
+const activeCallIds = new Set();
+let currentOutgoingCallId = null;
+let currentOutgoingCSeq = 0;
+let callEnded = false;
+
+udpSocket.bind(LOCAL_SIP_PORT, '0.0.0.0', () => {
+  console.log('[SIP-WS-PROXY] UDP socket bound to port', LOCAL_SIP_PORT);
+});
+
+function extractCallerFromInvite(text) {
+  const fromMatch = text.match(/From:\s*.*?sip:([^@>]+)/i);
+  return fromMatch ? fromMatch[1] : null;
+}
+
+function extractCallId(text) {
+  const m = text.match(/Call-ID:\s*(.+)/i);
+  return m ? m[1].trim() : null;
+}
+
+function sendWaitingList() {
+  if (!activeWs || activeWs.readyState !== 1) return;
+  const list = [];
+  for (const [callId, info] of waitingCallers) {
+    list.push({ callId, number: info.number, since: info.since });
+  }
+  const msg = JSON.stringify({ type: 'waiting_calls', calls: list });
+  activeWs.send('__JSON__' + msg);
+}
+
+function extractRtpEndpoint(sdp) {
+  const ipMatch = sdp.match(/c=IN IP4 (\S+)/);
+  const portMatch = sdp.match(/m=audio (\d+)/);
+  if (ipMatch && portMatch) {
+    let ip = ipMatch[1];
+    // Подменяем LAN-адреса FreeSWITCH (за NAT) на публичный SIP_HOST
+    if (/^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[01])\.|127\.)/.test(ip)) {
+      const publicIp = process.env.SIP_HOST || SIP_HOST;
+      console.log('[PROXY] LAN→public RTP IP rewrite:', ip, '=>', publicIp);
+      ip = publicIp;
+    }
+    return { ip, port: parseInt(portMatch[1]) };
+  }
+  return null;
+}
+
+function notifyRtpProxy(fsIp, fsPort) {
+  const data = JSON.stringify({ fsIp, fsPort });
+  const url = new URL('/set-endpoint', RTP_PROXY_API);
+  const req = http.request({
+    hostname: '127.0.0.1',
+    port: 5067,
+    path: '/set-endpoint',
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Content-Length': data.length }
+  }, (res) => {
+    console.log('[PROXY] RTP proxy notified:', fsIp + ':' + fsPort, 'status:', res.statusCode);
+  });
+  req.on('error', (e) => console.error('[PROXY] RTP proxy notify error:', e.message));
+  req.write(data);
+  req.end();
+}
+
+function rewriteBrowserSdp(sipMsg) {
+  const sdpStart = sipMsg.indexOf('\r\n\r\n');
+  if (sdpStart < 0) return sipMsg;
+
+  const headers = sipMsg.substring(0, sdpStart);
+  const body = sipMsg.substring(sdpStart + 4);
+
+  if (!headers.toLowerCase().includes('content-type: application/sdp')) return sipMsg;
+  if (!body.trim()) return sipMsg;
+
+  console.log('[PROXY] Rewriting browser SDP to plain RTP on', LOCAL_IP + ':' + RTP_PORT);
+
+  const newSdp = 'v=0\r\n' +
+    'o=BuxTaxi 1 1 IN IP4 ' + LOCAL_IP + '\r\n' +
+    's=BuxTaxi\r\n' +
+    'c=IN IP4 ' + LOCAL_IP + '\r\n' +
+    't=0 0\r\n' +
+    'm=audio ' + RTP_PORT + ' RTP/AVP 8 0 101\r\n' +
+    'a=rtpmap:8 PCMA/8000\r\n' +
+    'a=rtpmap:0 PCMU/8000\r\n' +
+    'a=rtpmap:101 telephone-event/8000\r\n' +
+    'a=fmtp:101 0-16\r\n' +
+    'a=sendrecv\r\n' +
+    'a=ptime:20\r\n';
+
+  const sdpBytes = Buffer.byteLength(newSdp);
+  let newHeaders = headers.replace(/Content-Length:\s*\d+/i, 'Content-Length: ' + sdpBytes);
+  if (!newHeaders.toLowerCase().includes('content-type:')) {
+    newHeaders += '\r\nContent-Type: application/sdp';
+  }
+
+  return newHeaders + '\r\n\r\n' + newSdp;
+}
+
+function genBranch() {
+  return 'z9hG4bK-proxy-' + Math.random().toString(36).substring(2, 10);
+}
+
+function sendAckForResponse(text, rinfo) {
+  const callId = extractCallId(text) || '';
+  const fromMatch = text.match(/From:\s*(.+)/i);
+  const toMatch = text.match(/To:\s*(.+)/i);
+  const cseqMatch = text.match(/CSeq:\s*(\d+)/i);
+  const ack = 'ACK sip:' + SIP_HOST + ' SIP/2.0\r\n' +
+    'Via: SIP/2.0/UDP ' + LOCAL_IP + ':' + LOCAL_SIP_PORT + ';branch=' + genBranch() + '\r\n' +
+    'From: ' + (fromMatch ? fromMatch[1].trim() : '') + '\r\n' +
+    'To: ' + (toMatch ? toMatch[1].trim() : '') + '\r\n' +
+    'Call-ID: ' + callId + '\r\n' +
+    'CSeq: ' + (cseqMatch ? cseqMatch[1] : '1') + ' ACK\r\n' +
+    'Max-Forwards: 70\r\n' +
+    'Content-Length: 0\r\n\r\n';
+  udpSocket.send(Buffer.from(ack), SIP_PORT, SIP_HOST);
+}
+
+udpSocket.on('message', (msg, rinfo) => {
+  const text = msg.toString();
+  const firstLine = text.split('\r\n')[0];
+
+  if (text.startsWith('SIP/2.0 500') && text.match(/CSeq:\s*\d+\s+INVITE/i)) {
+    sendAckForResponse(text, rinfo);
+    return;
+  }
+
+  if (callEnded && text.startsWith('SIP/2.0') && text.match(/CSeq:\s*\d+\s+INVITE/i)) {
+    const code = firstLine.split(' ')[1] || '?';
+    console.log('[PROXY] Dropping post-BYE INVITE response:', code);
+    if (parseInt(code) >= 300) {
+      sendAckForResponse(text, rinfo);
+    }
+    return;
+  }
+
+  if (text.startsWith('SIP/2.0') && text.match(/CSeq:\s*\d+\s+INVITE/i)) {
+    const respCallId = extractCallId(text);
+    const respCseqMatch = text.match(/CSeq:\s*(\d+)/i);
+    const respCseq = respCseqMatch ? parseInt(respCseqMatch[1]) : 0;
+    if (currentOutgoingCallId && respCallId === currentOutgoingCallId && respCseq < currentOutgoingCSeq) {
+      const code = firstLine.split(' ')[1] || '?';
+      console.log('[PROXY] Dropping stale response', code, 'CSeq:', respCseq, '<', currentOutgoingCSeq);
+      if (parseInt(code) >= 300) {
+        sendAckForResponse(text, rinfo);
+      }
+      return;
+    }
+  }
+
+  console.log('[PROXY] FS->WS (UDP):', firstLine);
+
+  if (text.startsWith('INVITE')) {
+    const caller = extractCallerFromInvite(text);
+    const callId = extractCallId(text);
+    console.log('[PROXY] === INVITE from', caller, 'call-id:', callId, '===');
+
+    const sdpBody = text.substring(text.indexOf('\r\n\r\n') + 4);
+    if (sdpBody.trim()) {
+      console.log('[PROXY] FS INVITE SDP:\n' + sdpBody);
+    }
+
+    const endpoint = extractRtpEndpoint(text);
+    if (endpoint) {
+      console.log('[PROXY] FreeSWITCH RTP endpoint:', endpoint.ip + ':' + endpoint.port);
+      notifyRtpProxy(endpoint.ip, endpoint.port);
+    }
+
+    if (caller && callId) {
+      for (const [existingCallId, info] of waitingCallers) {
+        if (info.number === caller) {
+          waitingCallers.delete(existingCallId);
+        }
+      }
+    }
+  }
+
+  if ((text.startsWith('SIP/2.0 200') || text.startsWith('SIP/2.0 183')) && text.match(/CSeq:\s*\d+\s+INVITE/i)) {
+    const endpoint = extractRtpEndpoint(text);
+    if (endpoint) {
+      const code = text.startsWith('SIP/2.0 183') ? '183' : '200';
+      console.log('[PROXY] FS', code, 'RTP endpoint:', endpoint.ip + ':' + endpoint.port);
+      notifyRtpProxy(endpoint.ip, endpoint.port);
+    }
+  }
+
+  if (text.startsWith('CANCEL')) {
+    const callId = extractCallId(text);
+    const caller = extractCallerFromInvite(text);
+    console.log('[PROXY] CANCEL for call-id:', callId, 'caller:', caller);
+
+    if (callId && caller && activeWs && activeWs.readyState === 1) {
+      waitingCallers.set(callId, { number: caller, since: Date.now() });
+      console.log('[PROXY] Added to waiting:', caller, '- total waiting:', waitingCallers.size);
+      setTimeout(() => sendWaitingList(), 100);
+    }
+  }
+
+  if (activeWs && activeWs.readyState === 1) {
+    activeWs.send(text);
+  } else {
+    console.log('[PROXY] No active WS');
+    if (text.startsWith('OPTIONS')) {
+      const vias = text.split('\r\n').filter(l => l.toLowerCase().startsWith('via:')).join('\r\n');
+      const from = text.match(/From:\s*(.+)/i)?.[1] || '';
+      const to = text.match(/To:\s*(.+)/i)?.[1] || '';
+      const callId = text.match(/Call-ID:\s*(.+)/i)?.[1] || '';
+      const cseq = text.match(/CSeq:\s*(.+)/i)?.[1] || '';
+      const reply = 'SIP/2.0 200 OK\r\n' + vias + '\r\nFrom: ' + from + '\r\nTo: ' + to + '\r\nCall-ID: ' + callId + '\r\nCSeq: ' + cseq + '\r\nContent-Length: 0\r\n\r\n';
+      udpSocket.send(Buffer.from(reply), rinfo.port, rinfo.address);
+    }
+  }
+});
+
+udpSocket.on('error', (err) => {
+  console.error('[PROXY] UDP error:', err.message);
+});
+
+function rewriteContactVia(sipMsg) {
+  return sipMsg.replace(
+    /Contact:\s*<sip:[^>]+>/i,
+    'Contact: <sip:337@' + LOCAL_IP + ':' + LOCAL_SIP_PORT + ';transport=udp>'
+  ).replace(
+    /Via:\s*SIP\/2\.0\/TCP\s+[^;]+/i,
+    'Via: SIP/2.0/UDP ' + LOCAL_IP + ':' + LOCAL_SIP_PORT
+  ).replace(
+    /Via:\s*SIP\/2\.0\/WS\s+[^;]+/i,
+    'Via: SIP/2.0/UDP ' + LOCAL_IP + ':' + LOCAL_SIP_PORT
+  );
+}
+
+setInterval(() => {
+  const now = Date.now();
+  let removed = 0;
+  for (const [callId, info] of waitingCallers) {
+    if (now - info.since > 90000) {
+      waitingCallers.delete(callId);
+      removed++;
+    }
+  }
+  if (removed > 0) {
+    console.log('[PROXY] Cleaned', removed, 'old waiting callers, remaining:', waitingCallers.size);
+    sendWaitingList();
+  }
+}, 10000);
+
+wss.on('connection', (ws, req) => {
+  console.log('[PROXY] New WS connection');
+
+  if (activeWs && activeWs.readyState === 1) {
+    if (activeWs._pingInterval) clearInterval(activeWs._pingInterval);
+    activeWs.close();
+  }
+  activeWs = ws;
+
+  waitingCallers.clear();
+
+  ws._isAlive = true;
+  ws.on('pong', () => { ws._isAlive = true; });
+
+  ws._pingInterval = setInterval(() => {
+    if (!ws._isAlive) {
+      console.log('[PROXY] WS ping timeout, terminating');
+      clearInterval(ws._pingInterval);
+      ws.terminate();
+      return;
+    }
+    ws._isAlive = false;
+    try { ws.ping(); } catch(e) {}
+  }, 25000);
+
+  setTimeout(() => sendWaitingList(), 500);
+
+  ws.on('message', (data) => {
+    const msg = data.toString();
+    const firstLine = msg.split('\r\n')[0];
+    console.log('[PROXY] WS->FS:', firstLine);
+
+    if (msg.startsWith('INVITE ')) {
+      const callId = extractCallId(msg);
+      const cseqMatch = msg.match(/CSeq:\s*(\d+)/i);
+      const cseq = cseqMatch ? parseInt(cseqMatch[1]) : 0;
+      if (callId) {
+        activeCallIds.add(callId);
+        currentOutgoingCallId = callId;
+        currentOutgoingCSeq = cseq;
+        callEnded = false;
+        console.log('[PROXY] Tracking active call:', callId, 'CSeq:', cseq);
+      }
+    }
+
+    if (msg.startsWith('BYE ') || msg.startsWith('CANCEL ')) {
+      const callId = extractCallId(msg);
+      callEnded = true;
+      if (callId) {
+        activeCallIds.delete(callId);
+        if (currentOutgoingCallId === callId) {
+          currentOutgoingCallId = null;
+          currentOutgoingCSeq = 0;
+        }
+        console.log('[PROXY] Removed active call:', callId, '- call ended');
+      }
+    }
+
+    let processed = rewriteContactVia(msg);
+
+    const hasSdp = msg.toLowerCase().includes('content-type: application/sdp') ||
+                   msg.includes('application/sdp');
+    if (hasSdp) {
+      const origSdp = msg.substring(msg.indexOf('\r\n\r\n') + 4);
+      console.log('[PROXY] Browser original SDP:\n' + origSdp);
+      processed = rewriteBrowserSdp(processed);
+      const newSdp = processed.substring(processed.indexOf('\r\n\r\n') + 4);
+      console.log('[PROXY] Rewritten SDP sent to FS:\n' + newSdp);
+    }
+
+    if (msg.startsWith('SIP/2.0 100') || msg.startsWith('SIP/2.0 180')) {
+      const callId = extractCallId(msg);
+      if (callId && waitingCallers.has(callId)) {
+        waitingCallers.delete(callId);
+        console.log('[PROXY] Removed from waiting (got response):', callId, '- remaining:', waitingCallers.size);
+        sendWaitingList();
+      }
+      const caller = extractCallerFromInvite(msg);
+      if (caller) {
+        for (const [wCallId, info] of waitingCallers) {
+          if (info.number === caller) {
+            waitingCallers.delete(wCallId);
+          }
+        }
+        sendWaitingList();
+      }
+    }
+
+    udpSocket.send(Buffer.from(processed), SIP_PORT, SIP_HOST, (err) => {
+      if (err) console.error('[PROXY] UDP send error:', err.message);
+    });
+  });
+
+  ws.on('close', () => {
+    console.log('[PROXY] WS closed, clearing waiting callers and active calls');
+    if (ws._pingInterval) clearInterval(ws._pingInterval);
+    if (activeWs === ws) activeWs = null;
+    waitingCallers.clear();
+    activeCallIds.clear();
+  });
+
+  ws.on('error', (err) => {
+    console.error('[PROXY] WS error:', err.message);
+  });
+});
+
+server.listen(WS_PORT, '0.0.0.0', () => {
+  console.log('[SIP-WS-PROXY] WS listening on port', WS_PORT);
+});
