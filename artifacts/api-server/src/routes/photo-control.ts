@@ -4,7 +4,7 @@ import { eq, and, desc, inArray, sql, or, ilike } from "drizzle-orm";
 import { authMiddleware, requireRole } from "../middlewares/auth.js";
 import type { AuthRequest } from "../middlewares/auth.js";
 import { broadcastToUser } from "../lib/websocket.js";
-import { validatePhotos } from "../lib/photo-ai-validator.js";
+import { enqueuePhotoValidation } from "../lib/queues/photo.queue.js";
 import multer from "multer";
 import path from "path";
 import crypto from "crypto";
@@ -523,93 +523,29 @@ router.patch("/my-pending/:id/submit", authMiddleware, async (req: AuthRequest, 
       .where(and(eq(photoRequestsTable.id, id), eq(photoRequestsTable.driverId, driverId!)));
     if (!request) return res.status(404).json({ error: "not_found" });
     if (request.status !== "pending") return res.status(400).json({ error: "already_processed" });
-
-    const aiResult = await validatePhotos({ selfieUrl, carFrontUrl, carBackUrl, interiorUrl });
-    const retryCount = request.retryCount || 0;
-
-    if (aiResult.overallStatus === "fail") {
-      const failReasons = aiResult.photos
-        .filter(p => p.aiStatus === "fail")
-        .map(p => p.aiComment)
-        .join("; ");
-
-      const newRetryAfterAI = retryCount + 1;
-      const isFinalAfterAI = newRetryAfterAI >= 2;
-
-      const txResult = await db.transaction(async (tx) => {
-        const [updated] = await tx.update(photoRequestsTable).set({
-          selfieUrl, carFrontUrl, carBackUrl, interiorUrl,
-          status: isFinalAfterAI ? "rejected_final" : "rejected_auto",
-          aiResults: aiResult,
-          aiStatus: aiResult.overallStatus,
-          retryCount: newRetryAfterAI,
-          rejectReason: failReasons || "Фото не прошли автоматическую проверку",
-          updatedAt: new Date(),
-        }).where(eq(photoRequestsTable.id, id)).returning();
-
-        const historyEntries = [
-          { driverId: driverId!, requestId: id, photoType: "selfie", url: selfieUrl },
-          { driverId: driverId!, requestId: id, photoType: "car_front", url: carFrontUrl },
-          { driverId: driverId!, requestId: id, photoType: "car_back", url: carBackUrl },
-          { driverId: driverId!, requestId: id, photoType: "interior", url: interiorUrl },
-        ];
-        await tx.insert(photoHistoryTable).values(historyEntries);
-
-        let newRequestId: number | null = null;
-        if (!isFinalAfterAI) {
-          const [newReq] = await tx.insert(photoRequestsTable).values({
-            driverId: driverId!,
-            taskId: request.taskId,
-            status: "pending",
-            retryCount: newRetryAfterAI,
-            rejectReason: failReasons || "Исправьте фото и отправьте заново",
-            previousRequestId: id,
-          }).returning();
-          newRequestId = newReq.id;
-        }
-
-        return { updated, newRequestId };
-      });
-
-      if (!isFinalAfterAI && txResult.newRequestId) {
-        broadcastToUser(driverId!, {
-          type: "photo_control_rejected",
-          reason: failReasons || "Фото не прошли автоматическую проверку",
-          blocked: false,
-          retryCount: newRetryAfterAI,
-          aiResults: aiResult,
-          newRequestId: txResult.newRequestId,
-        });
-      } else {
-        broadcastToUser(driverId!, {
-          type: "photo_control_rejected",
-          reason: "Доступ временно ограничен до одобрения фотоконтроля",
-          blocked: true,
-          retryCount: newRetryAfterAI,
-          aiResults: aiResult,
-        });
-      }
-
-      return res.json({ request: txResult.updated, aiResult, autoRejected: true, newRequestId: txResult.newRequestId });
+    if (request.aiStatus === "processing") {
+      return res.status(409).json({ error: "processing", message: "Фото уже на проверке" });
     }
 
-    const [updated] = await db.update(photoRequestsTable).set({
+    // Persist the submitted photos and mark AI-processing so the request can't be
+    // re-submitted while the (CPU-heavy) validation runs off the request thread.
+    await db.update(photoRequestsTable).set({
       selfieUrl, carFrontUrl, carBackUrl, interiorUrl,
-      status: "under_review",
-      aiResults: aiResult,
-      aiStatus: aiResult.overallStatus,
+      aiStatus: "processing",
       updatedAt: new Date(),
-    }).where(eq(photoRequestsTable.id, id)).returning();
+    }).where(eq(photoRequestsTable.id, id));
 
-    const historyEntries = [
-      { driverId: driverId!, requestId: id, photoType: "selfie", url: selfieUrl },
-      { driverId: driverId!, requestId: id, photoType: "car_front", url: carFrontUrl },
-      { driverId: driverId!, requestId: id, photoType: "car_back", url: carBackUrl },
-      { driverId: driverId!, requestId: id, photoType: "interior", url: interiorUrl },
-    ];
-    await db.insert(photoHistoryTable).values(historyEntries);
+    await enqueuePhotoValidation({
+      requestId: id,
+      driverId: driverId!,
+      taskId: request.taskId,
+      selfieUrl, carFrontUrl, carBackUrl, interiorUrl,
+      retryCount: request.retryCount || 0,
+    });
 
-    res.json({ request: updated, aiResult, autoRejected: false });
+    // 202: validation runs asynchronously; the driver is notified of the result
+    // over WebSocket (photo_control_rejected / photo_control_under_review).
+    res.status(202).json({ status: "processing", requestId: id, message: "Фото отправлены на проверку" });
   } catch (err) {
     res.status(500).json({ error: "server_error" });
   }

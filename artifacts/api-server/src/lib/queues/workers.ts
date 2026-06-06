@@ -2,12 +2,15 @@ import { Worker, type Job } from "bullmq";
 import { bullConnection } from "./connection.js";
 import { SMS_QUEUE_NAME, smsQueue, type SmsJobData } from "./sms.queue.js";
 import { PUSH_QUEUE_NAME, pushQueue, type PushJobData } from "./push.queue.js";
+import { PHOTO_QUEUE_NAME, photoQueue, type PhotoValidationJobData } from "./photo.queue.js";
 import { sendSms } from "../sms.js";
 import { deliverPushJob } from "../notifications.js";
+import { processPhotoValidation } from "../photo-validation-job.js";
 import { logger } from "../logger.js";
 
 let smsWorker: Worker<SmsJobData> | undefined;
 let pushWorker: Worker<PushJobData> | undefined;
+let photoWorker: Worker<PhotoValidationJobData> | undefined;
 
 export function startWorkers(): void {
   if (smsWorker) return;
@@ -71,7 +74,33 @@ export function startWorkers(): void {
     logger.error({ err: err.message }, "[BULLMQ] Push worker error");
   });
 
-  logger.info("[BULLMQ] Workers started (sms, push)");
+  // Concurrency 1: TensorFlow inference is CPU-bound and shares this process, so
+  // serialize jobs to avoid saturating the event loop with parallel inferences.
+  photoWorker = new Worker<PhotoValidationJobData>(
+    PHOTO_QUEUE_NAME,
+    async (job: Job<PhotoValidationJobData>) => {
+      await processPhotoValidation(job.data);
+    },
+    {
+      connection: bullConnection,
+      concurrency: 1,
+    },
+  );
+
+  photoWorker.on("completed", (job) => {
+    logger.debug({ jobId: job.id }, "[BULLMQ] Photo validation job completed");
+  });
+  photoWorker.on("failed", (job, err) => {
+    logger.error(
+      { jobId: job?.id, attempts: job?.attemptsMade, err: err.message },
+      "[BULLMQ] Photo validation job failed",
+    );
+  });
+  photoWorker.on("error", (err) => {
+    logger.error({ err: err.message }, "[BULLMQ] Photo worker error");
+  });
+
+  logger.info("[BULLMQ] Workers started (sms, push, photo)");
 }
 
 export async function stopWorkers(): Promise<void> {
@@ -84,8 +113,13 @@ export async function stopWorkers(): Promise<void> {
       await pushWorker.close();
       pushWorker = undefined;
     }
+    if (photoWorker) {
+      await photoWorker.close();
+      photoWorker = undefined;
+    }
     await smsQueue.close();
     await pushQueue.close();
+    await photoQueue.close();
     logger.info("[BULLMQ] Workers stopped");
   } catch (err) {
     logger.error({ err }, "[BULLMQ] Error stopping workers");
