@@ -2,6 +2,8 @@ import { db, ridesTable, usersTable, orderOffersTable, ridePassengersTable, driv
 import { clog } from "./logger.js";
 import { recordDispatchFailure } from "./metrics.js";
 import { eq, and, inArray, ne, sql } from "drizzle-orm";
+
+type Ride = typeof ridesTable.$inferSelect;
 import { broadcastToAll, broadcastToUser, isUserOnline } from "./websocket.js";
 import { logger } from "./logger.js";
 import { applyIgnorePenalty, isDriverBanned } from "./bonuses.js";
@@ -92,7 +94,7 @@ registerCache(() => {
   return { name: "autodispatch", cleared: before };
 });
 
-export async function enrichRideForOffer(ride: any): Promise<any> {
+export async function enrichRideForOffer(ride: Ride): Promise<Ride & { baggageType?: string | null; seatPassengers?: unknown[] }> {
   if (!ride || !ride.id) return ride;
   try {
     const [marketListing] = await db.select({
@@ -116,7 +118,7 @@ export async function enrichRideForOffer(ride: any): Promise<any> {
 
     return {
       ...ride,
-      comment: marketListing?.comment ?? (ride as any).comment ?? null,
+      comment: marketListing?.comment ?? ride.comment ?? null,
       baggageType: marketListing?.baggageType ?? passengers[0]?.baggageType ?? null,
       seatPassengers: passengers,
     };
@@ -292,7 +294,7 @@ async function findDriversWithActiveRoutes(fromCity: string, toCity: string, rid
       const rideTime = new Date(rideScheduledAt).getTime();
       const diffHours = Math.abs(routeTime - rideTime) / (1000 * 60 * 60);
       const timeWindowHours = getSettingNum("time_window_minutes", 60) / 60;
-      const sameTimeSlot = !!rideTimeSlot && !!(route as any).timeSlot && rideTimeSlot === (route as any).timeSlot;
+      const sameTimeSlot = !!rideTimeSlot && !!route.timeSlot && rideTimeSlot === route.timeSlot;
       if (diffHours > timeWindowHours) {
         // Same time_slot on both sides — accept regardless of date drift (off-by-one-day, week mismatch, etc.).
         // The slot itself (e.g. 22:00-00:00) already defines a 2-hour window for the time of day.
@@ -302,7 +304,7 @@ async function findDriversWithActiveRoutes(fromCity: string, toCity: string, rid
           // For urgent rides (no rideTimeSlot): allow drivers whose route ENDS within 40 min (scheduledAt + duration)
           const isUrgentRide = !rideTimeSlot;
           const urgentTailMs = getSettingNum("urgent_tail_minutes", 40) * 60 * 1000;
-          const routeDurationMin = (route as any).duration || 0;
+          const routeDurationMin = route.duration || 0;
           const routeEndMs = routeTime + routeDurationMin * 60 * 1000;
           const nowMs = Date.now();
           const eligibleByTail = isUrgentRide && routeDurationMin > 0 && routeEndMs > nowMs && (routeEndMs - nowMs) <= urgentTailMs;
@@ -314,13 +316,13 @@ async function findDriversWithActiveRoutes(fromCity: string, toCity: string, rid
 
     // STRICT: if both rides have an explicit time_slot, they MUST match.
     // Prevents 14:00-16:00 driver getting 00:00-02:00 ride offer.
-    if (rideTimeSlot && (route as any).timeSlot && rideTimeSlot !== (route as any).timeSlot) {
-      clog.log(`[ROUTE MATCH] skip driver ${route.driverId}: time_slot mismatch route=${(route as any).timeSlot} ride=${rideTimeSlot}`);
+    if (rideTimeSlot && route.timeSlot && rideTimeSlot !== route.timeSlot) {
+      clog.log(`[ROUTE MATCH] skip driver ${route.driverId}: time_slot mismatch route=${route.timeSlot} ride=${rideTimeSlot}`);
       continue;
     }
 
     // URGENT-ONLY ROUTE: водитель в режиме «только срочные» не должен получать обычные (с time_slot) заказы
-    if ((route as any).isUrgent === true && rideTimeSlot) {
+    if (route.isUrgent === true && rideTimeSlot) {
       clog.log(`[ROUTE MATCH] skip driver ${route.driverId}: urgent-only route, but ride has time_slot=${rideTimeSlot}`);
       continue;
     }
@@ -621,14 +623,14 @@ async function runQueueDispatchCycle(
   }
 
   const toCity = ride.toCity || "";
-  const requiredSeats = (ride as any).isMail ? 0 : (ride.passengers || 1);
+  const requiredSeats = ride.isMail ? 0 : (ride.passengers || 1);
   const requiredGroupLevel = ride.requiredGroupLevel || 0;
   const maxDistKm = getSettingNum("queue_max_distance_km", MAX_DISTANCE_KM);
   const batchSize = getSettingNum("queue_batch_size", QUEUE_BATCH_SIZE);
 
   // Car-model restriction: when set, only drivers with matching car_model receive offers
   let allowedByCarModel: Set<number> | null = null;
-  const reqCarModel = ((ride as any).requiredCarModel || "").toString().trim();
+  const reqCarModel = (ride.requiredCarModel || "").toString().trim();
   if (reqCarModel) {
     const matches = await db
       .select({ id: usersTable.id })
@@ -643,11 +645,11 @@ async function runQueueDispatchCycle(
 
   // MONEY-CARGO restriction: only trusted drivers (cash_carrier=true) receive offers
   let allowedByCash: Set<number> | null = null;
-  if ((ride as any).isMoney === true) {
+  if (ride.isMoney === true) {
     const cashDrivers = await db
       .select({ id: usersTable.id })
       .from(usersTable)
-      .where(and(eq(usersTable.role, "driver"), eq((usersTable as any).cashCarrier, true)));
+      .where(and(eq(usersTable.role, "driver"), eq(usersTable.cashCarrier, true)));
     allowedByCash = new Set(cashDrivers.map(m => m.id));
     clog.log(`[QUEUE DISPATCH] ride ${rideId}: MONEY cargo → ${allowedByCash.size} trusted drivers`);
   }
@@ -658,9 +660,9 @@ async function runQueueDispatchCycle(
   //   passenger.baggage_type='large' → require driver.preferences.roofBaggage=true
   let allowedByOptions: Set<number> | null = null;
   {
-    const opts: string[] = Array.isArray((ride as any).selectedOptions) ? (ride as any).selectedOptions : [];
+    const opts: string[] = Array.isArray(ride.selectedOptions) ? ride.selectedOptions : [];
     let needRoof = opts.includes("top_baggage") || opts.includes("baggage_xm") || opts.includes("baggage");
-    let needParcel = opts.includes("parcel") || opts.includes("baggage_xm") || (ride as any).isMail === true;
+    let needParcel = opts.includes("parcel") || opts.includes("baggage_xm") || ride.isMail === true;
     if (!needRoof) {
       try {
         const bigBag = await db.select({ id: ridePassengersTable.id })
@@ -689,7 +691,7 @@ async function runQueueDispatchCycle(
     }
   }
 
-  const driverRoutes = await findDriversWithActiveRoutes(fromCity, toCity, ride.scheduledAt, (ride as any).timeSlot || null, (ride as any).isMail === true);
+  const driverRoutes = await findDriversWithActiveRoutes(fromCity, toCity, ride.scheduledAt, ride.timeSlot || null, ride.isMail === true);
   const routeMap = new Map(driverRoutes.map(dr => [dr.driverId, dr]));
 
   const staleExpired = await db.update(orderOffersTable)
@@ -793,10 +795,10 @@ async function runQueueDispatchCycle(
     if (candidates.length === 0) {
       // SCHEDULED RIDES: never fall back to queue, even when time has come.
       // Only route-matched drivers (their own ride covers this trip) can receive scheduled orders.
-      const rideTimeSlot = (ride as any).timeSlot || null;
+      const rideTimeSlot = ride.timeSlot || null;
       const schedMs = ride.scheduledAt ? new Date(ride.scheduledAt).getTime() : 0;
       const isScheduled = !!rideTimeSlot || schedMs > 0;
-      if (isScheduled && !(ride as any).isMail) {
+      if (isScheduled && !ride.isMail) {
         clog.log(`[QUEUE DISPATCH] ride ${rideId}: scheduled (timeSlot=${rideTimeSlot}, scheduledAt=${ride.scheduledAt}) — skip queue fallback, only route-matched drivers eligible`);
         batchIndex++;
         continue;
@@ -833,7 +835,7 @@ async function runQueueDispatchCycle(
         }
         // STRICT: driver's city must match ride's from_city.
         // Prevents Ferghana driver from getting Namangan→Tashkent orders via 500km radius queue.
-        const driverCity = ((qc.driver as any).city || "").trim();
+        const driverCity = (qc.driver.city || "").trim();
         const driverCitySlug = resolveCitySlug(driverCity);
         if (driverCity && driverCitySlug !== fromCitySlug) {
           clog.log(`[QUEUE FILTER city] driver ${qc.driver.id}: city=${driverCity} (${driverCitySlug}) != ride.from=${fromCity} (${fromCitySlug}) → skip`);

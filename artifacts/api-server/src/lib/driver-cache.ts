@@ -23,6 +23,7 @@ export interface CachedDriver {
   name: string | null;
   phone: string | null;
   activityScore: number;
+  city?: string | null;
 }
 
 const driverCache = new Map<number, CachedDriver>();
