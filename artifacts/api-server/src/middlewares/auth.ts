@@ -5,6 +5,9 @@ import { eq, and, gt } from "drizzle-orm";
 import { JWT_SECRET } from "../lib/jwt-secret.js";
 
 export interface AuthRequest extends Request {
+  // Route params are always strings at runtime; Express 5's types widen them to
+  // string | string[], which breaks parseInt(req.params.id) etc. across handlers.
+  params: Record<string, string>;
   userId?: number;
   userRole?: string;
   sessionId?: string;

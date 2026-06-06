@@ -18,7 +18,7 @@ export async function getOsrmRoute(
     const resp = await fetch(url, { signal: AbortSignal.timeout(8000) });
     if (!resp.ok) return null;
 
-    const data = await resp.json();
+    const data: any = await resp.json();
     if (data.code !== "Ok" || !data.routes?.length) return null;
 
     const route = data.routes[0];

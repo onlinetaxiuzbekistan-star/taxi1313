@@ -575,7 +575,7 @@ router.get("/:driverId/active-rides", authMiddleware, requireRole("dispatcher", 
     const rides = await db.select().from(ridesTable)
       .where(and(
         eq(ridesTable.driverId, driverId),
-        inArray(ridesTable.status, activeStatuses)
+        inArray(ridesTable.status, activeStatuses as any)
       ))
       .orderBy(desc(ridesTable.createdAt))
       .limit(20);

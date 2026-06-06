@@ -44,7 +44,7 @@ async function expireOnce() {
       if (now.getTime() < endMs + graceMs) continue;
 
       await db.update(marketplaceListingsTable)
-        .set({ status: "expired", updatedAt: new Date() })
+        .set({ status: "expired" as any, updatedAt: new Date() })
         .where(and(eq(marketplaceListingsTable.id, l.id), eq(marketplaceListingsTable.status, "active")));
       if (l.rideId) {
         await db.update(ridesTable)

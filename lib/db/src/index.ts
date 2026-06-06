@@ -46,7 +46,7 @@ pool.on("error", (err) => {
 const origQuery = pool.query.bind(pool);
 (pool as any).query = function (...args: any[]) {
   const start = performance.now();
-  const result = origQuery(...args);
+  const result = (origQuery as any)(...args);
   if (result && typeof result.then === "function") {
     result.then(() => {
       const dur = performance.now() - start;

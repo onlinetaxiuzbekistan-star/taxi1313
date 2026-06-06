@@ -187,7 +187,6 @@ function findCity(name: string) {
 import { getOsrmRoute, haversineDistance, type OsrmRoute } from "../lib/osrm.js";
 
 
-import jwt from "jsonwebtoken";
 import { JWT_SECRET as __JWT_SECRET_FOR_BRANCH } from "../lib/jwt-secret.js";
 import { db as __db_branch, usersTable as __users_branch } from "@workspace/db";
 import { eq as __eq_branch } from "drizzle-orm";
@@ -1049,7 +1048,7 @@ router.patch("/:rideId/transactions/:txId", authMiddleware, requireRole("dispatc
         .for("update");
       if (!existing) return null;
 
-      const updates: any = { updatedBy: req.user!.id, updatedAt: new Date() };
+      const updates: any = { updatedBy: req.userId, updatedAt: new Date() };
       if (comment !== undefined) updates.description = comment;
 
       if (amount !== undefined && existing.driverId) {

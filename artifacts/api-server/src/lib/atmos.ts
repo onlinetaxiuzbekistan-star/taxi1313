@@ -98,7 +98,7 @@ export async function atmosBindCardInit(cardNumber: string, expiry: string) {
     },
     body: JSON.stringify({ card_number: cardNumber, expiry }),
   });
-  const data = await res.json();
+  const data: any = await res.json();
   if (data.result?.code !== "OK") {
     throw new Error(data.result?.description || "Card bind init failed");
   }
@@ -115,7 +115,7 @@ export async function atmosBindCardConfirm(transactionId: number, otp: string) {
     },
     body: JSON.stringify({ transaction_id: transactionId, otp }),
   });
-  const data = await res.json();
+  const data: any = await res.json();
   if (data.result?.code !== "OK") {
     throw new Error(data.result?.description || "Card bind confirm failed");
   }
@@ -145,7 +145,7 @@ export async function atmosRemoveCard(cardId: string) {
     },
     body: JSON.stringify({ card_id: parseInt(cardId), store_id: storeId }),
   });
-  const data = await res.json();
+  const data: any = await res.json();
   return data;
 }
 
@@ -167,7 +167,7 @@ export async function atmosCreateTransaction(amountTiyin: number, account: strin
     },
     body: JSON.stringify(body),
   });
-  const data = await res.json();
+  const data: any = await res.json();
   if (data.result?.code !== "OK") {
     throw new Error(data.result?.description || "Create transaction failed");
   }
@@ -189,7 +189,7 @@ export async function atmosPreApply(transactionId: number, cardToken: string) {
       transaction_id: transactionId,
     }),
   });
-  const data = await res.json();
+  const data: any = await res.json();
   if (data.result?.code !== "OK") {
     throw new Error(data.result?.description || "Pre-apply failed");
   }
@@ -211,7 +211,7 @@ export async function atmosApply(transactionId: number, otp: string) {
       store_id: storeId,
     }),
   });
-  const data = await res.json();
+  const data: any = await res.json();
   if (data.result?.code !== "OK") {
     throw new Error(data.result?.description || "Apply failed");
   }

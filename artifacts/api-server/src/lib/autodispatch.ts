@@ -830,7 +830,7 @@ async function runQueueDispatchCycle(
         }
         // STRICT: driver's city must match ride's from_city.
         // Prevents Ferghana driver from getting Namangan→Tashkent orders via 500km radius queue.
-        const driverCity = (qc.driver.city || "").trim();
+        const driverCity = ((qc.driver as any).city || "").trim();
         const driverCitySlug = resolveCitySlug(driverCity);
         if (driverCity && driverCitySlug !== fromCitySlug) {
           console.log(`[QUEUE FILTER city] driver ${qc.driver.id}: city=${driverCity} (${driverCitySlug}) != ride.from=${fromCity} (${fromCitySlug}) → skip`);
