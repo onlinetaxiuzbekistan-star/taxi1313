@@ -25,11 +25,20 @@ import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import org.json.JSONObject
 import java.io.BufferedReader
+import java.io.IOException
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import okhttp3.Call
+import okhttp3.Callback
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.Response
 
 /**
  * Foreground location service — ported from the proven LocationService.java in
@@ -67,6 +76,13 @@ class LocationForegroundService : Service() {
     private val handler = Handler(Looper.getMainLooper())
     private var offerExec: ExecutorService? = null
     private val seenOfferIds = HashSet<String>()
+    private val httpClient by lazy {
+        OkHttpClient.Builder()
+            .connectTimeout(8, TimeUnit.SECONDS)
+            .readTimeout(8, TimeUnit.SECONDS)
+            .build()
+    }
+    private val jsonMedia = "application/json; charset=utf-8".toMediaType()
 
     private var isHighAccuracy = false
     private var lastLocationTime = 0L
@@ -171,6 +187,12 @@ class LocationForegroundService : Service() {
                 lastLocationTime = System.currentTimeMillis()
                 locationFailures = 0
 
+                // Send to the backend NATIVELY (OkHttp), independent of the RN JS
+                // thread — which Android freezes when the screen is off. This is what
+                // keeps the driver on the dispatcher map with the phone locked.
+                postLocation(loc)
+
+                // Also broadcast to JS for any in-app/foreground UI (no-op if no listener).
                 val broadcast = Intent(locationBroadcastAction(packageName)).apply {
                     setPackage(packageName)
                     putExtra("lat", loc.latitude)
@@ -239,6 +261,39 @@ class LocationForegroundService : Service() {
 
     private fun saveOnlineState(online: Boolean) {
         getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(KEY_WAS_ONLINE, online).apply()
+    }
+
+    // PATCH /api/drivers/location with the Bearer token (no sessionId needed — the
+    // backend identifies the driver from the token). Runs on OkHttp's own thread
+    // pool, so it works even when the app's JS thread is frozen (screen off).
+    private fun postLocation(loc: Location) {
+        val prefs = getSharedPreferences(PREFS, MODE_PRIVATE)
+        val token = prefs.getString(KEY_TOKEN, null)
+        if (token.isNullOrEmpty()) return
+        val apiBase = (prefs.getString(KEY_API_BASE, DEFAULT_API_BASE) ?: DEFAULT_API_BASE).trimEnd('/')
+
+        val payload = JSONObject().apply {
+            put("lat", loc.latitude)
+            put("lng", loc.longitude)
+            put("accuracy", loc.accuracy.toDouble())
+            put("heading", loc.bearing.toDouble())
+            put("speed", loc.speed.toDouble())
+        }.toString()
+
+        val request = Request.Builder()
+            .url("$apiBase/api/drivers/location")
+            .patch(payload.toRequestBody(jsonMedia))
+            .header("Authorization", "Bearer $token")
+            .build()
+
+        httpClient.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                Log.e(TAG, "location PATCH failed: ${e.message}")
+            }
+            override fun onResponse(call: Call, response: Response) {
+                response.use { Log.i(TAG, "location PATCH ${it.code}") }
+            }
+        })
     }
 
     private fun pollOffers() {

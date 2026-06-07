@@ -1,7 +1,6 @@
 import { useEffect, useRef } from "react";
 
 import { useAuth } from "@/hooks/use-auth";
-import { sendWsMessage } from "@/hooks/use-ride-websocket";
 import { API_BASE_URL } from "@/config";
 import * as Bg from "@/native/background";
 import { registerPushToken } from "@/native/push";
@@ -11,30 +10,17 @@ import { registerPushToken } from "@/native/push";
 //                prompt for battery-optimization exemption (once).
 //   - Offline -> stop the service.
 //   - "busy" (on a ride) -> high-accuracy GPS.
-//   - native location events -> forwarded over the WS as driver_location.
 //   - login -> register FCM device token (inert until backend FCM lands).
+//
+// NOTE: GPS fixes are sent to the backend NATIVELY by LocationForegroundService
+// (PATCH /api/drivers/location via OkHttp). We deliberately do NOT relay location
+// over the JS WebSocket — the RN JS thread freezes when the screen is off, which
+// is exactly when background tracking must keep working.
 export function useOnlineService() {
   const { user, token } = useAuth();
   const isOnline = user?.status === "online" || user?.status === "busy";
   const isBusy = user?.status === "busy";
   const batteryPrompted = useRef(false);
-
-  // Forward native GPS fixes to the backend over the existing driver socket.
-  useEffect(() => {
-    if (!Bg.backgroundAvailable) return;
-    const sub = Bg.addLocationListener((loc) => {
-      sendWsMessage({
-        type: "driver_location",
-        lat: loc.lat,
-        lng: loc.lng,
-        accuracy: loc.accuracy,
-        heading: loc.bearing,
-        speed: loc.speed,
-        ts: Date.now(),
-      });
-    });
-    return () => sub.remove();
-  }, []);
 
   // Start/stop the foreground service on Online/Offline.
   useEffect(() => {

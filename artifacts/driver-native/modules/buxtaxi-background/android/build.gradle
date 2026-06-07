@@ -21,4 +21,10 @@ dependencies {
   // FusedLocationProvider (background GPS) + AndroidX core for notifications.
   implementation "com.google.android.gms:play-services-location:21.3.0"
   implementation "androidx.core:core-ktx:1.13.1"
+
+  // OkHttp/Okio for the native location POST (HttpURLConnection can't do PATCH).
+  // compileOnly — the React Native host app already ships these at runtime, so we
+  // compile against the API and reuse the app's copy (no duplicate / version bump).
+  compileOnly "com.squareup.okhttp3:okhttp:4.9.2"
+  compileOnly "com.squareup.okio:okio:2.9.0"
 }
