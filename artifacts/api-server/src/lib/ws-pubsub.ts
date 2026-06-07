@@ -45,9 +45,33 @@ export function startBroadcastSubscriber(onMessage: (message: string) => void): 
     .catch((e: Error) => clog.error("[WS PUBSUB] subscribe failed:", e.message));
 }
 
+// ── Targeted sends (to a specific user / role / staff) across workers ───────
+// broadcastToUser/Role/Staff target sockets that may live on another worker. We publish
+// {kind,target,message} to a namespaced channel; every worker's subscriber delivers to
+// its OWN matching local sockets (only the worker holding the socket actually sends).
+const SEND_CHANNEL = `${PREFIX}:send`;
+let sendPub: ReturnType<typeof redis.duplicate> | null = null;
+let sendSub: ReturnType<typeof redis.duplicate> | null = null;
+
+export function publishTargetedSend(payload: string): void {
+  if (!WS_PUBSUB_ENABLED) return;
+  if (!sendPub) sendPub = redis.duplicate();
+  sendPub.publish(SEND_CHANNEL, payload).catch(() => {});
+}
+
+export function startTargetedSendSubscriber(onMessage: (payload: string) => void): void {
+  if (!WS_PUBSUB_ENABLED || sendSub) return;
+  sendSub = redis.duplicate();
+  sendSub.on("error", (e: Error) => clog.error("[WS SEND] subscriber error:", e.message));
+  sendSub.on("message", (_channel: string, message: string) => {
+    try { onMessage(message); } catch { /* */ }
+  });
+  sendSub.subscribe(SEND_CHANNEL)
+    .then(() => clog.log(`[WS SEND] subscribed to ${SEND_CHANNEL} (pid ${process.pid})`))
+    .catch((e: Error) => clog.error("[WS SEND] subscribe failed:", e.message));
+}
+
 export function stopBroadcastPubSub(): void {
-  try { sub?.quit(); } catch { /* */ }
-  try { pub?.quit(); } catch { /* */ }
-  sub = null;
-  pub = null;
+  for (const c of [sub, pub, sendSub, sendPub]) { try { c?.quit(); } catch { /* */ } }
+  sub = null; pub = null; sendSub = null; sendPub = null;
 }

@@ -6,7 +6,7 @@ import { db, orderOffersTable, ridesTable } from "@workspace/db";
 import { eq, and, inArray } from "drizzle-orm";
 import { JWT_SECRET } from "./jwt-secret.js";
 import { errorMessage } from "./errors.js";
-import { WS_PUBSUB_ENABLED, publishBroadcast, startBroadcastSubscriber } from "./ws-pubsub.js";
+import { WS_PUBSUB_ENABLED, publishBroadcast, startBroadcastSubscriber, publishTargetedSend, startTargetedSendSubscriber } from "./ws-pubsub.js";
 
 interface AuthenticatedWS extends WebSocket {
   userId?: number;
@@ -225,8 +225,11 @@ async function deliverPendingOffers(driverId: number, ws: AuthenticatedWS) {
 export function setupWebSocket(server: Server) {
   wss = new WebSocketServer({ server, path: "/api/ws", maxPayload: 65536 });
 
-  // Cluster mode: subscribe this worker to cross-worker broadcasts (Redis pub/sub).
-  if (WS_PUBSUB_ENABLED) startBroadcastSubscriber(deliverBroadcastLocal);
+  // Cluster mode: subscribe this worker to cross-worker broadcasts + targeted sends.
+  if (WS_PUBSUB_ENABLED) {
+    startBroadcastSubscriber(deliverBroadcastLocal);
+    startTargetedSendSubscriber(handleTargetedSend);
+  }
 
   const MAX_CONNECTIONS_PER_USER = 3;
 
@@ -643,42 +646,53 @@ export function enqueueDriverStatusBroadcast(driverId: number, status: string): 
   }
 }
 
-export function broadcastToUser(userId: number, data: object): boolean {
-  if (!wss) {
-    clog.warn(`[WS] broadcastToUser(${userId}): WSS not initialized`);
-    return false;
-  }
-  const numId = Number(userId);
+// ── Local delivery (this worker's sockets) ──────────────────────────────────
+function deliverToUserLocal(numId: number, message: string): boolean {
+  if (!wss) return false;
   const sockets = userSockets.get(numId);
-  if (!sockets || sockets.size === 0) {
-    clog.warn(`[WS] broadcastToUser(${numId}): NO connection found (${wss.clients.size} total clients)`);
-    return false;
-  }
-  const message = JSON.stringify(injectVersion(data as Record<string, any>));
-  let sentCount = 0;
+  if (!sockets || sockets.size === 0) return false;
+  let sent = 0;
   for (const client of sockets) {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(message);
-      sentCount++;
-    }
+    if (client.readyState === WebSocket.OPEN) { client.send(message); sent++; }
   }
-  if (sentCount === 0) {
-    clog.warn(`[WS] broadcastToUser(${numId}): sockets tracked but none OPEN`);
-    return false;
+  return sent > 0;
+}
+function deliverToRoleLocal(role: string, message: string): void {
+  if (!wss) return;
+  wss.clients.forEach((c: AuthenticatedWS) => { if (c.readyState === WebSocket.OPEN && c.userRole === role) c.send(message); });
+}
+function deliverToStaffLocal(message: string): void {
+  if (!wss) return;
+  wss.clients.forEach((c: AuthenticatedWS) => { if (c.readyState === WebSocket.OPEN && (c.userRole === "dispatcher" || c.userRole === "admin")) c.send(message); });
+}
+
+// Cross-worker targeted-send subscriber handler: deliver to THIS worker's locals.
+function handleTargetedSend(payload: string): void {
+  try {
+    const { kind, target, message } = JSON.parse(payload);
+    if (kind === "user") deliverToUserLocal(Number(target), message);
+    else if (kind === "role") deliverToRoleLocal(String(target), message);
+    else if (kind === "staff") deliverToStaffLocal(message);
+  } catch { /* */ }
+}
+
+export function broadcastToUser(userId: number, data: object): boolean {
+  const numId = Number(userId);
+  const message = JSON.stringify(injectVersion(data as Record<string, any>));
+  if (WS_PUBSUB_ENABLED) {
+    // Cluster: the socket may be on another worker. Publish; the holding worker delivers.
+    // Returns optimistically — callers that need real delivery confirmation (WebRTC call
+    // setup) are same-worker today; see NOTE in module header for the cluster caveat.
+    publishTargetedSend(JSON.stringify({ kind: "user", target: numId, message }));
+    return true;
   }
-  const msgType = (data as { type?: string })?.type || "unknown";
-  clog.log(`[WS] broadcastToUser(${numId}): sent ${msgType} to ${sentCount} socket(s)`);
-  return true;
+  return deliverToUserLocal(numId, message);
 }
 
 export function broadcastToRole(role: string, data: object) {
-  if (!wss) return;
   const message = JSON.stringify(injectVersion(data as Record<string, any>));
-  wss.clients.forEach((client: AuthenticatedWS) => {
-    if (client.readyState === WebSocket.OPEN && client.userRole === role) {
-      client.send(message);
-    }
-  });
+  if (WS_PUBSUB_ENABLED) { publishTargetedSend(JSON.stringify({ kind: "role", target: role, message })); return; }
+  deliverToRoleLocal(role, message);
 }
 
 /**
@@ -688,16 +702,9 @@ export function broadcastToRole(role: string, data: object) {
  * O(N²) on the message bus (N=1000 → ~2M messages over 90s; N=2000 → 7.5M).
  */
 export function broadcastToStaff(data: object): void {
-  if (!wss) return;
   const message = JSON.stringify(injectVersion(data as Record<string, any>));
-  wss.clients.forEach((client: AuthenticatedWS) => {
-    if (
-      client.readyState === WebSocket.OPEN &&
-      (client.userRole === "dispatcher" || client.userRole === "admin")
-    ) {
-      client.send(message);
-    }
-  });
+  if (WS_PUBSUB_ENABLED) { publishTargetedSend(JSON.stringify({ kind: "staff", target: null, message })); return; }
+  deliverToStaffLocal(message);
 }
 
 export function forceLogoutDriver(driverId: number, reason: string) {
