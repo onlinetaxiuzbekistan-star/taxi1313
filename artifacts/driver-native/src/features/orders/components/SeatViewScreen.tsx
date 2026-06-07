@@ -10,6 +10,8 @@ import type { Ride, SeatPassenger, City, QueueInfoData } from "../types";
 import { QueueWidget } from "./QueueWidget";
 import { RideMap } from "./RideMap";
 import { NavSheet } from "./NavSheet";
+import { CarSeatLayout } from "./CarSeatLayout";
+import { ExpiredRideModal } from "./ExpiredRideModal";
 
 function statusBadge(status: string) {
   if (status === "picked_up") return { label: "В машине", cls: "bg-emerald-500/15", txt: "text-emerald-400" };
@@ -69,6 +71,9 @@ export function SeatViewScreen({
   const { token } = useAuth();
   const [queueInfo, setQueueInfo] = useState<QueueInfoData | null>(null);
   const [showNav, setShowNav] = useState(false);
+  const [selectedSeat, setSelectedSeat] = useState<number | null>(null);
+  const [showExpired, setShowExpired] = useState(false);
+  const [extending, setExtending] = useState(false);
 
   const filledSeats = passengers.length;
   const totalSeats = ride.seatsTotal ?? ride.totalSeats ?? 4;
@@ -92,6 +97,29 @@ export function SeatViewScreen({
     const iv = setInterval(fetchQueue, 10000);
     return () => clearInterval(iv);
   }, [fetchQueue]);
+
+  useEffect(() => {
+    if (queueInfo?.isExpired) setShowExpired(true);
+  }, [queueInfo?.isExpired]);
+
+  const onExtend = async () => {
+    if (!token) return;
+    setExtending(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/drivers/extend-ride`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ rideId: ride.id }),
+      });
+      if (res.ok) {
+        setShowExpired(false);
+        fetchQueue();
+      }
+    } catch {
+    } finally {
+      setExtending(false);
+    }
+  };
 
   return (
     <View className="flex-1 bg-background">
@@ -126,6 +154,16 @@ export function SeatViewScreen({
         {/* route map */}
         <View className="mt-3">
           <RideMap ride={ride} height={180} />
+        </View>
+
+        {/* seat map */}
+        <View className="mt-3">
+          <CarSeatLayout
+            passengers={passengers}
+            selectedSeat={selectedSeat}
+            onSeatClick={(n) => setSelectedSeat((s) => (s === n ? null : n))}
+            totalSeats={totalSeats}
+          />
         </View>
 
         {/* passengers */}
@@ -184,6 +222,15 @@ export function SeatViewScreen({
       </View>
 
       <NavSheet visible={showNav} toLat={ride.fromLat} toLng={ride.fromLng} onClose={() => setShowNav(false)} />
+      <ExpiredRideModal
+        visible={showExpired}
+        extending={extending}
+        filledSeats={filledSeats}
+        onExtend={onExtend}
+        onStartRide={onStartRide}
+        onEndRide={onCancel}
+        onClose={() => setShowExpired(false)}
+      />
     </View>
   );
 }

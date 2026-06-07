@@ -19,6 +19,8 @@ export function useOrders() {
   const [screen, setScreen] = useState<DriverScreen>("loading");
   const [actionLoading, setActionLoading] = useState(false);
   const [passengerActionLoading, setPassengerActionLoading] = useState<number | null>(null);
+  const [completedRide, setCompletedRide] = useState<Ride | null>(null);
+  const [commissionRate, setCommissionRate] = useState(0.15);
 
   const isOnline = user?.status === "online" || user?.status === "busy";
   const headers = useCallback(
@@ -40,6 +42,12 @@ export function useOrders() {
     fetch(`${API_BASE_URL}/api/routes${cityQ}`)
       .then((r) => r.json())
       .then((d) => setRoutes((d.routes || []).filter((r: any) => r.isActive !== false)))
+      .catch(() => {});
+    fetch(`${API_BASE_URL}/api/rides/pricing-info`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d?.commission?.percent != null) setCommissionRate(d.commission.percent / 100);
+      })
       .catch(() => {});
   }, [token, user]);
 
@@ -92,6 +100,7 @@ export function useOrders() {
   useEffect(() => {
     setScreen((prev) => {
       if (prev === "loading") return prev; // wait for first active-ride load
+      if (prev === "completed") return prev; // hold until the driver dismisses it
       if (activeRide) return activeRide.status === "in_progress" ? "active" : "seat_view";
       if (!isOnline) return "idle";
       return "route_select";
@@ -187,11 +196,11 @@ export function useOrders() {
     try {
       const { ok, data } = await post("/api/drivers/complete", { rideId: activeRide.id });
       if (ok) {
+        setCompletedRide({ ...activeRide, seatPassengers: passengers });
         setActiveRide(null);
         setPassengers([]);
-        setScreen("route_select");
+        setScreen("completed");
         refreshUser();
-        await loadActiveRide();
       } else {
         Alert.alert("Ошибка", data?.message || "Не удалось завершить рейс");
       }
@@ -200,7 +209,7 @@ export function useOrders() {
     } finally {
       setActionLoading(false);
     }
-  }, [activeRide, actionLoading, post, refreshUser, loadActiveRide]);
+  }, [activeRide, passengers, actionLoading, post, refreshUser]);
 
   const cancelRide = useCallback(async () => {
     if (!activeRide || actionLoading) return;
@@ -250,11 +259,13 @@ export function useOrders() {
       try {
         const { ok, data } = await post(`/api/drivers/passenger/${id}/dropoff`);
         if (ok) {
-          setPassengers((prev) => prev.map((p) => (p.id === id ? { ...p, status: "dropped_off" } : p)));
+          const updated = passengers.map((p) => (p.id === id ? { ...p, status: "dropped_off" } : p));
+          setPassengers(updated);
           if (data?.autoCompleted) {
+            if (activeRide) setCompletedRide({ ...activeRide, seatPassengers: updated });
             setActiveRide(null);
             setPassengers([]);
-            setScreen("route_select");
+            setScreen("completed");
             refreshUser();
           }
         } else {
@@ -267,8 +278,14 @@ export function useOrders() {
         loadActiveRide();
       }
     },
-    [passengerActionLoading, post, refreshUser, loadActiveRide],
+    [passengerActionLoading, post, refreshUser, loadActiveRide, activeRide, passengers],
   );
+
+  const handleCompletionClose = useCallback(() => {
+    setCompletedRide(null);
+    setScreen("route_select");
+    loadActiveRide();
+  }, [loadActiveRide]);
 
   const batchPickup = useCallback(
     async (ids: number[]) => {
@@ -288,6 +305,8 @@ export function useOrders() {
     routes,
     activeRide,
     passengers,
+    completedRide,
+    commissionRate,
     screen,
     isOnline,
     actionLoading,
@@ -301,6 +320,7 @@ export function useOrders() {
     passengerDropoff,
     batchPickup,
     batchDropoff,
+    handleCompletionClose,
     reload: loadActiveRide,
   };
 }

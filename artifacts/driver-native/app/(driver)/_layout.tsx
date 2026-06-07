@@ -7,6 +7,7 @@ import { useRideWebSocket } from "@/hooks/use-ride-websocket";
 import { useOnlineService } from "@/hooks/use-online-service";
 import { DriverHeader } from "@/components/DriverHeader";
 import { DriverTabBar } from "@/components/DriverTabBar";
+import { IncomingOfferModal } from "@/features/orders/components/IncomingOfferModal";
 import { DEMO_DRIVER } from "@/lib/driver";
 import { PREVIEW_MODE, API_BASE_URL } from "@/config";
 import { colors } from "@/lib/theme";
@@ -80,25 +81,30 @@ export default function DriverShellLayout() {
   };
 
   return (
-    <Tabs
-      tabBar={(props) => <DriverTabBar {...props} />}
-      screenOptions={{
-        headerShown: true,
-        header: () => (
-          <DriverHeader
-            user={activeUser}
-            toggling={toggling}
-            onToggleStatus={handleToggleStatus}
-            onExit={logout}
-          />
-        ),
-        sceneStyle: { backgroundColor: colors.background },
-      }}
-    >
-      <Tabs.Screen name="index" />
-      <Tabs.Screen name="urgent" />
-      <Tabs.Screen name="chat" />
-      <Tabs.Screen name="profile" />
-    </Tabs>
+    <>
+      <Tabs
+        tabBar={(props) => <DriverTabBar {...props} />}
+        screenOptions={{
+          headerShown: true,
+          header: () => (
+            <DriverHeader
+              user={activeUser}
+              toggling={toggling}
+              onToggleStatus={handleToggleStatus}
+              onExit={logout}
+            />
+          ),
+          sceneStyle: { backgroundColor: colors.background },
+        }}
+      >
+        <Tabs.Screen name="index" />
+        <Tabs.Screen name="urgent" />
+        <Tabs.Screen name="chat" />
+        <Tabs.Screen name="profile" />
+      </Tabs>
+
+      {/* Global incoming-order offer (works on any tab) */}
+      {user ? <IncomingOfferModal /> : null}
+    </>
   );
 }

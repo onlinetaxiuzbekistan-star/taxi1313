@@ -6,6 +6,7 @@ import { IdleScreen } from "./IdleScreen";
 import { RouteSelectScreen } from "./RouteSelectScreen";
 import { SeatViewScreen } from "./components/SeatViewScreen";
 import { ActiveRideScreen } from "./components/ActiveRideScreen";
+import { CompletionScreen } from "./components/CompletionScreen";
 
 // Ride-flow state machine (web OrdersMain + RideStateRouter equivalent).
 export function OrdersMain() {
@@ -33,6 +34,16 @@ export function OrdersMain() {
         routes={o.routes}
         creating={o.actionLoading}
         onCreateRide={o.createRide}
+      />
+    );
+  }
+
+  if (o.screen === "completed" && o.completedRide) {
+    return (
+      <CompletionScreen
+        ride={o.completedRide}
+        commissionRate={o.commissionRate}
+        onClose={o.handleCompletionClose}
       />
     );
   }
