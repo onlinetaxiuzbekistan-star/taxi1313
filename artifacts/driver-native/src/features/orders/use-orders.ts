@@ -15,6 +15,8 @@ export function useOrders() {
   const [cities, setCities] = useState<City[]>([]);
   const [routes, setRoutes] = useState<RouteOption[]>([]);
   const [activeRide, setActiveRide] = useState<Ride | null>(null);
+  const activeRideRef = useRef<Ride | null>(null);
+  activeRideRef.current = activeRide;
   const [passengers, setPassengers] = useState<SeatPassenger[]>([]);
   const [screen, setScreen] = useState<DriverScreen>("loading");
   const [actionLoading, setActionLoading] = useState(false);
@@ -87,14 +89,52 @@ export function useOrders() {
     };
   }, [token, loadActiveRide]);
 
-  // Reload on ride-related WS pushes.
+  // Immediately drop the active ride (dispatcher cancel/unassign/complete).
+  const clearActive = useCallback(() => {
+    setActiveRide(null);
+    setPassengers([]);
+    setScreen((prev) => (prev === "completed" ? prev : "route_select"));
+  }, []);
+
+  // React to ride WS pushes — mirrors web orders/hooks/useRideWebSocket so
+  // dispatcher cancellation/unassignment/completion clears the ride in real time
+  // (not just via the 8s poll). broadcastToAll reaches this driver's socket.
   useEffect(() => {
     return wsEvents.on((d) => {
-      if (["ride_updated", "new_ride", "ride_completed", "ride_cancelled", "passenger_update"].includes(d.type)) {
+      const activeId = activeRideRef.current?.id;
+      const eventRideId = (d as any).rideId ?? (d as any).ride?.id;
+      const isCurrent = eventRideId != null && eventRideId === activeId;
+      const ride = (d as any).ride;
+
+      if (d.type === "ride_unassigned_by_dispatcher") {
+        if (eventRideId == null || activeId == null || isCurrent) {
+          clearActive();
+          Alert.alert("Заказ снят", (d as any).message || "Диспетчер снял с вас заказ");
+        }
+        loadActiveRide();
+        return;
+      }
+      if (d.type === "trip_completed" || d.type === "ride_completed") {
+        if (isCurrent || activeId == null) clearActive();
+        loadActiveRide();
+        return;
+      }
+      if (d.type === "ride_updated" || d.type === "trip_updated" || d.type === "new_ride") {
+        if (isCurrent && ride?.status === "cancelled") {
+          clearActive();
+          Alert.alert("Заказ отменён", "Заказ отменён диспетчером");
+          return;
+        }
+        loadActiveRide();
+        return;
+      }
+      if (
+        ["route_updated", "passenger_update", "passenger_seat_changed", "queue_update", "new_order"].includes(d.type)
+      ) {
         loadActiveRide();
       }
     });
-  }, [loadActiveRide]);
+  }, [loadActiveRide, clearActive]);
 
   // ---- screen derivation (mirrors OrdersMain) ----
   useEffect(() => {
@@ -160,12 +200,23 @@ export function useOrders() {
   // ---- ride lifecycle actions ----
   const post = useCallback(
     async (path: string, body?: unknown) => {
+      // ALWAYS send a valid JSON body. RN/OkHttp sends an empty stream when body
+      // is undefined, and with Content-Type: application/json that makes Express's
+      // JSON parser throw a non-JSON 400 (browsers send Content-Length:0 and avoid
+      // this). Body-less actions (pickup/dropoff) therefore POST "{}".
       const res = await fetch(`${API_BASE_URL}${path}`, {
         method: "POST",
         headers: headers(),
-        body: body !== undefined ? JSON.stringify(body) : undefined,
+        body: JSON.stringify(body ?? {}),
       });
-      const data = await res.json().catch(() => ({}) as any);
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        data = {};
+      }
+      console.log("[ACTION]", path, "->", res.status, res.ok ? "ok" : text.slice(0, 200));
       return { ok: res.ok, data };
     },
     [headers],
