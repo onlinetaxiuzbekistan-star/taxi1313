@@ -47,6 +47,13 @@
     "experiments": {
       "typedRoutes": true,
       "tsconfigPaths": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "62e4942c-d411-4be6-991b-9d166371c68f"
+      }
+    },
+    "owner": "akrom8988s-team"
   }
 }
