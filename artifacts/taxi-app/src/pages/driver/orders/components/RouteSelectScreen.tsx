@@ -310,7 +310,9 @@ export function RouteSelectScreen({ cities, routes, onCreateRide, creating, mark
           )}
 
           <button onClick={handleCreate} disabled={(!fromCity || !toCity || (!urgentMode && !timeSlot)) || creating}
-            className="w-full py-4 rounded-2xl bg-zinc-900 text-white font-bold text-base shadow-lg active:scale-[0.97] transition-transform disabled:opacity-40 flex items-center justify-center gap-2">
+            className={`w-full py-4 rounded-2xl text-white font-bold text-base shadow-lg active:scale-[0.97] transition-transform disabled:opacity-40 flex items-center justify-center gap-2 ${
+              urgentMode ? "bg-amber-500 shadow-amber-500/30" : "bg-emerald-500 shadow-emerald-500/30"
+            }`}>
             {creating ? <Loader2 className="w-5 h-5 animate-spin" /> : (urgentMode ? <Zap className="w-5 h-5" /> : <Car className="w-5 h-5" />)}
             {creating ? "Создаём рейс..." : (urgentMode ? "Принимать срочные" : "Начать рейс")}
           </button>
