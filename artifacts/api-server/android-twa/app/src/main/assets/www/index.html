@@ -22,7 +22,10 @@
 })();
 </script>
     <meta name="build-time" content="1777812866" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+    <!-- viewport-fit=cover lets the page draw under the Android system bars,
+         enabling env(safe-area-inset-*) to report non-zero so the bottom nav
+         can pad itself above the system navigation bar / gesture indicator. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover" />
     <title>Такси 1313 — Межгород</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="manifest" href="/manifest.json" />
@@ -58,8 +61,8 @@ if (location.search.indexOf("debug=1") >= 0 || localStorage.getItem("erudaOn") =
   document.head.appendChild(es);
 }
 </script>
-    <script type="module" crossorigin src="/assets/index-CfR4mnz8.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-93ZFB3NB.css">
+    <script type="module" crossorigin src="/assets/index-C6iv-_Q3.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-DXLPv6Ar.css">
   </head>
   <body class="notranslate">
     <div id="_splash"><div style="text-align:center"><div class="logo">Такси 1313</div><div class="dot"><span></span><span></span><span></span></div></div></div>

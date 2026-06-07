@@ -186,11 +186,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
+    // Capture role before clearAuth() nulls the user — drivers must land on the
+    // driver login, not /login (which redirects to the dispatcher login).
+    const role = user?.role;
     try { (window as any).AndroidBg?.clearAuthToken?.(); } catch {}
     clearAuth();
     safeRemove("buxtaxi_sip_config");
     const base = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
-    window.location.href = base + "/login";
+    window.location.href = base + (role === "driver" ? "/driver-login" : "/login");
   };
 
   useEffect(() => {
