@@ -30,9 +30,12 @@ import { queryClient } from "@/lib/queryClient";
 import { AuthProvider } from "@/hooks/use-auth";
 import { useSettingsStore } from "@/stores/settings";
 import { colors } from "@/lib/theme";
+import { configurePushHandler } from "@/native/push";
 
 // Point the shared API client at the live backend + token store, once.
 configureApi();
+// Foreground notification presentation behavior (FCM-ready scaffold).
+configurePushHandler();
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({

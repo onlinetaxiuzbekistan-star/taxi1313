@@ -17,6 +17,36 @@ const HEARTBEAT_INTERVAL = 20_000;
 const PONG_TIMEOUT = 10_000;
 const MAX_BACKOFF = 30_000;
 
+// Module-level handle to the live socket so non-React callers (e.g. the native
+// background GPS bridge) can push messages over the same authenticated socket.
+let _activeSocket: WebSocket | null = null;
+let _activeSessionId: string | null = null;
+
+/**
+ * Send a message over the active driver socket. Attaches the bound sessionId to
+ * driver_location / offer_ack (the backend rejects location updates whose
+ * sessionId doesn't match the current driver session). Returns false if no open
+ * socket — caller may drop or retry.
+ */
+export function sendWsMessage(msg: WsMessage): boolean {
+  const s = _activeSocket;
+  if (!s || s.readyState !== WebSocket.OPEN) return false;
+  let out = msg;
+  if (
+    (msg.type === "driver_location" || msg.type === "offer_ack") &&
+    !(msg as any).sessionId &&
+    _activeSessionId
+  ) {
+    out = { ...msg, sessionId: _activeSessionId };
+  }
+  try {
+    s.send(JSON.stringify(out));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function useRideWebSocket(token: string | null) {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -86,6 +116,7 @@ export function useRideWebSocket(token: string | null) {
       socket.onopen = () => {
         if (wsRef.current !== socket) return;
         retryCount.current = 0;
+        _activeSocket = socket;
         socket.send(JSON.stringify({ type: "auth", token: tokenRef.current }));
         startHeartbeat(socket);
       };
@@ -105,6 +136,7 @@ export function useRideWebSocket(token: string | null) {
 
           if (data.type === "auth_ok") {
             if ((data as any).sessionId) sessionIdRef.current = (data as any).sessionId;
+            _activeSessionId = sessionIdRef.current;
             console.log("[DRIVER WS] connected, session:", sessionIdRef.current);
             flushQueue(socket);
           }
@@ -136,6 +168,10 @@ export function useRideWebSocket(token: string | null) {
       };
 
       socket.onclose = (ev) => {
+        if (_activeSocket === socket) {
+          _activeSocket = null;
+          _activeSessionId = null;
+        }
         if (wsRef.current !== socket) return;
         wsRef.current = null;
         sessionIdRef.current = null;

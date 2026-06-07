@@ -51,9 +51,42 @@ node compare/capture.js             # writes compare/shots/*.png
 ```
 `compare/shots/compare-shell.png` is the side-by-side.
 
+## Phase 1 — Native capabilities (`modules/buxtaxi-background`)
+A local Expo native module (Kotlin, Android) ported from the proven native code
+in the existing Capacitor APK:
+- **Background GPS** via `FusedLocationProviderClient` (balanced ⇄ high accuracy),
+  running in a **foreground service** ("BuxTaxi — На линии") so it works
+  minimized / screen-off / after swipe-away. Location fixes are relayed to JS and
+  forwarded over the existing WebSocket as `driver_location`.
+- **New-order alerts when minimized/closed** via a 7s poll of
+  `/api/drivers/pending-offers` inside the service → high-priority local
+  notifications (full-screen, ringtone, vibration). No backend change required.
+- **Reliability:** `BootReceiver` (BOOT_COMPLETED / quick-boot / package-replaced)
+  + `onTaskRemoved` restart, and a **battery-optimization exemption** prompt.
+- **Wiring:** `src/hooks/use-online-service.ts` starts the service on Online,
+  stops it on Offline, switches to high accuracy when on a ride, forwards GPS to
+  the WS, and prompts for battery exemption once.
+- **FCM-ready (inert):** `src/native/push.ts` registers a device token via
+  `POST /api/auth/device-token` (endpoint exists). The backend currently sends
+  **Web Push (VAPID) only**, so real FCM delivery awaits a backend FCM sender;
+  the foreground-service poll covers new-order alerts until then. Needs a
+  `google-services.json` to activate.
+
+### Build the native app (NDK required — not available in CI sandbox)
+```bash
+npx expo prebuild --platform android      # generates android/ (gitignored)
+# then either:
+npx expo run:android                      # local device/emulator (needs NDK 27 + cmake)
+# or cloud build (recommended):
+eas build -p android --profile preview
+```
+Verified here: Kotlin module compiles (`:buxtaxi-background:compileDebugKotlin`),
+manifest merge includes the service/receiver/permissions, autolinking discovers
+the module, web bundle builds, `tsc` clean. A full APK link needs the Android NDK.
+
 ## Notes / next phases
 - The API client is **vendored** (copied) into `src/lib/api-client` to keep the
   Metro build hermetic. Re-sync from the monorepo source with
   `./scripts-sync-api-client.sh` after the OpenAPI client is regenerated.
-- Light theme, the real status PATCH, onboarding/tutorial, push, GPS, and the
-  full Orders/Urgent/Chat/Profile screens come in Phase 1+.
+- Phase 2: login + full ride flow (Orders/Urgent/Chat/Profile screens, accept/
+  navigate/complete). Also: light theme, real status PATCH, onboarding/tutorial.

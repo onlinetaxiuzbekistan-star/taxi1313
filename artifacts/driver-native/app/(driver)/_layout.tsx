@@ -3,6 +3,7 @@ import { Tabs, Redirect } from "expo-router";
 
 import { useAuth } from "@/hooks/use-auth";
 import { useRideWebSocket } from "@/hooks/use-ride-websocket";
+import { useOnlineService } from "@/hooks/use-online-service";
 import { DriverHeader } from "@/components/DriverHeader";
 import { DriverTabBar } from "@/components/DriverTabBar";
 import { DEMO_DRIVER } from "@/lib/driver";
@@ -19,6 +20,10 @@ export default function DriverShellLayout() {
 
   // Establish the driver WebSocket whenever we have a session (no-op in preview).
   useRideWebSocket(token);
+
+  // Native background capabilities: foreground GPS service, offer-poll
+  // notifications, battery exemption, GPS->WS, FCM token. (Android; no-op on web.)
+  useOnlineService();
 
   // Preview-only: lets the online/offline toggle visibly flip without a backend.
   const [demoStatus, setDemoStatus] = useState<"online" | "offline">("online");
