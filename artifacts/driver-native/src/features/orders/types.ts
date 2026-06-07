@@ -31,13 +31,22 @@ export interface SeatPassenger {
   age?: string | null;
   isManual?: boolean;
   isPriority?: boolean;
+  source?: string;
+  pickupAddress?: string | null;
+  dropoffAddress?: string | null;
 }
 
 export interface QueueInfoData {
   position: number;
-  totalInQueue: number;
+  total?: number;
+  totalInQueue?: number;
+  avgWaitMinutes?: number;
   estimatedWaitMinutes?: number;
+  priorityBoost?: number;
+  hint?: string;
   route?: string;
+  rideId?: number;
+  isExpired?: boolean;
 }
 
 export interface Ride {
@@ -64,6 +73,13 @@ export interface Ride {
   version?: number;
   routeId?: number;
   queueInfo?: QueueInfoData;
+  // extra fields the lifecycle screens read
+  seatsTotal?: number;
+  fromDistrictName?: string | null;
+  toDistrictName?: string | null;
+  distance?: number | string;
+  duration?: number | string;
+  scheduledAt?: string;
 }
 
 // idle (offline or no ride) | route_select (create) | seat_view/pickup/active (active ride) | completed

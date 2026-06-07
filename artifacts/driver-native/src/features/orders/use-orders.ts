@@ -18,6 +18,7 @@ export function useOrders() {
   const [passengers, setPassengers] = useState<SeatPassenger[]>([]);
   const [screen, setScreen] = useState<DriverScreen>("loading");
   const [actionLoading, setActionLoading] = useState(false);
+  const [passengerActionLoading, setPassengerActionLoading] = useState<number | null>(null);
 
   const isOnline = user?.status === "online" || user?.status === "busy";
   const headers = useCallback(
@@ -147,6 +148,141 @@ export function useOrders() {
     [token, headers, refreshUser],
   );
 
+  // ---- ride lifecycle actions ----
+  const post = useCallback(
+    async (path: string, body?: unknown) => {
+      const res = await fetch(`${API_BASE_URL}${path}`, {
+        method: "POST",
+        headers: headers(),
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+      });
+      const data = await res.json().catch(() => ({}) as any);
+      return { ok: res.ok, data };
+    },
+    [headers],
+  );
+
+  const startRide = useCallback(async () => {
+    if (!activeRide || actionLoading) return;
+    setActionLoading(true);
+    try {
+      const { ok, data } = await post("/api/drivers/start", { rideId: activeRide.id });
+      if (ok) {
+        setActiveRide((r) => (r ? { ...r, status: "in_progress" } : r));
+        setScreen("active");
+        refreshUser();
+      } else {
+        Alert.alert("Ошибка", data?.message || "Не удалось начать поездку");
+      }
+    } catch {
+      Alert.alert("Ошибка сети", "Проверьте подключение");
+    } finally {
+      setActionLoading(false);
+    }
+  }, [activeRide, actionLoading, post, refreshUser]);
+
+  const completeRide = useCallback(async () => {
+    if (!activeRide || actionLoading) return;
+    setActionLoading(true);
+    try {
+      const { ok, data } = await post("/api/drivers/complete", { rideId: activeRide.id });
+      if (ok) {
+        setActiveRide(null);
+        setPassengers([]);
+        setScreen("route_select");
+        refreshUser();
+        await loadActiveRide();
+      } else {
+        Alert.alert("Ошибка", data?.message || "Не удалось завершить рейс");
+      }
+    } catch {
+      Alert.alert("Ошибка сети", "Проверьте подключение");
+    } finally {
+      setActionLoading(false);
+    }
+  }, [activeRide, actionLoading, post, refreshUser, loadActiveRide]);
+
+  const cancelRide = useCallback(async () => {
+    if (!activeRide || actionLoading) return;
+    setActionLoading(true);
+    try {
+      const { ok, data } = await post("/api/drivers/cancel", { rideId: activeRide.id });
+      if (ok) {
+        setActiveRide(null);
+        setPassengers([]);
+        setScreen("route_select");
+        refreshUser();
+      } else {
+        Alert.alert("Ошибка", data?.message || "Не удалось отменить рейс");
+      }
+    } catch {
+      Alert.alert("Ошибка сети", "Проверьте подключение");
+    } finally {
+      setActionLoading(false);
+    }
+  }, [activeRide, actionLoading, post, refreshUser]);
+
+  const passengerPickup = useCallback(
+    async (id: number) => {
+      if (passengerActionLoading) return;
+      setPassengerActionLoading(id);
+      try {
+        const { ok, data } = await post(`/api/drivers/passenger/${id}/pickup`);
+        if (ok) {
+          setPassengers((prev) => prev.map((p) => (p.id === id ? { ...p, status: "picked_up" } : p)));
+        } else {
+          Alert.alert("Ошибка", data?.message || "Не удалось подобрать пассажира");
+        }
+      } catch {
+        Alert.alert("Ошибка сети", "Проверьте подключение");
+      } finally {
+        setPassengerActionLoading(null);
+        loadActiveRide();
+      }
+    },
+    [passengerActionLoading, post, loadActiveRide],
+  );
+
+  const passengerDropoff = useCallback(
+    async (id: number) => {
+      if (passengerActionLoading) return;
+      setPassengerActionLoading(id);
+      try {
+        const { ok, data } = await post(`/api/drivers/passenger/${id}/dropoff`);
+        if (ok) {
+          setPassengers((prev) => prev.map((p) => (p.id === id ? { ...p, status: "dropped_off" } : p)));
+          if (data?.autoCompleted) {
+            setActiveRide(null);
+            setPassengers([]);
+            setScreen("route_select");
+            refreshUser();
+          }
+        } else {
+          Alert.alert("Ошибка", data?.message || "Не удалось высадить пассажира");
+        }
+      } catch {
+        Alert.alert("Ошибка сети", "Проверьте подключение");
+      } finally {
+        setPassengerActionLoading(null);
+        loadActiveRide();
+      }
+    },
+    [passengerActionLoading, post, refreshUser, loadActiveRide],
+  );
+
+  const batchPickup = useCallback(
+    async (ids: number[]) => {
+      for (const id of ids) await passengerPickup(id);
+    },
+    [passengerPickup],
+  );
+  const batchDropoff = useCallback(
+    async (ids: number[]) => {
+      for (const id of ids) await passengerDropoff(id);
+    },
+    [passengerDropoff],
+  );
+
   return {
     cities,
     routes,
@@ -155,8 +291,16 @@ export function useOrders() {
     screen,
     isOnline,
     actionLoading,
+    passengerActionLoading,
     goOnline,
     createRide,
+    startRide,
+    completeRide,
+    cancelRide,
+    passengerPickup,
+    passengerDropoff,
+    batchPickup,
+    batchDropoff,
     reload: loadActiveRide,
   };
 }

@@ -1,14 +1,22 @@
-import { View, ActivityIndicator } from "react-native";
+import { View, ActivityIndicator, Alert } from "react-native";
 
 import { colors } from "@/lib/theme";
 import { useOrders } from "./use-orders";
 import { IdleScreen } from "./IdleScreen";
 import { RouteSelectScreen } from "./RouteSelectScreen";
-import { ActiveRideSummary } from "./ActiveRideSummary";
+import { SeatViewScreen } from "./components/SeatViewScreen";
+import { ActiveRideScreen } from "./components/ActiveRideScreen";
 
 // Ride-flow state machine (web OrdersMain + RideStateRouter equivalent).
 export function OrdersMain() {
   const o = useOrders();
+
+  const confirmCancel = () => {
+    Alert.alert("Отменить рейс?", "Это действие нельзя отменить.", [
+      { text: "Назад", style: "cancel" },
+      { text: "Отменить рейс", style: "destructive", onPress: () => o.cancelRide() },
+    ]);
+  };
 
   if (o.screen === "loading") {
     return (
@@ -29,8 +37,33 @@ export function OrdersMain() {
     );
   }
 
-  if ((o.screen === "seat_view" || o.screen === "active" || o.screen === "pickup") && o.activeRide) {
-    return <ActiveRideSummary ride={o.activeRide} passengers={o.passengers} />;
+  if (o.screen === "active" && o.activeRide) {
+    return (
+      <ActiveRideScreen
+        ride={o.activeRide}
+        passengers={o.passengers}
+        cities={o.cities}
+        loading={o.actionLoading}
+        passengerActionLoading={o.passengerActionLoading}
+        onPickup={o.passengerPickup}
+        onDropoff={o.passengerDropoff}
+        onComplete={o.completeRide}
+        onCancel={confirmCancel}
+      />
+    );
+  }
+
+  if ((o.screen === "seat_view" || o.screen === "pickup") && o.activeRide) {
+    return (
+      <SeatViewScreen
+        ride={o.activeRide}
+        passengers={o.passengers}
+        cities={o.cities}
+        loading={o.actionLoading}
+        onStartRide={o.startRide}
+        onCancel={confirmCancel}
+      />
+    );
   }
 
   // idle (offline, or online with no ride yet)
