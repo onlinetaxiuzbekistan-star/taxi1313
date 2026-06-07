@@ -1,14 +1,6 @@
-import { Briefcase } from "lucide-react-native";
-import { PlaceholderScreen } from "@/components/PlaceholderScreen";
-import { useT } from "@/lib/i18n";
+import { OrdersMain } from "@/features/orders/OrdersMain";
 
+// Заказы tab — the driver ride-flow state machine (idle / create-ride / active).
 export default function OrdersScreen() {
-  const { t } = useT();
-  return (
-    <PlaceholderScreen
-      icon={Briefcase}
-      title={t("orders_title")}
-      subtitle={t("orders_empty")}
-    />
-  );
+  return <OrdersMain />;
 }

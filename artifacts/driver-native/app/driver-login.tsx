@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -16,53 +16,70 @@ import { useAuth } from "@/hooks/use-auth";
 import { API_BASE_URL } from "@/config";
 import { colors } from "@/lib/theme";
 
-// Functional login-by-code (the "code-only" path from web DriverLogin.tsx):
+const CODE_LENGTH = 6;
+
+// Login-by-code (the "code-only" path from web DriverLogin.tsx):
 // POST /api/auth/driver-code/verify-code-only { code } -> { token, user }.
-// Styled to the new driver (cyan) theme; full SMS flow + onboarding come later.
+// Polished segmented 6-cell OTP input (hidden field drives the cells).
 export default function DriverLogin() {
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [focused, setFocused] = useState(false);
   const { login } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const inputRef = useRef<TextInput>(null);
 
-  const submit = async () => {
-    if (code.trim().length < 4) {
-      setError("Введите код водителя");
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    const url = `${API_BASE_URL}/api/auth/driver-code/verify-code-only`;
-    try {
-      console.log("[LOGIN] POST", url, "body:", JSON.stringify({ code: code.trim() }));
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: code.trim() }),
-      });
-      const text = await res.text();
-      console.log("[LOGIN] status:", res.status, "ct:", res.headers.get("content-type"), "body:", text.slice(0, 300));
-      let data: any = {};
+  const submit = useCallback(
+    async (value: string) => {
+      const codeVal = value.trim();
+      if (codeVal.length < CODE_LENGTH) {
+        setError(`Введите ${CODE_LENGTH}-значный код`);
+        return;
+      }
+      setLoading(true);
+      setError(null);
+      const url = `${API_BASE_URL}/api/auth/driver-code/verify-code-only`;
       try {
-        data = JSON.parse(text);
-      } catch {
-        data = {};
+        console.log("[LOGIN] POST", url, "body:", JSON.stringify({ code: codeVal }));
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code: codeVal }),
+        });
+        const text = await res.text();
+        console.log("[LOGIN] status:", res.status, "ct:", res.headers.get("content-type"), "body:", text.slice(0, 300));
+        let data: any = {};
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = {};
+        }
+        if (res.ok && data?.token && data?.user) {
+          await login(data.token, data.user);
+          router.replace("/(driver)");
+        } else {
+          setError(data?.message || data?.error || `Неверный код (HTTP ${res.status})`);
+        }
+      } catch (e) {
+        console.log("[LOGIN] network error:", (e as Error)?.message);
+        setError("Ошибка сети");
+      } finally {
+        setLoading(false);
       }
-      if (res.ok && data?.token && data?.user) {
-        await login(data.token, data.user);
-        router.replace("/(driver)");
-      } else {
-        setError(data?.message || data?.error || `Неверный код (HTTP ${res.status})`);
-      }
-    } catch (e) {
-      console.log("[LOGIN] network error:", (e as Error)?.message);
-      setError("Ошибка сети");
-    } finally {
-      setLoading(false);
-    }
+    },
+    [login, router],
+  );
+
+  const onChange = (v: string) => {
+    const digits = v.replace(/[^0-9]/g, "").slice(0, CODE_LENGTH);
+    setCode(digits);
+    setError(null);
+    if (digits.length === CODE_LENGTH) submit(digits); // auto-submit when full
   };
+
+  const cells = Array.from({ length: CODE_LENGTH });
 
   return (
     <KeyboardAvoidingView
@@ -81,32 +98,63 @@ export default function DriverLogin() {
           <Text className="font-sans text-muted-foreground text-sm mt-1">Вход для водителя</Text>
         </View>
 
-        <Text className="font-sans-semibold text-muted-foreground text-[12px] uppercase mb-2" style={{ letterSpacing: 1 }}>
+        <Text
+          className="font-sans-semibold text-muted-foreground text-[12px] uppercase mb-3 text-center"
+          style={{ letterSpacing: 1 }}
+        >
           Код водителя
         </Text>
+
+        {/* Segmented OTP cells (tap to focus the hidden input) */}
+        <Pressable
+          className="flex-row justify-between"
+          onPress={() => inputRef.current?.focus()}
+        >
+          {cells.map((_, i) => {
+            const char = code[i] ?? "";
+            const isActive = focused && i === code.length;
+            const filled = !!char;
+            return (
+              <View
+                key={i}
+                className={`rounded-2xl border-2 items-center justify-center ${
+                  isActive
+                    ? "border-primary bg-secondary"
+                    : filled
+                      ? "border-primary/40 bg-secondary"
+                      : "border-border bg-secondary/60"
+                }`}
+                style={{ width: 48, height: 58 }}
+              >
+                <Text className="font-sans-bold text-foreground text-2xl">{char || ""}</Text>
+              </View>
+            );
+          })}
+        </Pressable>
+
+        {/* Hidden input that actually captures the digits */}
         <TextInput
+          ref={inputRef}
           value={code}
-          onChangeText={(v) => {
-            setCode(v.replace(/[^0-9]/g, ""));
-            setError(null);
-          }}
+          onChangeText={onChange}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
           keyboardType="number-pad"
-          maxLength={6}
-          placeholder="• • • • • •"
-          placeholderTextColor={colors.mutedForeground}
-          className="bg-secondary border border-border rounded-2xl text-foreground text-center text-2xl px-4 py-4 font-sans-bold"
-          style={{ letterSpacing: 8 }}
+          maxLength={CODE_LENGTH}
+          autoFocus
+          caretHidden
+          style={{ position: "absolute", opacity: 0, height: 1, width: 1 }}
         />
 
         {error ? (
-          <Text className="font-sans text-red-400 text-sm mt-3 text-center">{error}</Text>
+          <Text className="font-sans text-red-400 text-sm mt-4 text-center">{error}</Text>
         ) : null}
 
         <Pressable
-          onPress={submit}
-          disabled={loading}
+          onPress={() => submit(code)}
+          disabled={loading || code.length < CODE_LENGTH}
           className={`mt-6 rounded-2xl py-4 items-center bg-primary active:opacity-90 ${
-            loading ? "opacity-60" : ""
+            loading || code.length < CODE_LENGTH ? "opacity-50" : ""
           }`}
         >
           {loading ? (
