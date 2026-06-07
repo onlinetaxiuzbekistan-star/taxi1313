@@ -434,62 +434,64 @@ function DriverLayoutInner({ children, wsRef }: { children: ReactNode; wsRef: Re
   return (
     <div className="driver-theme min-h-screen bg-background">
       <header className="fixed top-0 left-0 right-0 z-40 bg-card/95 backdrop-blur-lg border-b border-white/[0.06]">
-        <div className="flex items-center justify-between px-3 h-14">
-          <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between gap-2.5 px-3 h-14">
+          <div className="flex items-center gap-1.5">
             <Link
               href="/driver/profile"
-              className="flex items-center gap-1.5 bg-white/[0.06] px-2.5 py-1.5 rounded-lg active:scale-95 transition-all no-underline"
+              className="flex items-center gap-1.5 bg-white/[0.06] px-2 py-1 rounded-lg active:scale-95 transition-all no-underline shrink-0"
             >
               {driverPhotoSrc ? (
-                <img src={`${driverPhotoSrc}${driverPhotoSrc.includes("?") ? "&" : "?"}v=${user?.updatedAt || ""}`} alt="" className="w-6 h-6 rounded-full object-cover border border-white/10" onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                <img src={`${driverPhotoSrc}${driverPhotoSrc.includes("?") ? "&" : "?"}v=${user?.updatedAt || ""}`} alt="" className="w-5 h-5 rounded-full object-cover border border-white/10" onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
               ) : (
-                <div className="w-6 h-6 rounded-full bg-primary/15 flex items-center justify-center">
-                  <User className="w-3.5 h-3.5 text-primary" />
+                <div className="w-5 h-5 rounded-full bg-primary/15 flex items-center justify-center">
+                  <User className="w-3 h-3 text-primary" />
                 </div>
               )}
-              <span className="text-sm font-extrabold font-mono text-foreground tracking-wide">{callsign}</span>
+              <span className="text-[13px] font-extrabold font-mono text-foreground tracking-wide">{callsign}</span>
             </Link>
             {(() => {
               const bal = Number((user as any)?.balance || 0);
               const neg = bal < 0;
               return (
                 <Link href="/driver/wallet"
-                  className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg active:scale-95 transition-all no-underline border ${neg ? "bg-red-500/10 border-red-500/30 text-red-400" : "bg-zinc-900 border-zinc-700 text-white"}`}
+                  className={`flex items-center gap-1 px-2 py-1 rounded-lg active:scale-95 transition-all no-underline border shrink-0 ${neg ? "bg-red-500/10 border-red-500/30 text-red-400" : "bg-zinc-900 border-zinc-700 text-white"}`}
                   title={lang === "uz" ? "Balans" : "Баланс"}>
-                  <Wallet className="w-3.5 h-3.5" />
-                  <span className="text-sm font-extrabold tracking-tight tabular-nums">
+                  <Wallet className="w-3.5 h-3.5 shrink-0" />
+                  <span className="text-[13px] font-extrabold tracking-tight tabular-nums">
                     {bal.toLocaleString("ru-RU")}
                   </span>
-                  <span className="text-[10px] font-bold opacity-70">сум</span>
+                  <span className="text-[9px] font-bold opacity-70 shrink-0">сум</span>
                 </Link>
               );
             })()}
           </div>
 
-          <button
-            onClick={toggleStatus}
-            disabled={toggling}
-            className={`flex items-center gap-1.5 h-9 pl-3 pr-2 rounded-full transition-all ${
-              user.status === "busy"
-                ? "bg-amber-500 text-white shadow-md shadow-amber-500/30 border border-amber-600"
-                : isOnline
-                ? "bg-emerald-500 text-white shadow-md shadow-emerald-500/30 border border-emerald-600"
-                : "bg-red-500 text-white shadow-md shadow-red-500/30 border border-red-600"
-            } disabled:opacity-50`}
-          >
-            <div className={`w-2 h-2 rounded-full ${isOnline ? "bg-white animate-pulse" : "bg-white/80"}`} />
-            <span className="text-xs font-bold">{user.status === "busy" ? (lang === "uz" ? "Reysda" : "В рейсе") : isOnline ? "Online" : "Offline"}</span>
-            {toggling ? <Loader2 className="w-4 h-4 animate-spin" /> : <Power className="w-4 h-4" />}
-          </button>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              onClick={toggleStatus}
+              disabled={toggling}
+              className={`flex items-center gap-1.5 h-8 pl-2.5 pr-2 rounded-full transition-all ${
+                user.status === "busy"
+                  ? "bg-amber-500 text-white shadow-sm shadow-amber-500/30 border border-amber-600"
+                  : isOnline
+                  ? "bg-emerald-500 text-white shadow-sm shadow-emerald-500/30 border border-emerald-600"
+                  : "bg-red-500 text-white shadow-sm shadow-red-500/30 border border-red-600"
+              } disabled:opacity-50`}
+            >
+              <div className={`w-1.5 h-1.5 rounded-full ${isOnline ? "bg-white animate-pulse" : "bg-white/80"}`} />
+              <span className="text-[11px] font-bold">{user.status === "busy" ? (lang === "uz" ? "Reysda" : "В рейсе") : isOnline ? "Online" : "Offline"}</span>
+              {toggling ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Power className="w-3.5 h-3.5" />}
+            </button>
 
-          <button
-            onClick={() => setShowExitConfirm(true)}
-            className="flex items-center justify-center w-9 h-9 rounded-full bg-red-500/10 border border-red-500/30 text-red-500 active:scale-95 transition-all"
-            title={lang === "uz" ? "Chiqish" : "Закрыть приложение"}
-            aria-label={lang === "uz" ? "Chiqish" : "Закрыть приложение"}
-          >
-            <LogOut className="w-4 h-4" />
-          </button>
+            <button
+              onClick={() => setShowExitConfirm(true)}
+              className="flex items-center justify-center w-8 h-8 rounded-full bg-red-500/10 border border-red-500/30 text-red-500 active:scale-95 transition-all shrink-0"
+              title={lang === "uz" ? "Chiqish" : "Закрыть приложение"}
+              aria-label={lang === "uz" ? "Chiqish" : "Закрыть приложение"}
+            >
+              <LogOut className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
       </header>
 
