@@ -131,6 +131,7 @@ function DriverLayoutInner({ children, wsRef }: { children: ReactNode; wsRef: Re
   const { toast } = useToast();
   const [toggling, setToggling] = useState(false);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
+  const [showStatusConfirm, setShowStatusConfirm] = useState(false);
   const handleBanExpired = useCallback(() => { refreshUser(); }, [refreshUser]);
   const { isBanned, display: banCountdown } = useBanCountdown(user?.bannedUntil, handleBanExpired);
   const [blockReason, setBlockReason] = useState<string | null>(null);
@@ -468,7 +469,7 @@ function DriverLayoutInner({ children, wsRef }: { children: ReactNode; wsRef: Re
 
           <div className="flex items-center gap-1.5 shrink-0">
             <button
-              onClick={toggleStatus}
+              onClick={() => setShowStatusConfirm(true)}
               disabled={toggling}
               className={`flex items-center gap-1.5 h-8 pl-2.5 pr-2 rounded-full transition-all ${
                 user.status === "busy"
@@ -509,6 +510,38 @@ function DriverLayoutInner({ children, wsRef }: { children: ReactNode; wsRef: Re
               </button>
               <button onClick={doExitApp} className="flex-1 py-3 rounded-xl bg-red-500 text-white font-semibold active:scale-95 transition-all">
                 {lang === "uz" ? "Chiqish" : "Закрыть"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showStatusConfirm && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm p-6" onClick={() => setShowStatusConfirm(false)}>
+          <div className="w-full max-w-xs bg-card rounded-2xl p-6 shadow-2xl border border-border" onClick={(e) => e.stopPropagation()}>
+            <div className={`flex items-center justify-center w-14 h-14 mx-auto mb-4 rounded-full ${isOnline ? "bg-red-500/10 border border-red-500/30" : "bg-emerald-500/10 border border-emerald-500/30"}`}>
+              <Power className={`w-7 h-7 ${isOnline ? "text-red-500" : "text-emerald-500"}`} />
+            </div>
+            <h3 className="text-lg font-bold text-foreground text-center mb-2">
+              {isOnline
+                ? (lang === "uz" ? "Liniyadan chiqasizmi?" : "Выйти с линии?")
+                : (lang === "uz" ? "Liniyaga chiqasizmi?" : "Выйти на линию?")}
+            </h3>
+            <p className="text-sm text-muted-foreground text-center mb-6">
+              {isOnline
+                ? (lang === "uz" ? "Yangi buyurtmalarni qabul qilishni to‘xtatasiz" : "Вы перестанете получать новые заказы")
+                : (lang === "uz" ? "Yangi buyurtmalarni qabul qila boshlaysiz" : "Вы начнёте получать новые заказы")}
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => setShowStatusConfirm(false)} className="flex-1 py-3 rounded-xl bg-secondary text-foreground font-semibold active:scale-95 transition-all">
+                {lang === "uz" ? "Bekor qilish" : "Отмена"}
+              </button>
+              <button
+                onClick={() => { setShowStatusConfirm(false); toggleStatus(); }}
+                className={`flex-1 py-3 rounded-xl text-white font-semibold active:scale-95 transition-all ${isOnline ? "bg-red-500" : "bg-emerald-500"}`}>
+                {isOnline
+                  ? (lang === "uz" ? "Chiqish" : "Выйти")
+                  : (lang === "uz" ? "Chiqish" : "На линию")}
               </button>
             </div>
           </div>
