@@ -625,7 +625,7 @@ function DriverLayoutInner({ children, wsRef }: { children: ReactNode; wsRef: Re
         </div>
       )}
 
-      <main className="pt-14 pb-[calc(72px+env(safe-area-inset-bottom)+24px)] flex flex-col h-screen">
+      <main className="pt-14 pb-[calc(72px_+_var(--safe-bottom)_+_24px)] flex flex-col h-screen">
         {showPushBanner && !isBanned && (
           <div className="bg-primary/8 border-b border-primary/15 px-4 py-3 flex items-center justify-between gap-3">
             <div className="flex items-center gap-2 text-sm">
@@ -663,7 +663,7 @@ function DriverLayoutInner({ children, wsRef }: { children: ReactNode; wsRef: Re
         {children}
       </main>
 
-      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-card/95 backdrop-blur-lg border-t border-white/[0.06] pb-[env(safe-area-inset-bottom)]">
+      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-card/95 backdrop-blur-lg border-t border-white/[0.06] pb-[var(--safe-bottom)]">
         <div className="flex justify-around items-center h-[68px] px-1">
           {navs.map(nav => {
             const isChat = nav.path === "/driver/chat";

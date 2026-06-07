@@ -6,6 +6,8 @@ import androidx.activity.ComponentActivity;
 import androidx.activity.OnBackPressedCallback;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
+import androidx.core.view.ViewCompat;
+import androidx.core.graphics.Insets;
 import androidx.core.view.WindowInsetsControllerCompat;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -79,6 +81,8 @@ public class LauncherActivity extends ComponentActivity {
     private String launchUrl;
     private long lastBackPress = 0;
     private boolean splashDismissed = false;
+    private int safeBottomPx = 0;
+    private int safeTopPx = 0;
     private ConnectivityManager.NetworkCallback networkCallback;
     private PowerManager.WakeLock wakeLock;
 
@@ -155,6 +159,22 @@ public class LauncherActivity extends ComponentActivity {
         ));
 
         setContentView(root);
+
+        // Edge-to-edge (setDecorFitsSystemWindows(false)) means the WebView draws UNDER the
+        // system navigation bar. Android WebView's CSS env(safe-area-inset-bottom) is unreliable
+        // here (often 0), which clips the bottom nav. So read the REAL system-bar insets and push
+        // them into the page as CSS variables (--android-nav-bottom/-top); the CSS uses them with
+        // a floor so the bottom nav is always fully visible. Re-fires on rotation/keyboard/etc.
+        ViewCompat.setOnApplyWindowInsetsListener(root, (v, windowInsets) -> {
+            Insets bars = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars());
+            float density = getResources().getDisplayMetrics().density;
+            if (density <= 0) density = 1f;
+            safeBottomPx = Math.round(bars.bottom / density);
+            safeTopPx = Math.round(bars.top / density);
+            injectSafeAreaInsets();
+            return windowInsets; // do not consume — keep the window edge-to-edge
+        });
+        ViewCompat.requestApplyInsets(root);
 
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
@@ -295,6 +315,9 @@ public class LauncherActivity extends ComponentActivity {
                     "if(navigator.serviceWorker){navigator.serviceWorker.getRegistrations().then(function(r){r.forEach(function(sw){sw.unregister()})}).catch(function(){});}",
                     null
                 );
+                // Re-apply the real safe-area insets after each page load/navigation, in case the
+                // inset listener fired before the document existed.
+                injectSafeAreaInsets();
             }
 
             @Override
@@ -370,6 +393,21 @@ public class LauncherActivity extends ComponentActivity {
         installBackPressHandler();
 
         webView.loadUrl(launchUrl);
+    }
+
+    /** Push the real system-bar insets into the page as CSS variables so the web UI can keep its
+     *  bottom nav (and top header) clear of the Android system bars regardless of WebView's flaky
+     *  env(safe-area-inset-*) support. Safe to call before the page exists (no-ops in the page). */
+    private void injectSafeAreaInsets() {
+        if (webView == null) return;
+        final String js =
+            "(function(){try{var d=document.documentElement;if(d&&d.style){"
+            + "d.style.setProperty('--android-nav-bottom','" + safeBottomPx + "px');"
+            + "d.style.setProperty('--android-nav-top','" + safeTopPx + "px');"
+            + "}}catch(e){}})();";
+        runOnUiThread(() -> {
+            try { webView.evaluateJavascript(js, null); } catch (Exception ignored) {}
+        });
     }
 
     private FrameLayout createSplashView() {

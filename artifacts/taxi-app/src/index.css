@@ -31,6 +31,11 @@
 :root {
   --radius: 0.75rem;
   color-scheme: dark;
+  /* Robust bottom safe-area. Android WebView in edge-to-edge mode (setDecorFitsSystemWindows(false))
+     frequently reports env(safe-area-inset-bottom)=0, which clips the bottom nav behind the system
+     navigation bar. So we prefer the REAL inset injected natively as --android-nav-bottom, fall back
+     to CSS env(), and floor at 12px so the nav is NEVER fully hidden. */
+  --safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--android-nav-bottom, 0px), 12px);
 }
 
 [data-theme="dark"] {
