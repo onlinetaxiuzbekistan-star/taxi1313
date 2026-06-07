@@ -2,6 +2,7 @@ import { db, usersTable, driverGroupsTable } from "@workspace/db";
 import { clog } from "./logger.js";
 import { eq, and, inArray } from "drizzle-orm";
 import { redis } from "./redis.js";
+import { WS_PUBSUB_ENABLED } from "./ws-pubsub.js";
 
 const DRIVER_GPS_KEY = "taxi:driver:gps:";
 const DRIVER_GPS_TTL = 300;
@@ -31,6 +32,46 @@ const groupLevelCache = new Map<number, number>();
 let lastFullSync = 0;
 const FULL_SYNC_INTERVAL_MS = 30_000;
 
+// ── Cross-worker presence (clustering) ──────────────────────────────────────
+// In a cluster, a driver's WS lives on one worker, but dispatch (and every other
+// worker) needs that driver's fresh GPS/status. We publish each gps/status change to
+// a namespaced Redis channel; every worker applies it to its local cache. Membership
+// (which drivers are online) still comes from the 30s DB sync on every worker — same
+// as single-process. Gated: with WS_PUBSUB off (live 4000), these are no-ops.
+const PRESENCE_CHANNEL = `${process.env.WS_CHANNEL_PREFIX || "ws"}:presence`;
+let presencePub: ReturnType<typeof redis.duplicate> | null = null;
+let presenceSub: ReturnType<typeof redis.duplicate> | null = null;
+
+function publishPresence(ev: object): void {
+  if (!WS_PUBSUB_ENABLED) return;
+  if (!presencePub) presencePub = redis.duplicate();
+  presencePub.publish(PRESENCE_CHANNEL, JSON.stringify(ev)).catch(() => {});
+}
+
+function applyPresence(ev: { t: string; id: number; lat?: number; lng?: number; ts?: number; status?: string }): void {
+  if (ev.t === "gps") {
+    const d = driverCache.get(ev.id);
+    if (d) { d.lat = ev.lat!; d.lng = ev.lng!; d.lastActive = ev.ts || Date.now(); }
+  } else if (ev.t === "status") {
+    if (ev.status === "offline") {
+      driverCache.delete(ev.id);
+    } else {
+      const d = driverCache.get(ev.id);
+      if (d) { d.status = ev.status as "online" | "busy"; d.lastActive = Date.now(); }
+    }
+  }
+}
+
+export function startPresenceSubscriber(): void {
+  if (!WS_PUBSUB_ENABLED || presenceSub) return;
+  presenceSub = redis.duplicate();
+  presenceSub.on("error", (e: Error) => clog.error("[PRESENCE] subscriber error:", e.message));
+  presenceSub.on("message", (_c: string, m: string) => { try { applyPresence(JSON.parse(m)); } catch { /* */ } });
+  presenceSub.subscribe(PRESENCE_CHANNEL)
+    .then(() => clog.log(`[PRESENCE] subscribed to ${PRESENCE_CHANNEL} (pid ${process.pid})`))
+    .catch((e: Error) => clog.error("[PRESENCE] subscribe failed:", e.message));
+}
+
 export function getDriverCache(): Map<number, CachedDriver> {
   return driverCache;
 }
@@ -47,6 +88,7 @@ export function updateDriverLocation(driverId: number, lat: number, lng: number)
     d.lastActive = Date.now();
   }
   redis.setex(DRIVER_GPS_KEY + driverId, DRIVER_GPS_TTL, JSON.stringify({ lat, lng, ts: Date.now() })).catch(() => {});
+  publishPresence({ t: "gps", id: driverId, lat, lng, ts: Date.now() });
 }
 
 export function updateDriverStatus(driverId: number, status: "online" | "offline" | "busy") {
@@ -59,6 +101,7 @@ export function updateDriverStatus(driverId: number, status: "online" | "offline
       redis.del(DRIVER_GPS_KEY + driverId).catch(() => {});
     }
   }
+  publishPresence({ t: "status", id: driverId, status });
 }
 
 export function removeDriver(driverId: number) {
@@ -195,7 +238,12 @@ export async function syncDriverCache(): Promise<void> {
 
 syncDriverCache();
 let syncTimer: ReturnType<typeof setInterval> | null = setInterval(syncDriverCache, FULL_SYNC_INTERVAL_MS);
+if (WS_PUBSUB_ENABLED) startPresenceSubscriber();
 
 export function stopDriverCacheSync(): void {
   if (syncTimer) { clearInterval(syncTimer); syncTimer = null; }
+  try { presenceSub?.quit(); } catch { /* */ }
+  try { presencePub?.quit(); } catch { /* */ }
+  presenceSub = null;
+  presencePub = null;
 }

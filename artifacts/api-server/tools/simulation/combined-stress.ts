@@ -44,7 +44,7 @@ const INPROGRESS = Math.min(100, Math.max(5, Math.floor(N / 5)));
 const GPS_MS = 5_000, POLL_MS = 7_000, RAMP = 50;
 const RIDE_PRICE = 50_000;
 
-interface Driver { id: number; token: string; ip: string; ws?: WebSocket; authed: boolean; }
+interface Driver { id: number; token: string; ip: string; sid: string; ws?: WebSocket; authed: boolean; }
 const drivers: Driver[] = [];
 const operators: { id: number; token: string; ip: string }[] = [];
 // Each synthetic driver/operator gets a UNIQUE client IP via X-Forwarded-For, which
@@ -91,7 +91,7 @@ async function provisionDrivers(n: number) {
     const rows = await db.insert(usersTable).values(slice).returning({ id: usersTable.id });
     const sessions = rows.map((r) => ({ driverId: r.id, sessionToken: crypto.randomBytes(48).toString("hex"), deviceId: `stress-${r.id}`, deviceName: "stress", ipAddress: "127.0.0.1", expiresAt: new Date(Date.now() + 7 * 864e5) }));
     await db.insert(driverSessionsTable).values(sessions);
-    rows.forEach((r, i) => drivers.push({ id: r.id, token: jwt.sign({ userId: r.id, role: "driver", sid: sessions[i].sessionToken }, JWT_SECRET, { expiresIn: "2h" }), ip: driverIp(off + i), authed: false }));
+    rows.forEach((r, i) => drivers.push({ id: r.id, token: jwt.sign({ userId: r.id, role: "driver", sid: sessions[i].sessionToken }, JWT_SECRET, { expiresIn: "2h" }), ip: driverIp(off + i), sid: sessions[i].sessionToken, authed: false }));
   }
   console.log(`[setup] ✓ ${drivers.length} drivers`);
 }
@@ -171,7 +171,7 @@ async function setOnline() {
 function startLoops() {
   const gps = setInterval(() => {
     if (stopped) return;
-    for (const d of drivers) if (d.ws?.readyState === WebSocket.OPEN && d.authed) { try { d.ws.send(JSON.stringify({ type: "driver_location", lat: 41.3 + (Math.random() - 0.5) * 0.2, lng: 69.28 + (Math.random() - 0.5) * 0.2 })); } catch { /* */ } }
+    for (const d of drivers) if (d.ws?.readyState === WebSocket.OPEN && d.authed) { try { d.ws.send(JSON.stringify({ type: "driver_location", lat: 41.3 + (Math.random() - 0.5) * 0.2, lng: 69.28 + (Math.random() - 0.5) * 0.2, sessionId: d.sid })); } catch { /* */ } }
   }, GPS_MS);
   const poll = setInterval(() => {
     if (stopped) return;
