@@ -300,9 +300,10 @@ export function RouteSelectScreen({ cities, routes, onCreateRide, creating, mark
                       <div className={`flex items-center justify-center w-9 h-9 rounded-xl shrink-0 transition-colors ${selected ? "bg-emerald-500 text-white" : "bg-secondary text-muted-foreground"}`}>
                         <Clock className="w-4 h-4" />
                       </div>
-                      <div className="flex flex-col items-start leading-tight">
-                        <span className={`text-base font-extrabold tabular-nums ${selected ? "text-emerald-400" : "text-foreground"}`}>{start}</span>
-                        <span className="text-[11px] text-muted-foreground tabular-nums">до {end}</span>
+                      <div className="flex items-center gap-1 leading-tight">
+                        <span className={`text-[15px] font-extrabold tabular-nums ${selected ? "text-emerald-400" : "text-foreground"}`}>{start}</span>
+                        <span className={`text-[13px] font-bold ${selected ? "text-emerald-400/50" : "text-muted-foreground"}`}>–</span>
+                        <span className={`text-[15px] font-extrabold tabular-nums ${selected ? "text-emerald-400" : "text-foreground"}`}>{end}</span>
                       </div>
                       {selected && (
                         <div className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-emerald-500 flex items-center justify-center">
