@@ -9,7 +9,7 @@ import { eq, and, ne, desc, sql, gte, lte, inArray, notInArray } from "drizzle-o
 import { CITIES } from "../rides/index.js";
 import { getOsrmRoute, haversineDistance } from "../../lib/osrm.js";
 import { authMiddleware, requireRole, AuthRequest } from "../../middlewares/auth.js";
-import { broadcastToAll, broadcastToUser } from "../../lib/websocket.js";
+import { broadcastToAll, broadcastToUser, enqueueDriverStatusBroadcast } from "../../lib/websocket.js";
 import { notifyOrderAccepted, notifyOrderTaken } from "../../lib/notifications.js";
 import { applyCancelPenalty, resetConsecutiveIgnores, isDriverBanned, getBanRemainingMs, handleStatusToggle } from "../../lib/bonuses.js";
 import { completeRide } from "../../lib/completion.js";
@@ -486,7 +486,7 @@ router.post("/accept", authMiddleware, validateBody(rideIdBodySchema), async (re
 
     const [freshRide] = await db.select().from(ridesTable).where(eq(ridesTable.id, Number(rideId)));
     broadcastToAll({ type: "ride_updated", ride: freshRide || ride });
-    broadcastToAll({ type: "driver_status", driverId, status: "busy" });
+    enqueueDriverStatusBroadcast(driverId, "busy");
     notifyOrderAccepted(Number(rideId), driver.name).catch(() => {});
 
     if (matchedRouteRide) {
@@ -698,7 +698,7 @@ router.post("/complete", authMiddleware, validateBody(rideIdBodySchema), async (
     const [ride] = await db.select().from(ridesTable).where(eq(ridesTable.id, Number(rideId)));
     broadcastToAll({ type: "ride_updated", ride });
     broadcastToAll({ type: "trip_completed", rideId: Number(rideId), driverId, version: ride?.version });
-    broadcastToAll({ type: "driver_status", driverId, status: "online" });
+    enqueueDriverStatusBroadcast(driverId, "online");
 
     try {
       const completedRideIds = [Number(rideId), ...linkedClientRides.map(cr => cr.id)];
@@ -814,7 +814,7 @@ router.post("/cancel", authMiddleware, validateBody(rideIdBodySchema), async (re
     await db.update(usersTable).set({ status: "online", updatedAt: new Date() }).where(eq(usersTable.id, driverId));
 
     broadcastToAll({ type: "ride_updated", ride });
-    broadcastToAll({ type: "driver_status", driverId, status: "online" });
+    enqueueDriverStatusBroadcast(driverId, "online");
     req.log.info({ rideId, driverId }, "Driver cancelled ride with penalty");
     if (ikey) await storeIdempotentResult(ikey, driverId, "cancel", 200, ride, ride.version);
     res.json(ride);
@@ -926,7 +926,7 @@ router.post("/create-ride", authMiddleware, validateBody(createDriverRideBodySch
 
     await db.update(usersTable).set({ status: "busy", updatedAt: new Date() }).where(eq(usersTable.id, driverId));
     broadcastToAll({ type: "ride_updated", ride });
-    broadcastToAll({ type: "driver_status", driverId, status: "busy" });
+    enqueueDriverStatusBroadcast(driverId, "busy");
     broadcastToAll({ type: "queue_update", fromCity, toCity, reason: "driver_joined" });
 
     req.log.info({ rideId: ride.id, driverId }, "Driver created ride");

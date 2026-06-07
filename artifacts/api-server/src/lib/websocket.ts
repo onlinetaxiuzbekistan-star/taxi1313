@@ -587,6 +587,42 @@ export function broadcastToAll(data: object) {
   });
 }
 
+// ─── driver_status broadcast coalescer ───────────────────────────────────
+// driver_status events fan out to every connected client; under a 1000-driver
+// ramp (each driver flips online + busy/online during accept/start/complete)
+// this used to emit ~6 individual broadcasts per driver × N recipients. Now
+// events are buffered for up to STATUS_BATCH_WINDOW_MS and emitted either as
+// the original `driver_status` (1 event) or as one `driver_status_batch`
+// (many events) with the same individual entries. Clients handle both shapes.
+const STATUS_BATCH_WINDOW_MS = 1_000;
+const statusBuffer = new Map<number, { driverId: number; status: string; at: number }>();
+let statusFlushTimer: NodeJS.Timeout | null = null;
+
+function flushStatusBuffer(): void {
+  statusFlushTimer = null;
+  if (statusBuffer.size === 0) return;
+  // Last write per driverId wins (Map semantics already collapsed transitions).
+  const entries = Array.from(statusBuffer.values());
+  statusBuffer.clear();
+  if (entries.length === 1) {
+    broadcastToAll({ type: "driver_status", driverId: entries[0].driverId, status: entries[0].status });
+    return;
+  }
+  broadcastToAll({ type: "driver_status_batch", entries });
+}
+
+/**
+ * Enqueue a driver_status change for broadcast. Coalesces same-driver flips
+ * inside the 1-second batch window, and emits either a single driver_status
+ * (1 event) or driver_status_batch (many) at the next flush.
+ */
+export function enqueueDriverStatusBroadcast(driverId: number, status: string): void {
+  statusBuffer.set(driverId, { driverId, status, at: Date.now() });
+  if (statusFlushTimer === null) {
+    statusFlushTimer = setTimeout(flushStatusBuffer, STATUS_BATCH_WINDOW_MS);
+  }
+}
+
 export function broadcastToUser(userId: number, data: object): boolean {
   if (!wss) {
     clog.warn(`[WS] broadcastToUser(${userId}): WSS not initialized`);

@@ -9,7 +9,7 @@ import { eq, and, ne, desc, sql, gte, lte, inArray, notInArray } from "drizzle-o
 import { CITIES } from "../rides/index.js";
 import { getOsrmRoute, haversineDistance } from "../../lib/osrm.js";
 import { authMiddleware, requireRole, AuthRequest } from "../../middlewares/auth.js";
-import { broadcastToAll, broadcastToUser } from "../../lib/websocket.js";
+import { broadcastToAll, broadcastToUser, enqueueDriverStatusBroadcast } from "../../lib/websocket.js";
 import { notifyOrderAccepted, notifyOrderTaken } from "../../lib/notifications.js";
 import { applyCancelPenalty, resetConsecutiveIgnores, isDriverBanned, getBanRemainingMs, handleStatusToggle } from "../../lib/bonuses.js";
 import { completeRide } from "../../lib/completion.js";
@@ -485,7 +485,7 @@ router.post("/passenger/:passengerId/dropoff", authMiddleware, requireRole("driv
         const [completedRide] = await db.select().from(ridesTable).where(eq(ridesTable.id, ride.id));
         broadcastToAll({ type: "ride_updated", ride: completedRide });
         broadcastToAll({ type: "trip_completed", rideId: ride.id, driverId, version: completedRide?.version });
-        broadcastToAll({ type: "driver_status", driverId, status: "online" });
+        enqueueDriverStatusBroadcast(driverId, "online");
 
         try {
           const autoCompRideIds = [ride.id, ...linkedClientRides.map(cr => cr.id)];

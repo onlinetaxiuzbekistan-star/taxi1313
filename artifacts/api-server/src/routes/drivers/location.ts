@@ -9,7 +9,7 @@ import { eq, and, ne, desc, sql, gte, lte, inArray, notInArray } from "drizzle-o
 import { CITIES } from "../rides/index.js";
 import { getOsrmRoute, haversineDistance } from "../../lib/osrm.js";
 import { authMiddleware, requireRole, AuthRequest } from "../../middlewares/auth.js";
-import { broadcastToAll, broadcastToUser } from "../../lib/websocket.js";
+import { broadcastToAll, broadcastToUser, enqueueDriverStatusBroadcast } from "../../lib/websocket.js";
 import { notifyOrderAccepted, notifyOrderTaken } from "../../lib/notifications.js";
 import { applyCancelPenalty, resetConsecutiveIgnores, isDriverBanned, getBanRemainingMs, handleStatusToggle } from "../../lib/bonuses.js";
 import { completeRide } from "../../lib/completion.js";
@@ -89,7 +89,12 @@ router.patch("/status", authMiddleware, validateBody(driverStatusBodySchema), as
     await db.update(usersTable).set({ status, updatedAt: new Date() }).where(eq(usersTable.id, req.userId!));
     const [driver] = await db.select(safeUserColumns).from(usersTable).where(eq(usersTable.id, req.userId!));
     const safeDriver = driver;
-    broadcastToAll({ type: "driver_status", driver: safeDriver });
+    // Coalesced into the driver_status_batch stream — under a mass-online
+    // event (notification ping, dispatcher orders, etc.) this used to emit
+    // one full-driver broadcast per driver to every connected client. The
+    // batched message carries {driverId, status}; consumers that need full
+    // driver objects refetch on the batch tick.
+    enqueueDriverStatusBroadcast(req.userId!, status);
 
     const { enqueueDriver, removeFromQueue, getQueuePosition } = await import("../../lib/driver-queue.js");
     if (status === "online") {
