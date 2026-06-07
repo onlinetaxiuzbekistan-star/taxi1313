@@ -12,7 +12,14 @@ if (!process.env.DATABASE_URL) {
 
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  max: 30,
+  // Sized for the 1000-concurrent-driver workload validated by stress-rampup.
+  // At N=1000 the previous max=30 was pinned at 100% utilization the entire
+  // run — never starved (queries are fast), but a single slow dispatch query
+  // holding a connection while bursts contend would have been a cliff.
+  // PostgreSQL max_connections=100 on this host; one app instance + headroom
+  // for psql/admin → 60 is the sweet spot. Bump max_connections too before
+  // running multiple Node workers.
+  max: 60,
   idleTimeoutMillis: 30_000,
   connectionTimeoutMillis: 5_000,
   statement_timeout: 10_000,
