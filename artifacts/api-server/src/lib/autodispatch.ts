@@ -11,6 +11,8 @@ import { notifyNewOrder } from "./notifications.js";
 import { getSettingNum, getSettingBool } from "./settingsCache.js";
 import { matchRoute, type MatchPriority } from "./route-match.js";
 import { type CachedDriver, getOnlineDrivers, syncDriverCache, getCachedDriver } from "./driver-cache.js";
+import { redis } from "./redis.js";
+import { WS_PUBSUB_ENABLED } from "./ws-pubsub.js";
 import {
   isRevenueAIProdEnabled,
   enableRevenueAIProd,
@@ -421,6 +423,35 @@ async function isDriverStillEligibleForRoute(driverId: number, routeRideId: numb
 
 const activeLoops = new Map<number, AbortController>();
 
+// ── Cross-worker dispatch lock (clustering) ─────────────────────────────────
+// activeLoops dedups within ONE worker. Across workers, a per-ride Redis lock ensures
+// only ONE worker runs the dispatch loop for a given ride (so it's never offered to two
+// drivers by two workers). The lock is refreshed each cycle and released on loop end;
+// it also auto-expires if the owning worker dies. The accept path is independently
+// DB-guarded (UPDATE ... WHERE status IN pending/offered), so this is belt-and-braces.
+// Single-process (live 4000): no lock, returns true — unchanged behavior.
+const DISPATCH_LOCK_PREFIX = `${process.env.WS_CHANNEL_PREFIX || "ws"}:dispatch:lock:`;
+const DISPATCH_LOCK_TTL_MS = 180_000;
+
+async function acquireDispatchLock(rideId: number): Promise<boolean> {
+  if (!WS_PUBSUB_ENABLED) return true;
+  try {
+    const ok = await redis.set(DISPATCH_LOCK_PREFIX + rideId, String(process.pid), "PX", DISPATCH_LOCK_TTL_MS, "NX");
+    return ok === "OK";
+  } catch { return true; } // Redis hiccup → don't block dispatch (DB accept-guard still protects)
+}
+async function refreshDispatchLock(rideId: number): Promise<void> {
+  if (!WS_PUBSUB_ENABLED) return;
+  try { await redis.pexpire(DISPATCH_LOCK_PREFIX + rideId, DISPATCH_LOCK_TTL_MS); } catch { /* */ }
+}
+async function releaseDispatchLock(rideId: number): Promise<void> {
+  if (!WS_PUBSUB_ENABLED) return;
+  // Release only if we still own it (avoid deleting a lock a newer owner re-acquired).
+  try {
+    await redis.eval("if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) end", 1, DISPATCH_LOCK_PREFIX + rideId, String(process.pid));
+  } catch { /* */ }
+}
+
 function abortableSleep(ms: number, signal: AbortSignal): Promise<void> {
   return new Promise((resolve) => {
     if (signal.aborted) { resolve(); return; }
@@ -482,6 +513,10 @@ export async function startAutoDispatch(rideId: number, fromCity: string): Promi
     clog.log(`[DISPATCH LOOP] already running for ride ${rideId}, skipping`);
     return;
   }
+  if (!(await acquireDispatchLock(rideId))) {
+    clog.log(`[DISPATCH LOOP] ride ${rideId} is being dispatched by another worker, skipping`);
+    return;
+  }
 
   const controller = new AbortController();
   const signal = controller.signal;
@@ -497,6 +532,7 @@ export async function startAutoDispatch(rideId: number, fromCity: string): Promi
   try {
     for (let cycle = 1; cycle <= maxCycles; cycle++) {
       if (signal.aborted) break;
+      await refreshDispatchLock(rideId);
 
       if (!(await isRideStillPending(rideId))) {
         clog.log(`[DISPATCH LOOP] ride ${rideId}: accepted! stopping loop`);
@@ -536,6 +572,7 @@ export async function startAutoDispatch(rideId: number, fromCity: string): Promi
     }
   } finally {
     activeLoops.delete(rideId);
+    await releaseDispatchLock(rideId);
     clog.log(`[DISPATCH LOOP] ride ${rideId}: loop ended`);
   }
 }
@@ -543,6 +580,10 @@ export async function startAutoDispatch(rideId: number, fromCity: string): Promi
 export async function startMarketplaceDispatch(rideId: number, fromCity: string, listingId: number): Promise<void> {
   if (activeLoops.has(rideId)) {
     clog.log(`[MARKETPLACE DISPATCH] already running for ride ${rideId}, skipping`);
+    return;
+  }
+  if (!(await acquireDispatchLock(rideId))) {
+    clog.log(`[MARKETPLACE DISPATCH] ride ${rideId} is being dispatched by another worker, skipping`);
     return;
   }
 
@@ -558,6 +599,7 @@ export async function startMarketplaceDispatch(rideId: number, fromCity: string,
   try {
     for (let round = 0; round < maxRounds; round++) {
       if (signal.aborted) break;
+      await refreshDispatchLock(rideId);
 
       if (!(await isRideStillPending(rideId))) {
         clog.log(`[MARKETPLACE DISPATCH] ride ${rideId}: accepted! stopping`);
@@ -588,6 +630,7 @@ export async function startMarketplaceDispatch(rideId: number, fromCity: string,
     }
   } finally {
     activeLoops.delete(rideId);
+    await releaseDispatchLock(rideId);
     clog.log(`[MARKETPLACE DISPATCH] ride ${rideId}: loop ended`);
   }
 }
