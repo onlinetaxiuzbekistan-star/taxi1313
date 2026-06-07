@@ -4,6 +4,14 @@ import { getCachedDriver, type CachedDriver } from "./driver-cache.js";
 import { registerCache } from "./memory-guardian.js";
 import { db, ridesTable, ridePassengersTable } from "@workspace/db";
 import { eq, and, sql } from "drizzle-orm";
+import { redis } from "./redis.js";
+import { WS_PUBSUB_ENABLED } from "./ws-pubsub.js";
+
+// When clustered, only the primary worker MAINTAINS the queue (membership sync,
+// cleanup, seat refresh) — its cache is authoritative; a non-primary running cleanup
+// against an un-synced cache could wrongly evict online drivers. Every worker still
+// REPLICATES the queue via the pub/sub subscriber (so any can take over on failover).
+const IS_PRIMARY_WORKER = !process.env.CLUSTER_WORKERS || process.env.WORKER_PRIMARY === "1";
 
 interface QueueEntry {
   driverId: number;
@@ -30,20 +38,32 @@ registerCache(() => {
   return { name: "driver-queue-metrics", cleared: count };
 });
 
-export function enqueueDriver(driverId: number) {
+// ── Cross-worker queue replication (clustering) ─────────────────────────────
+// The dispatch queue is an ordered in-memory array. Under clustering, mutations may
+// originate on any worker (a driver connects, accepts, completes, disconnects). To keep
+// EVERY worker's queue identical, each mutation is published to a namespaced Redis
+// channel and applied on every worker via the SAME *Local array operations below — so
+// the data structure, ordering, round-robin rotation, and free-seat logic are byte-for-
+// byte identical to single-process. Gated: with WS_PUBSUB off (live 4000), the public
+// functions mutate the local array directly, exactly as before.
+const QUEUE_CHANNEL = `${process.env.WS_CHANNEL_PREFIX || "ws"}:queue`;
+let queuePub: ReturnType<typeof redis.duplicate> | null = null;
+let queueSub: ReturnType<typeof redis.duplicate> | null = null;
+
+function publishQ(op: string, driverId: number): void {
+  if (!queuePub) queuePub = redis.duplicate();
+  queuePub.publish(QUEUE_CHANNEL, JSON.stringify({ op, driverId })).catch(() => {});
+}
+
+// ── Local array operations (the original logic; unchanged) ──────────────────
+function enqueueLocal(driverId: number) {
   const idx = queue.findIndex(e => e.driverId === driverId);
   if (idx !== -1) return;
-  queue.push({
-    driverId,
-    joinedAt: Date.now(),
-    lastOfferedAt: 0,
-    skippedCount: 0,
-  });
+  queue.push({ driverId, joinedAt: Date.now(), lastOfferedAt: 0, skippedCount: 0 });
   metrics.totalEnqueued++;
   clog.log(`[QUEUE] driver ${driverId} added to queue (pos=${queue.length}), total=${queue.length}`);
 }
-
-export function removeFromQueue(driverId: number) {
+function removeLocal(driverId: number) {
   const idx = queue.findIndex(e => e.driverId === driverId);
   if (idx !== -1) {
     queue.splice(idx, 1);
@@ -51,8 +71,7 @@ export function removeFromQueue(driverId: number) {
     clog.log(`[QUEUE] driver ${driverId} removed from queue, total=${queue.length}`);
   }
 }
-
-export function moveToEnd(driverId: number) {
+function moveToEndLocal(driverId: number) {
   const idx = queue.findIndex(e => e.driverId === driverId);
   if (idx === -1) return;
   const [entry] = queue.splice(idx, 1);
@@ -62,26 +81,57 @@ export function moveToEnd(driverId: number) {
   metrics.totalRotated++;
   clog.log(`[QUEUE] driver ${driverId} rotated to end (skips=${entry.skippedCount}), total=${queue.length}`);
 }
+function returnLocal(driverId: number) {
+  removeLocal(driverId);
+  queue.push({ driverId, joinedAt: Date.now(), lastOfferedAt: 0, skippedCount: 0 });
+  clog.log(`[QUEUE] driver ${driverId} returned to queue end (ride complete), total=${queue.length}`);
+}
+
+function applyQueueMutation(op: string, driverId: number): void {
+  switch (op) {
+    case "enqueue": enqueueLocal(driverId); break;
+    case "remove": removeLocal(driverId); break;
+    case "moveToEnd": moveToEndLocal(driverId); break;
+    case "return": returnLocal(driverId); break;
+  }
+}
+
+export function startQueueSubscriber(): void {
+  if (!WS_PUBSUB_ENABLED || queueSub) return;
+  queueSub = redis.duplicate();
+  queueSub.on("error", (e: Error) => clog.error("[QUEUE PUBSUB] subscriber error:", e.message));
+  queueSub.on("message", (_c: string, m: string) => {
+    try { const { op, driverId } = JSON.parse(m); applyQueueMutation(op, driverId); } catch { /* */ }
+  });
+  queueSub.subscribe(QUEUE_CHANNEL)
+    .then(() => clog.log(`[QUEUE PUBSUB] subscribed to ${QUEUE_CHANNEL} (pid ${process.pid})`))
+    .catch((e: Error) => clog.error("[QUEUE PUBSUB] subscribe failed:", e.message));
+}
+
+// ── Public functions: publish-only when clustered (every worker applies via the
+//    subscriber, including the originator → single apply each), else mutate locally. ──
+export function enqueueDriver(driverId: number) {
+  if (WS_PUBSUB_ENABLED) publishQ("enqueue", driverId); else enqueueLocal(driverId);
+}
+export function removeFromQueue(driverId: number) {
+  if (WS_PUBSUB_ENABLED) publishQ("remove", driverId); else removeLocal(driverId);
+}
+export function moveToEnd(driverId: number) {
+  if (WS_PUBSUB_ENABLED) publishQ("moveToEnd", driverId); else moveToEndLocal(driverId);
+}
+export function returnToQueue(driverId: number) {
+  if (WS_PUBSUB_ENABLED) publishQ("return", driverId); else returnLocal(driverId);
+}
 
 export function markAssigned(driverId: number, assignTimeMs: number) {
-  removeFromQueue(driverId);
+  // Queue removal replicates cross-worker; metrics stay local (informational per worker).
+  if (WS_PUBSUB_ENABLED) publishQ("remove", driverId); else removeLocal(driverId);
   metrics.totalAssigned++;
   metrics.assignTimes.push(assignTimeMs);
   if (metrics.assignTimes.length > 200) metrics.assignTimes = metrics.assignTimes.slice(-200);
   const sum = metrics.assignTimes.reduce((a, b) => a + b, 0);
   metrics.avgAssignTimeMs = Math.round(sum / metrics.assignTimes.length);
   clog.log(`[QUEUE] driver ${driverId} assigned (time=${assignTimeMs}ms, avg=${metrics.avgAssignTimeMs}ms)`);
-}
-
-export function returnToQueue(driverId: number) {
-  removeFromQueue(driverId);
-  queue.push({
-    driverId,
-    joinedAt: Date.now(),
-    lastOfferedAt: 0,
-    skippedCount: 0,
-  });
-  clog.log(`[QUEUE] driver ${driverId} returned to queue end (ride complete), total=${queue.length}`);
 }
 
 export function getQueuePosition(driverId: number): number {
@@ -264,7 +314,7 @@ export function cleanupStaleEntries() {
   }
 }
 
-let cleanupTimer: ReturnType<typeof setInterval> | null = setInterval(cleanupStaleEntries, 30_000);
+let cleanupTimer: ReturnType<typeof setInterval> | null = IS_PRIMARY_WORKER ? setInterval(cleanupStaleEntries, 30_000) : null;
 
 export async function initQueueFromCache() {
   const { getOnlineDrivers } = await import("./driver-cache.js");
@@ -291,13 +341,19 @@ export async function initQueueFromCache() {
   await refreshOccupiedSeats();
 }
 
-const initTimer: ReturnType<typeof setTimeout> = setTimeout(() => initQueueFromCache(), 5000);
-let seatsTimer: ReturnType<typeof setInterval> | null = setInterval(() => refreshOccupiedSeats(), 15_000);
+const initTimer: ReturnType<typeof setTimeout> | null = IS_PRIMARY_WORKER ? setTimeout(() => initQueueFromCache(), 5000) : null;
+let seatsTimer: ReturnType<typeof setInterval> | null = IS_PRIMARY_WORKER ? setInterval(() => refreshOccupiedSeats(), 15_000) : null;
+// Every worker replicates the queue via pub/sub so any can take over on failover.
+if (WS_PUBSUB_ENABLED) startQueueSubscriber();
 
 export function stopDriverQueueTimers(): void {
-  clearTimeout(initTimer);
+  if (initTimer) clearTimeout(initTimer);
   if (cleanupTimer) { clearInterval(cleanupTimer); cleanupTimer = null; }
   if (seatsTimer) { clearInterval(seatsTimer); seatsTimer = null; }
+  try { queueSub?.quit(); } catch { /* */ }
+  try { queuePub?.quit(); } catch { /* */ }
+  queueSub = null;
+  queuePub = null;
 }
 
 export function getQueueMetrics() {

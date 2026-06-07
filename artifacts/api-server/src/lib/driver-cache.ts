@@ -217,20 +217,25 @@ export async function syncDriverCache(): Promise<void> {
 
     await restoreDriverGPSFromRedis();
 
-    try {
-      const { enqueueDriver, removeFromQueue, getFullQueue } = await import("./driver-queue.js");
-      const queueIds = new Set(getFullQueue().map(e => e.driverId));
-      for (const id of currentIds) {
-        if (!queueIds.has(id)) {
-          enqueueDriver(id);
+    // Queue membership maintenance: single-process always; clustered ONLY on the
+    // primary (the authoritative queue maintainer — see driver-queue.ts). Non-primary
+    // workers receive queue state via the queue pub/sub subscriber instead.
+    if (!WS_PUBSUB_ENABLED || process.env.WORKER_PRIMARY === "1") {
+      try {
+        const { enqueueDriver, removeFromQueue, getFullQueue } = await import("./driver-queue.js");
+        const queueIds = new Set(getFullQueue().map(e => e.driverId));
+        for (const id of currentIds) {
+          if (!queueIds.has(id)) {
+            enqueueDriver(id);
+          }
         }
-      }
-      for (const id of queueIds) {
-        if (!currentIds.has(id)) {
-          removeFromQueue(id);
+        for (const id of queueIds) {
+          if (!currentIds.has(id)) {
+            removeFromQueue(id);
+          }
         }
-      }
-    } catch {}
+      } catch { /* */ }
+    }
   } catch (err) {
     clog.error("[DRIVER CACHE] sync failed:", (err as Error).message);
   }
