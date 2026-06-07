@@ -1,11 +1,14 @@
+import { useState } from "react";
 import { View, Text, Pressable, ScrollView, ActivityIndicator } from "react-native";
-import { CheckCircle, MapPin, XCircle, Navigation, Users } from "lucide-react-native";
+import { CheckCircle, MapPin, XCircle, Navigation } from "lucide-react-native";
 
 import { colors } from "@/lib/theme";
-import { formatCurrency, formatRoutePoint, openNavigation } from "../utils";
+import { formatCurrency, formatRoutePoint } from "../utils";
 import type { Ride, SeatPassenger, City } from "../types";
 import { PassengerRow } from "./SeatViewScreen";
 import { ElapsedTimer } from "./ElapsedTimer";
+import { RideMap } from "./RideMap";
+import { NavSheet } from "./NavSheet";
 
 // Ported from web orders/components/ActiveRideScreen.tsx (CP3: list-based
 // sequential pickup/dropoff; CarSeatLayout grid + map land in CP4/CP2).
@@ -30,6 +33,7 @@ export function ActiveRideScreen({
   onComplete: () => void;
   onCancel: () => void;
 }) {
+  const [showNav, setShowNav] = useState(false);
   const filledSeats = passengers.length;
   const totalEarnings = passengers.reduce((s, p) => s + (p.price || 0), 0);
   const bySeat = (a: SeatPassenger, b: SeatPassenger) => a.seatNumber - b.seatNumber;
@@ -77,6 +81,10 @@ export function ActiveRideScreen({
         </View>
 
         <View className="px-4 py-3" style={{ gap: 10 }}>
+          {!allDroppedOff && (
+            <RideMap ride={ride} height={170} />
+          )}
+
           {/* sequential action buttons */}
           {!allDroppedOff && waiting.length > 0 && (
             <View style={{ gap: 8 }}>
@@ -165,7 +173,7 @@ export function ActiveRideScreen({
 
           {ride.toLat && ride.toLng && !allDroppedOff ? (
             <Pressable
-              onPress={() => openNavigation(ride.toLat, ride.toLng)}
+              onPress={() => setShowNav(true)}
               className="py-3.5 rounded-2xl bg-muted border border-border flex-row items-center justify-center active:opacity-80"
               style={{ gap: 8 }}
             >
@@ -197,6 +205,8 @@ export function ActiveRideScreen({
           </Pressable>
         )}
       </View>
+
+      <NavSheet visible={showNav} toLat={ride.toLat} toLng={ride.toLng} onClose={() => setShowNav(false)} />
     </View>
   );
 }

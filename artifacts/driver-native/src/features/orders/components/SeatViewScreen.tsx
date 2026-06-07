@@ -5,9 +5,11 @@ import { Navigation, XCircle, Phone, User, Users } from "lucide-react-native";
 import { useAuth } from "@/hooks/use-auth";
 import { API_BASE_URL } from "@/config";
 import { colors } from "@/lib/theme";
-import { formatCurrency, formatRoutePoint, openNavigation } from "../utils";
+import { formatCurrency, formatRoutePoint } from "../utils";
 import type { Ride, SeatPassenger, City, QueueInfoData } from "../types";
 import { QueueWidget } from "./QueueWidget";
+import { RideMap } from "./RideMap";
+import { NavSheet } from "./NavSheet";
 
 function statusBadge(status: string) {
   if (status === "picked_up") return { label: "В машине", cls: "bg-emerald-500/15", txt: "text-emerald-400" };
@@ -66,6 +68,7 @@ export function SeatViewScreen({
 }) {
   const { token } = useAuth();
   const [queueInfo, setQueueInfo] = useState<QueueInfoData | null>(null);
+  const [showNav, setShowNav] = useState(false);
 
   const filledSeats = passengers.length;
   const totalSeats = ride.seatsTotal ?? ride.totalSeats ?? 4;
@@ -120,6 +123,11 @@ export function SeatViewScreen({
           </View>
         </View>
 
+        {/* route map */}
+        <View className="mt-3">
+          <RideMap ride={ride} height={180} />
+        </View>
+
         {/* passengers */}
         <View className="mt-3" style={{ gap: 8 }}>
           {passengers.length === 0 ? (
@@ -144,7 +152,7 @@ export function SeatViewScreen({
         <View className="flex-row" style={{ gap: 8 }}>
           {ride.fromLat && ride.fromLng ? (
             <Pressable
-              onPress={() => openNavigation(ride.fromLat, ride.fromLng)}
+              onPress={() => setShowNav(true)}
               className="flex-1 py-3 rounded-xl bg-muted border border-border flex-row items-center justify-center active:opacity-80"
               style={{ gap: 6 }}
             >
@@ -174,6 +182,8 @@ export function SeatViewScreen({
           </Pressable>
         ) : null}
       </View>
+
+      <NavSheet visible={showNav} toLat={ride.fromLat} toLng={ride.fromLng} onClose={() => setShowNav(false)} />
     </View>
   );
 }

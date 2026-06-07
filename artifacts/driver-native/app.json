@@ -42,7 +42,8 @@
         {
           "backgroundColor": "#0A0A1A"
         }
-      ]
+      ],
+      "@maplibre/maplibre-react-native"
     ],
     "experiments": {
       "typedRoutes": true,
