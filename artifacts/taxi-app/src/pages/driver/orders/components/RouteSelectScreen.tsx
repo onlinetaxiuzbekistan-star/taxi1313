@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { MapPin, Clock, ArrowRight, Loader2, Car, ShoppingBag, Zap, TrendingUp, Users, Navigation as NavigationIcon, ChevronDown, X } from "lucide-react";
+import { MapPin, Clock, ArrowRight, Loader2, Car, ShoppingBag, Zap, TrendingUp, Users, Navigation as NavigationIcon, ChevronDown, X, Check } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import type { CityInfo, Ride, QueueInfoData } from "../types";
 import { BASE_URL } from "../constants";
@@ -282,21 +282,41 @@ export function RouteSelectScreen({ cities, routes, onCreateRide, creating, mark
 
           {!urgentMode && (
             <div>
-              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5 block">Время отправления</label>
-              <div className="grid grid-cols-3 gap-2">
-                {timeSlots.map(slot => (
-                  <button key={slot} onClick={() => setTimeSlot(timeSlot === slot ? "" : slot)}
-                    className={`py-2.5 rounded-xl text-xs font-bold border-2 transition-all active:scale-95 ${
-                      timeSlot === slot
-                        ? "bg-primary text-white border-primary"
-                        : "bg-card text-foreground border-border hover:border-primary/30"
-                    }`}>
-                    {slot}
-                  </button>
-                ))}
+              <div className="flex items-center gap-2 mb-2.5">
+                <Clock className="w-4 h-4 text-primary" />
+                <label className="text-sm font-bold text-foreground">Время отправления</label>
+              </div>
+              <div className="grid grid-cols-2 gap-2.5">
+                {timeSlots.map(slot => {
+                  const selected = timeSlot === slot;
+                  const [start, end] = slot.split("–");
+                  return (
+                    <button key={slot} onClick={() => setTimeSlot(selected ? "" : slot)}
+                      className={`relative flex items-center gap-2.5 py-3 pl-2.5 pr-3 rounded-2xl border transition-all active:scale-95 ${
+                        selected
+                          ? "bg-emerald-500/15 border-emerald-500 ring-1 ring-emerald-500/40"
+                          : "bg-card border-border hover:border-emerald-500/40"
+                      }`}>
+                      <div className={`flex items-center justify-center w-9 h-9 rounded-xl shrink-0 transition-colors ${selected ? "bg-emerald-500 text-white" : "bg-secondary text-muted-foreground"}`}>
+                        <Clock className="w-4 h-4" />
+                      </div>
+                      <div className="flex flex-col items-start leading-tight">
+                        <span className={`text-base font-extrabold tabular-nums ${selected ? "text-emerald-400" : "text-foreground"}`}>{start}</span>
+                        <span className="text-[11px] text-muted-foreground tabular-nums">до {end}</span>
+                      </div>
+                      {selected && (
+                        <div className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-emerald-500 flex items-center justify-center">
+                          <Check className="w-2.5 h-2.5 text-white" strokeWidth={3} />
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
               {!timeSlot && (
-                <p className="text-[12px] text-amber-500 mt-1.5 text-center font-medium">Выберите время отправления</p>
+                <p className="text-[12px] text-amber-500 mt-2.5 text-center font-medium flex items-center justify-center gap-1">
+                  <Clock className="w-3 h-3" /> Выберите время отправления
+                </p>
               )}
             </div>
           )}
