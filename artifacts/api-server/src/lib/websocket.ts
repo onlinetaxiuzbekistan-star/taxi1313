@@ -495,7 +495,10 @@ export function setupWebSocket(server: Server) {
           if (typeof msg.lat === "number" && typeof msg.lng === "number") {
             const { updateDriverLocation } = await import("./driver-cache.js");
             updateDriverLocation(ws.userId, msg.lat, msg.lng);
-            broadcastToAll({ type: "driver_location", driverId: ws.userId, lat: msg.lat, lng: msg.lng });
+            // Targeted: only dispatchers/admins receive other drivers' positions.
+            // Drivers/riders don't need a live feed of every driver in the city —
+            // the rider's tracking view polls /api/rides/:id every few seconds.
+            broadcastToStaff({ type: "driver_location", driverId: ws.userId, lat: msg.lat, lng: msg.lng });
           }
         }
       } catch {
@@ -656,6 +659,25 @@ export function broadcastToRole(role: string, data: object) {
   const message = JSON.stringify(injectVersion(data as Record<string, any>));
   wss.clients.forEach((client: AuthenticatedWS) => {
     if (client.readyState === WebSocket.OPEN && client.userRole === role) {
+      client.send(message);
+    }
+  });
+}
+
+/**
+ * Broadcast to staff users only (dispatchers + admins). Used for
+ * driver_location and other dispatcher-map events that don't need to fan out
+ * to every driver — the previous broadcastToAll for driver_location was
+ * O(N²) on the message bus (N=1000 → ~2M messages over 90s; N=2000 → 7.5M).
+ */
+export function broadcastToStaff(data: object): void {
+  if (!wss) return;
+  const message = JSON.stringify(injectVersion(data as Record<string, any>));
+  wss.clients.forEach((client: AuthenticatedWS) => {
+    if (
+      client.readyState === WebSocket.OPEN &&
+      (client.userRole === "dispatcher" || client.userRole === "admin")
+    ) {
       client.send(message);
     }
   });

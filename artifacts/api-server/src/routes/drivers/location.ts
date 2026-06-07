@@ -9,7 +9,7 @@ import { eq, and, ne, desc, sql, gte, lte, inArray, notInArray } from "drizzle-o
 import { CITIES } from "../rides/index.js";
 import { getOsrmRoute, haversineDistance } from "../../lib/osrm.js";
 import { authMiddleware, requireRole, AuthRequest } from "../../middlewares/auth.js";
-import { broadcastToAll, broadcastToUser, enqueueDriverStatusBroadcast } from "../../lib/websocket.js";
+import { broadcastToAll, broadcastToUser, enqueueDriverStatusBroadcast, broadcastToStaff } from "../../lib/websocket.js";
 import { notifyOrderAccepted, notifyOrderTaken } from "../../lib/notifications.js";
 import { applyCancelPenalty, resetConsecutiveIgnores, isDriverBanned, getBanRemainingMs, handleStatusToggle } from "../../lib/bonuses.js";
 import { completeRide } from "../../lib/completion.js";
@@ -132,7 +132,10 @@ router.patch("/location", authMiddleware, validateBody(driverLocationBodySchema)
     }).where(eq(usersTable.id, req.userId!));
     const { updateDriverLocation } = await import("../../lib/driver-cache.js");
     updateDriverLocation(req.userId!, lat, lng);
-    broadcastToAll({ type: "driver_location", driverId: req.userId, lat, lng });
+    // Targeted: only dispatchers/admins. Drivers/riders don't need a live
+    // feed of every driver in the city — the rider's tracking view polls
+    // /api/rides/:id every few seconds and gets the assigned driver's lat/lng.
+    broadcastToStaff({ type: "driver_location", driverId: req.userId, lat, lng });
     res.json({ success: true, message: "Location updated" });
   } catch (err) {
     req.log.error({ err }, "Update location error");
