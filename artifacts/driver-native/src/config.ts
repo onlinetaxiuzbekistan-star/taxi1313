@@ -1,12 +1,17 @@
 // Backend endpoints. The native app talks to the SAME live backend as the
-// existing WebView APK — https://nil.taxi1313.ru, with the driver app mounted
-// under /driver (mirrors capacitor.config.ts `url: https://nil.taxi1313.ru/driver`).
+// existing WebView APK.
+//
+// IMPORTANT: the REST API + WebSocket live at the ROOT — https://nil.taxi1313.ru
+// (nginx: `location /api/` and `location /api/ws` proxy to the backend). The
+// "/driver" path is only a CLIENT-SIDE route of the web SPA (its base href is
+// "/"), NOT an API prefix — there is no `/driver/api/` route, so calling it 404s.
+// (The old Capacitor APK's native poller also used the root: /api/drivers/...)
 // Backend is NOT modified by this migration.
 //
 // Override at build/run time with EXPO_PUBLIC_API_BASE (e.g. a LAN dev box).
 // NOTE: never point this at the protected 192.168.1.107 host / SMS gateway.
 
-const DEFAULT_API_BASE = "https://nil.taxi1313.ru/driver";
+const DEFAULT_API_BASE = "https://nil.taxi1313.ru";
 
 export const API_BASE_URL = (
   process.env.EXPO_PUBLIC_API_BASE || DEFAULT_API_BASE

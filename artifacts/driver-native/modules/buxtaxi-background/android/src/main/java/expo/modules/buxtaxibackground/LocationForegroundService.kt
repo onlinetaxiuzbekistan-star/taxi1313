@@ -52,7 +52,7 @@ class LocationForegroundService : Service() {
         const val KEY_TOKEN = "auth_token"
         const val KEY_API_BASE = "api_base"
         const val KEY_WAS_ONLINE = "driver_was_online"
-        const val DEFAULT_API_BASE = "https://nil.taxi1313.ru/driver"
+        const val DEFAULT_API_BASE = "https://nil.taxi1313.ru"
 
         private const val TAG = "BuxTaxiBg"
         private const val CHANNEL_ID = "buxtaxi_location"

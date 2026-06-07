@@ -34,20 +34,30 @@ export default function DriverLogin() {
     }
     setLoading(true);
     setError(null);
+    const url = `${API_BASE_URL}/api/auth/driver-code/verify-code-only`;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/auth/driver-code/verify-code-only`, {
+      console.log("[LOGIN] POST", url, "body:", JSON.stringify({ code: code.trim() }));
+      const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ code: code.trim() }),
       });
-      const data = await res.json().catch(() => ({}) as any);
+      const text = await res.text();
+      console.log("[LOGIN] status:", res.status, "ct:", res.headers.get("content-type"), "body:", text.slice(0, 300));
+      let data: any = {};
+      try {
+        data = JSON.parse(text);
+      } catch {
+        data = {};
+      }
       if (res.ok && data?.token && data?.user) {
         await login(data.token, data.user);
         router.replace("/(driver)");
       } else {
-        setError(data?.message || data?.error || "Неверный код");
+        setError(data?.message || data?.error || `Неверный код (HTTP ${res.status})`);
       }
-    } catch {
+    } catch (e) {
+      console.log("[LOGIN] network error:", (e as Error)?.message);
       setError("Ошибка сети");
     } finally {
       setLoading(false);
