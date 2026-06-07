@@ -1,0 +1,47 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Design tokens ported 1:1 from web app src/index.css.
+ *
+ * The driver app on web renders inside `.driver-theme[data-theme="dark"]`.
+ * Since the native app IS the driver app and is dark-only for Phase 0, those
+ * driver-dark values live directly in :root here. (The gold base theme and the
+ * driver LIGHT theme are kept in comments for reference / a later phase.)
+ *
+ *   --primary 189 74% 48%  => #1FBAD6 cyan  (driver accent)
+ *   --background 240 48% 7% => deep navy
+ */
+:root {
+  --radius: 12px;
+
+  /* .driver-theme[data-theme="dark"] — the live driver palette */
+  --background: 240 48% 7%;
+  --foreground: 220 15% 90%;
+  --card: 240 30% 12%;
+  --card-foreground: 220 15% 92%;
+  --popover: 240 30% 12%;
+  --popover-foreground: 220 15% 92%;
+  --primary: 189 74% 48%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 240 20% 17%;
+  --secondary-foreground: 220 15% 90%;
+  --muted: 240 20% 17%;
+  --muted-foreground: 240 5% 60%;
+  --accent: 189 74% 48%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 220 15% 92%;
+  --border: 240 18% 20%;
+  --input: 240 18% 20%;
+  --ring: 189 74% 48%;
+}
+
+/*
+ * Reference — driver LIGHT theme (.driver-theme[data-theme="light"]).
+ * Wire up via a theme class in a later phase.
+ *
+ *   --background 220 14% 96%; --foreground 220 20% 10%; --card 0 0% 100%;
+ *   --primary 220 15% 13%; --primary-foreground 0 0% 100%; --border 220 13% 89%;
+ */

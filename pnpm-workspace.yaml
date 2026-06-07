@@ -1,5 +1,8 @@
 packages:
   - artifacts/*
+  # driver-native is a standalone Expo/React Native app managed with npm
+  # (Metro + pnpm symlinks don't mix well). Keep it out of the pnpm workspace.
+  - '!artifacts/driver-native'
   - lib/*
   - lib/integrations/*
   - scripts
