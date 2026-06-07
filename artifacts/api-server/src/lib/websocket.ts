@@ -6,6 +6,7 @@ import { db, orderOffersTable, ridesTable } from "@workspace/db";
 import { eq, and, inArray } from "drizzle-orm";
 import { JWT_SECRET } from "./jwt-secret.js";
 import { errorMessage } from "./errors.js";
+import { WS_PUBSUB_ENABLED, publishBroadcast, startBroadcastSubscriber } from "./ws-pubsub.js";
 
 interface AuthenticatedWS extends WebSocket {
   userId?: number;
@@ -224,6 +225,9 @@ async function deliverPendingOffers(driverId: number, ws: AuthenticatedWS) {
 export function setupWebSocket(server: Server) {
   wss = new WebSocketServer({ server, path: "/api/ws", maxPayload: 65536 });
 
+  // Cluster mode: subscribe this worker to cross-worker broadcasts (Redis pub/sub).
+  if (WS_PUBSUB_ENABLED) startBroadcastSubscriber(deliverBroadcastLocal);
+
   const MAX_CONNECTIONS_PER_USER = 3;
 
   wss.on("connection", (ws: AuthenticatedWS) => {
@@ -299,6 +303,7 @@ export function setupWebSocket(server: Server) {
               type: "auth_ok",
               userId: ws.userId,
               role: decoded.role,
+              workerPid: process.pid, // which cluster worker owns this socket (ops/debug)
               ...(decoded.role === "driver" ? { sessionId: ws.sessionId } : {}),
             }));
 
@@ -580,14 +585,26 @@ function injectVersion(data: Record<string, any>): Record<string, any> {
   return data;
 }
 
-export function broadcastToAll(data: object) {
+// Deliver an already-serialized broadcast to THIS worker's local sockets.
+function deliverBroadcastLocal(message: string) {
   if (!wss) return;
-  const message = JSON.stringify(injectVersion(data as Record<string, any>));
   wss.clients.forEach((client: AuthenticatedWS) => {
     if (client.readyState === WebSocket.OPEN && client.userId) {
       client.send(message);
     }
   });
+}
+
+export function broadcastToAll(data: object) {
+  const message = JSON.stringify(injectVersion(data as Record<string, any>));
+  if (WS_PUBSUB_ENABLED) {
+    // Cluster mode: publish to Redis; every worker's subscriber (including this one)
+    // delivers to its own local sockets → each client receives it exactly once.
+    publishBroadcast(message);
+  } else {
+    // Single-process (live 4000): direct local delivery — unchanged behavior.
+    deliverBroadcastLocal(message);
+  }
 }
 
 // ─── driver_status broadcast coalescer ───────────────────────────────────

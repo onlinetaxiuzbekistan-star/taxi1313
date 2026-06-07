@@ -124,6 +124,12 @@ globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);
     entryPoints: [path.resolve(artifactDir, "src/index.ts")],
   });
 
+  // Cluster entry → dist/cluster.mjs (forks workers that each import index.js).
+  await esbuild({
+    ...sharedConfig,
+    entryPoints: [path.resolve(artifactDir, "src/cluster.ts")],
+  });
+
   // Photo-AI worker_threads bundle → dist/photo-ai-worker.mjs (single entry,
   // so esbuild emits it at the dist root, a sibling of index.mjs).
   await esbuild({

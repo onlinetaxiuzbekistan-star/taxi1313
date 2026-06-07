@@ -91,39 +91,45 @@ setSessionCacheInvalidator((driverId) => {
   invalidateSessionCache(driverId);
 });
 
-seedDatabase().then(() => {
-  return loadSettingsCache();
-}).then(() => {
-  server.listen(port, (err?: Error) => {
-    if (err) {
-      logger.error({ err }, "Error listening on port");
-      process.exit(1);
-    }
+// Cluster awareness: when CLUSTER_WORKERS is unset (live single-process server),
+// IS_PRIMARY_WORKER is true → ALL services run, exactly as before. Under clustering,
+// cluster.ts marks one worker WORKER_PRIMARY=1; only that worker runs singleton
+// services (dispatch sweep, cron schedulers, queue consumers, DB seed) so they aren't
+// duplicated 16×. Every worker still serves HTTP + WebSocket.
+const CLUSTERED = !!process.env.CLUSTER_WORKERS;
+const IS_PRIMARY_WORKER = !CLUSTERED || process.env.WORKER_PRIMARY === "1";
 
-    logger.info({ port }, "Server listening with WebSocket support");
-    logStartupSummary();
-    startPhotoScheduler();
-    startAutoCancelScheduler();
-    startListingsCleanupScheduler();
-    startMemoryGuardian();
-    startDispatchSweep();
-    startWorkers();
-    warmupPhotoWorker().catch(() => {});
+function startSingletonServices() {
+  startPhotoScheduler();
+  startAutoCancelScheduler();
+  startListingsCleanupScheduler();
+  startDispatchSweep();
+  startWorkers();
+  warmupPhotoWorker().catch(() => {});
+}
+
+function onListening() {
+  logger.info({ port, clustered: CLUSTERED, primary: IS_PRIMARY_WORKER, pid: process.pid }, "Server listening with WebSocket support");
+  logStartupSummary();
+  startMemoryGuardian(); // per-worker: each worker guards its own RSS
+  if (IS_PRIMARY_WORKER) startSingletonServices();
+}
+
+(IS_PRIMARY_WORKER ? seedDatabase() : Promise.resolve())
+  .then(() => loadSettingsCache())
+  .then(() => {
+    server.listen(port, (err?: Error) => {
+      if (err) {
+        logger.error({ err }, "Error listening on port");
+        process.exit(1);
+      }
+      onListening();
+    });
+  })
+  .catch((err) => {
+    logger.warn({ err }, "Startup pre-load failed, starting anyway");
+    server.listen(port, () => onListening());
   });
-}).catch((err) => {
-  logger.warn({ err }, "Startup pre-load failed, starting anyway");
-  server.listen(port, () => {
-    logger.info({ port }, "Server listening (will retry on next request)");
-    logStartupSummary();
-    startPhotoScheduler();
-    startAutoCancelScheduler();
-    startListingsCleanupScheduler();
-    startMemoryGuardian();
-    startDispatchSweep();
-    startWorkers();
-    warmupPhotoWorker().catch(() => {});
-  });
-});
 
 // ───────────────────────── Graceful shutdown ─────────────────────────
 let shuttingDown = false;
