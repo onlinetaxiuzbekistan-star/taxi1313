@@ -16,6 +16,13 @@ export const API_BASE_URL = (
 export const WS_URL =
   API_BASE_URL.replace(/^http/i, "ws") + "/api/ws";
 
-// Phase 0 preview: when true, the tab shell renders with a demo driver so the
-// design can be reviewed without a live login. Real auth still works.
-export const PREVIEW_MODE = process.env.EXPO_PUBLIC_PREVIEW !== "0";
+// Design preview: when true, the tab shell renders with a demo driver (BUX-001)
+// so the UI can be reviewed WITHOUT a real login. This is OPT-IN — set
+// EXPO_PUBLIC_PREVIEW=1 to enable it (e.g. for web design screenshots).
+//
+// It defaults to OFF so installable/device builds require a real login-by-code:
+// the native background service (GPS, foreground notification, offer poll) is
+// gated behind a real auth token + server "online" status, which demo mode never
+// provides. (Shipping with preview ON is why the first APK never started the
+// service.)
+export const PREVIEW_MODE = process.env.EXPO_PUBLIC_PREVIEW === "1";

@@ -42,10 +42,14 @@ export function useOnlineService() {
     let cancelled = false;
 
     if (isOnline) {
+      console.log("[BG] driver Online -> requesting permissions + starting service");
       (async () => {
         const ok = await Bg.ensureForegroundPermissions();
-        if (!ok || cancelled) return;
-        Bg.ensureBackgroundLocation(); // best-effort; not required to start
+        if (!ok) {
+          console.log("[BG] foreground permissions NOT granted -> service not started");
+          return;
+        }
+        if (cancelled) return;
         Bg.startBackgroundService(token, API_BASE_URL, !!isBusy);
         if (!batteryPrompted.current && !Bg.isIgnoringBatteryOptimizations()) {
           batteryPrompted.current = true;

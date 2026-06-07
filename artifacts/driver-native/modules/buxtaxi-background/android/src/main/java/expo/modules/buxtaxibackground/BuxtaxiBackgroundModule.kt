@@ -8,6 +8,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
+import android.util.Log
 import androidx.core.content.ContextCompat
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
@@ -76,6 +77,7 @@ class BuxtaxiBackgroundModule : Module() {
     }
 
     Function("startService") { token: String, apiBase: String, highAccuracy: Boolean ->
+      Log.i("BuxTaxiBg", "Module.startService(apiBase=$apiBase, highAccuracy=$highAccuracy)")
       context.getSharedPreferences(LocationForegroundService.PREFS, Context.MODE_PRIVATE).edit()
         .putString(LocationForegroundService.KEY_TOKEN, token)
         .putString(LocationForegroundService.KEY_API_BASE, apiBase)

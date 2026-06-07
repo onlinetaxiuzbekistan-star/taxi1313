@@ -12,7 +12,11 @@ import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.util.Log
+import android.Manifest
+import android.content.pm.PackageManager
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
@@ -50,6 +54,7 @@ class LocationForegroundService : Service() {
         const val KEY_WAS_ONLINE = "driver_was_online"
         const val DEFAULT_API_BASE = "https://nil.taxi1313.ru/driver"
 
+        private const val TAG = "BuxTaxiBg"
         private const val CHANNEL_ID = "buxtaxi_location"
         private const val NOTIFICATION_ID = 1001
         private const val OFFER_POLL_INTERVAL_MS = 7_000L
@@ -108,11 +113,21 @@ class LocationForegroundService : Service() {
         }
 
         val highAccuracy = intent?.action == ACTION_MODE_HIGH
+        Log.i(TAG, "onStartCommand action=${intent?.action} highAccuracy=$highAccuracy")
         val notification = buildNotification(highAccuracy)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
-        } else {
-            startForeground(NOTIFICATION_ID, notification)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
+            } else {
+                startForeground(NOTIFICATION_ID, notification)
+            }
+            Log.i(TAG, "foreground service started (notification shown)")
+        } catch (e: Exception) {
+            // e.g. ForegroundServiceStartNotAllowedException / SecurityException if
+            // location permission wasn't granted before starting a type=location FGS.
+            Log.e(TAG, "startForeground FAILED: ${e.javaClass.simpleName}: ${e.message}")
+            stopSelf()
+            return START_NOT_STICKY
         }
 
         stopLocationUpdates()
@@ -129,6 +144,17 @@ class LocationForegroundService : Service() {
 
     private fun startLocationUpdates(highAccuracy: Boolean) {
         isHighAccuracy = highAccuracy
+
+        val hasFine = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        val hasBg = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED
+        Log.i(TAG, "startLocationUpdates fine=$hasFine background=$hasBg highAccuracy=$highAccuracy")
+        if (!hasFine) {
+            Log.w(TAG, "ACCESS_FINE_LOCATION not granted — no location updates will be delivered")
+        }
+        if (!hasBg) {
+            Log.w(TAG, "ACCESS_BACKGROUND_LOCATION not granted — updates may stop when screen off / app backgrounded")
+        }
+
         val priority = if (highAccuracy) Priority.PRIORITY_HIGH_ACCURACY else Priority.PRIORITY_BALANCED_POWER_ACCURACY
         val interval = if (highAccuracy) 10_000L else 30_000L
         val fastest = if (highAccuracy) 5_000L else 15_000L
@@ -161,8 +187,9 @@ class LocationForegroundService : Service() {
 
         try {
             fusedClient?.requestLocationUpdates(request, callback, Looper.getMainLooper())
+            Log.i(TAG, "requestLocationUpdates OK")
         } catch (e: SecurityException) {
-            // location permission revoked — nothing to do; JS re-requests on next Online
+            Log.e(TAG, "requestLocationUpdates SecurityException: ${e.message}")
         }
     }
 

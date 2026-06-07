@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Alert } from "react-native";
 import { Tabs, Redirect } from "expo-router";
 
 import { useAuth } from "@/hooks/use-auth";
@@ -7,7 +8,7 @@ import { useOnlineService } from "@/hooks/use-online-service";
 import { DriverHeader } from "@/components/DriverHeader";
 import { DriverTabBar } from "@/components/DriverTabBar";
 import { DEMO_DRIVER } from "@/lib/driver";
-import { PREVIEW_MODE } from "@/config";
+import { PREVIEW_MODE, API_BASE_URL } from "@/config";
 import { colors } from "@/lib/theme";
 import type { DriverUser } from "@/types";
 
@@ -16,7 +17,7 @@ import type { DriverUser } from "@/types";
 // 4-tab bar (Заказы/Срочные/Чат/Профиль) sits below. expo-router <Tabs> drives
 // real navigation while DriverHeader/DriverTabBar control the look.
 export default function DriverShellLayout() {
-  const { user, token, hydrated, logout } = useAuth();
+  const { user, token, hydrated, logout, refreshUser } = useAuth();
 
   // Establish the driver WebSocket whenever we have a session (no-op in preview).
   useRideWebSocket(token);
@@ -25,6 +26,7 @@ export default function DriverShellLayout() {
   // notifications, battery exemption, GPS->WS, FCM token. (Android; no-op on web.)
   useOnlineService();
 
+  const [toggling, setToggling] = useState(false);
   // Preview-only: lets the online/offline toggle visibly flip without a backend.
   const [demoStatus, setDemoStatus] = useState<"online" | "offline">("online");
 
@@ -35,9 +37,46 @@ export default function DriverShellLayout() {
 
   if (!activeUser) return <Redirect href="/driver-login" />;
 
-  const handleToggleStatus = () => {
-    // Real status PATCH (/api/drivers/status) is wired in a later phase.
-    if (!user) setDemoStatus((s) => (s === "online" ? "offline" : "online"));
+  const isOnline = activeUser.status === "online" || activeUser.status === "busy";
+
+  // Real status toggle — ported from web DriverLayout.tsx toggleStatus. Flipping
+  // user.status on the server (then refreshUser) is what drives useOnlineService
+  // to start/stop the native foreground service.
+  const handleToggleStatus = async () => {
+    // Preview/demo (no real auth): just flip the cosmetic status.
+    if (!user || !token) {
+      setDemoStatus((s) => (s === "online" ? "offline" : "online"));
+      return;
+    }
+    const newStatus = isOnline ? "offline" : "online";
+    setToggling(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/drivers/status`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      if (res.ok) {
+        refreshUser(); // refetch /me -> user.status updates -> useOnlineService reacts
+      } else {
+        const err = await res.json().catch(() => ({}) as any);
+        if (err?.error === "driver_banned") {
+          Alert.alert("Вы заблокированы", err?.message || "");
+          refreshUser();
+        } else if (err?.error === "photo_required") {
+          Alert.alert("Фотоконтроль", err?.message || "");
+        } else {
+          Alert.alert("Ошибка", err?.message || err?.error || "Не удалось изменить статус");
+        }
+      }
+    } catch {
+      Alert.alert("Ошибка сети", "Проверьте подключение к интернету");
+    } finally {
+      setToggling(false);
+    }
   };
 
   return (
@@ -48,6 +87,7 @@ export default function DriverShellLayout() {
         header: () => (
           <DriverHeader
             user={activeUser}
+            toggling={toggling}
             onToggleStatus={handleToggleStatus}
             onExit={logout}
           />
