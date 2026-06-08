@@ -213,7 +213,7 @@ export function RouteSelectScreen({
             <Clock size={16} color={colors.primary} />
             <Text className="font-sans-bold text-foreground text-sm">Время отправления</Text>
           </View>
-          <View className="flex-row flex-wrap justify-between" style={{ rowGap: 10 }}>
+          <View style={{ gap: 8 }}>
             {timeSlotsData.map(({ label }) => {
               const selected = timeSlot === label;
               const [start, end] = label.split("–");
@@ -221,34 +221,34 @@ export function RouteSelectScreen({
                 <Pressable
                   key={label}
                   onPress={() => setTimeSlot(selected ? "" : label)}
-                  className={`flex-row items-center rounded-2xl border px-2.5 py-3 active:opacity-90 ${
+                  className={`flex-row items-center rounded-2xl border px-3 py-3 active:opacity-90 ${
                     selected ? "bg-emerald-500/15 border-emerald-500" : "bg-card border-border"
                   }`}
-                  style={{ width: "48%", gap: 10 }}
+                  style={{ gap: 12 }}
                 >
                   <View
-                    className={`w-9 h-9 rounded-xl items-center justify-center ${
+                    className={`w-10 h-10 rounded-xl items-center justify-center ${
                       selected ? "bg-emerald-500" : "bg-secondary"
                     }`}
                   >
-                    <Clock size={16} color={selected ? "#fff" : colors.mutedForeground} />
+                    <Clock size={18} color={selected ? "#fff" : colors.mutedForeground} />
                   </View>
-                  <View className="flex-row items-center" style={{ gap: 2 }}>
-                    <Text className={`font-sans-bold text-[15px] ${selected ? "text-emerald-400" : "text-foreground"}`}>
+                  <View className="flex-row items-center flex-1" style={{ gap: 4 }}>
+                    <Text className={`font-sans-bold text-base ${selected ? "text-emerald-400" : "text-foreground"}`}>
                       {start}
                     </Text>
-                    <Text className={`font-sans-bold text-[13px] ${selected ? "text-emerald-400/50" : "text-muted-foreground"}`}>
+                    <Text className={`font-sans-bold text-sm ${selected ? "text-emerald-400/50" : "text-muted-foreground"}`}>
                       –
                     </Text>
-                    <Text className={`font-sans-bold text-[15px] ${selected ? "text-emerald-400" : "text-foreground"}`}>
+                    <Text className={`font-sans-bold text-base ${selected ? "text-emerald-400" : "text-foreground"}`}>
                       {end}
                     </Text>
                   </View>
-                  {selected && (
-                    <View className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-emerald-500 items-center justify-center">
-                      <Check size={10} color="#fff" strokeWidth={3} />
+                  {selected ? (
+                    <View className="w-5 h-5 rounded-full bg-emerald-500 items-center justify-center">
+                      <Check size={12} color="#fff" strokeWidth={3} />
                     </View>
-                  )}
+                  ) : null}
                 </Pressable>
               );
             })}
