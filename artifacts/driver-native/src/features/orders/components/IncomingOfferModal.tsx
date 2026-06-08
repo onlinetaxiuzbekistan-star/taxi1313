@@ -49,8 +49,20 @@ export function IncomingOfferModal({ onAccepted }: { onAccepted?: () => void }) 
     }
     poll();
     const iv = setInterval(poll, 6000);
-    const off = wsEvents.on((d) => {
+    const off = wsEvents.on((d: any) => {
       if (d.type === "new_order" || d.type === "new_ride") poll();
+      // Operator pulled/expired the offer → dismiss it immediately.
+      if (d.type === "order_expired" || d.type === "ride_unassigned_by_dispatcher") {
+        const rid = d.rideId ?? d.ride?.id;
+        setOffer((cur) => {
+          if (cur && (rid == null || cur.ride?.id === rid)) {
+            if (cur.offerId != null) dismissed.current.add(cur.offerId);
+            return null;
+          }
+          return cur;
+        });
+        poll();
+      }
     });
     return () => {
       clearInterval(iv);

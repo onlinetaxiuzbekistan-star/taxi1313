@@ -306,6 +306,17 @@ export const translations = {
   order_cancelled: { ru: "Заказ отменён", uz: "Buyurtma bekor qilindi" },
   order_cancelled_sub: { ru: "Заказ отменён диспетчером", uz: "Buyurtma dispetcher tomonidan bekor qilindi" },
   st_collecting: { ru: "Собирает клиентов", uz: "Mijozlar yig‘ilmoqda" },
+
+  // ── sell-order screen (mirror web Marketplace sell form) ──
+  sell_route: { ru: "Маршрут", uz: "Yo‘nalish" },
+  sell_tariff: { ru: "Тариф", uz: "Tarif" },
+  sell_seats: { ru: "Количество мест", uz: "Joylar soni" },
+  sell_whole_car: { ru: "Вся машина", uz: "Butun mashina" },
+  sell_price: { ru: "Цена", uz: "Narx" },
+  sell_min: { ru: "Минимум", uz: "Eng kami" },
+  sell_phone: { ru: "Телефон клиента", uz: "Mijoz telefoni" },
+  sell_success: { ru: "Заказ выставлен на продажу!", uz: "Buyurtma sotuvga qo‘yildi!" },
+  sell_no_routes: { ru: "Нет доступных маршрутов", uz: "Mavjud yo‘nalishlar yo‘q" },
 } as const;
 
 export type TKey = keyof typeof translations;

@@ -4,6 +4,7 @@ import { Alert } from "react-native";
 import { useAuth } from "@/hooks/use-auth";
 import { API_BASE_URL } from "@/config";
 import { wsEvents } from "@/lib/ws-events";
+import { playRemoved, playTripStart } from "@/lib/sounds";
 import { useT } from "@/lib/i18n";
 import type { City, RouteOption, Ride, SeatPassenger, DriverScreen } from "./types";
 
@@ -27,6 +28,10 @@ export function useOrders() {
   const [activeRide, setActiveRide] = useState<Ride | null>(null);
   const activeRideRef = useRef<Ride | null>(null);
   activeRideRef.current = activeRide;
+  const myIdRef = useRef<number | null>(null);
+  myIdRef.current = (user as any)?.id ?? null;
+  // De-dupes the operator-unassign double event (targeted + broadcastToAll).
+  const lastClearedRef = useRef<{ id: number | null; at: number }>({ id: null, at: 0 });
   const [passengers, setPassengers] = useState<SeatPassenger[]>([]);
   const [screen, setScreen] = useState<DriverScreen>("loading");
   const [actionLoading, setActionLoading] = useState(false);
@@ -121,10 +126,24 @@ export function useOrders() {
       const isCurrent = eventRideId != null && eventRideId === activeId;
       const ride = (d as any).ride;
 
+      // Clear the active ride + notify ONCE. The backend's operator-unassign
+      // sends BOTH a targeted `ride_unassigned_by_dispatcher` AND a
+      // broadcastToAll `ride_updated` (driverId:null) for the same ride, so we
+      // dedup by rideId within a short window to avoid a double alert/sound.
+      const clearAndNotify = (rideId: number | null, title: string, sub: string) => {
+        const lc = lastClearedRef.current;
+        if (rideId != null && lc.id === rideId && Date.now() - lc.at < 5000) return;
+        lastClearedRef.current = { id: rideId ?? null, at: Date.now() };
+        clearActive();
+        activeRideRef.current = null; // immediate, so a same-tick sibling event is a no-op
+        playRemoved();
+        Alert.alert(title, sub);
+      };
+
+      // Operator pulled the order back to the efir (targeted event).
       if (d.type === "ride_unassigned_by_dispatcher") {
         if (eventRideId == null || activeId == null || isCurrent) {
-          clearActive();
-          Alert.alert(t("order_removed"), (d as any).message || t("order_removed_sub"));
+          clearAndNotify(eventRideId, t("order_removed"), (d as any).message || t("order_removed_sub"));
         }
         loadActiveRide();
         return;
@@ -135,10 +154,23 @@ export function useOrders() {
         return;
       }
       if (d.type === "ride_updated" || d.type === "trip_updated" || d.type === "new_ride") {
-        if (isCurrent && ride?.status === "cancelled") {
-          clearActive();
-          Alert.alert(t("order_cancelled"), t("order_cancelled_sub"));
-          return;
+        if (isCurrent && ride) {
+          const myId = myIdRef.current;
+          // Dispatcher full-cancel → status "cancelled". Operator unassign /
+          // reassign → driverId becomes null (or a different driver). Either way
+          // the ride is no longer THIS driver's → clear. Guard on driverId only,
+          // never on status:"pending" (the driver's OWN created ride is
+          // accepted/pending with driverId:me and must NOT be cleared).
+          const noLongerMine =
+            ride.driverId == null || (myId != null && ride.driverId != null && ride.driverId !== myId);
+          if (ride.status === "cancelled") {
+            clearAndNotify(eventRideId, t("order_cancelled"), t("order_cancelled_sub"));
+            return;
+          }
+          if (noLongerMine) {
+            clearAndNotify(eventRideId, t("order_removed"), t("order_removed_sub"));
+            return;
+          }
         }
         loadActiveRide();
         return;
@@ -245,6 +277,7 @@ export function useOrders() {
       if (ok) {
         setActiveRide((r) => (r ? { ...r, status: "in_progress" } : r));
         setScreen("active");
+        playTripStart(); // taxometer / trip-start cue
         refreshUser();
       } else {
         Alert.alert(t("err"), data?.message || t("err"));
@@ -392,30 +425,45 @@ export function useOrders() {
     [passengerActionLoading, post, loadActiveRide],
   );
 
-  // Sell/return the current order to the operator (marketplace). Mirrors backend
-  // POST /api/marketplace/sell — only for not-yet-started rides (accepted/pending).
-  const sellOrder = useCallback(
-    async (price: number, comment?: string): Promise<boolean> => {
-      if (!activeRide || sellLoading) {
-        console.log("[SELL] blocked", { hasRide: !!activeRide, sellLoading });
-        return false;
-      }
+  // Create a standalone order and sell it to the operator (efir). Mirrors the
+  // web Marketplace sell form → POST /api/marketplace/sell-order. The created
+  // ride has driverId:null and is auto-dispatched, so it NEVER occupies the
+  // seller's screen.
+  const createSellOrder = useCallback(
+    async (params: {
+      routeId: number;
+      clientPhone: string;
+      seatsCount: number[];
+      price: number;
+      comment?: string;
+      genders?: (string | null)[];
+    }): Promise<boolean> => {
+      if (sellLoading) return false;
       setSellLoading(true);
-      console.log("[SELL] POST /api/marketplace/sell", { rideId: activeRide.id, price, comment });
+      setSellError(null);
+      const body = {
+        routeId: params.routeId,
+        fromDistrictId: null,
+        toDistrictId: null,
+        scheduledAt: new Date().toISOString(),
+        clientPhone: params.clientPhone,
+        seatsCount: params.seatsCount,
+        baggageType: null,
+        price: params.price,
+        comment: params.comment || null,
+        genders: params.genders ?? params.seatsCount.map(() => "male"),
+      };
+      console.log("[SELL] POST /api/marketplace/sell-order", body);
       try {
-        const { ok, data } = await post("/api/marketplace/sell", {
-          rideId: activeRide.id,
-          price,
-          comment: comment || undefined,
-        });
+        const { ok, data } = await post("/api/marketplace/sell-order", body);
         console.log("[SELL] result", { ok, data });
         if (ok) {
-          loadActiveRide();
+          refreshUser();
           return true;
         }
-        // Surface the server message via the modal (no Alert — it races with the
-        // modal dismiss and gets swallowed on Android).
-        setSellError(data?.message || t("sell_failed"));
+        setSellError(
+          data?.message || (data?.minPrice ? `${t("sell_min")}: ${data.minPrice}` : t("sell_failed")),
+        );
         return false;
       } catch (e) {
         console.log("[SELL] network error", String(e));
@@ -425,7 +473,7 @@ export function useOrders() {
         setSellLoading(false);
       }
     },
-    [activeRide, sellLoading, post, loadActiveRide, t],
+    [sellLoading, post, refreshUser, t],
   );
 
   const handleCompletionClose = useCallback(() => {
@@ -465,7 +513,7 @@ export function useOrders() {
     sellLoading,
     sellError,
     clearSellError: () => setSellError(null),
-    sellOrder,
+    createSellOrder,
     goOnline,
     createRide,
     startRide,

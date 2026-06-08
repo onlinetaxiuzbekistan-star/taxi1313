@@ -68,7 +68,22 @@ export default function UrgentScreen() {
     load();
     const iv = setInterval(load, 10000);
     const off = wsEvents.on((d: any) => {
-      if (["new_order", "new_ride", "ride_updated"].includes(d.type)) load();
+      // Mirror web UrgentOrders: refresh on any event that adds/removes an order
+      // (incl. operator unassign / expiry / marketplace changes).
+      if (
+        [
+          "new_order",
+          "new_ride",
+          "ride_updated",
+          "ride_accepted",
+          "ride_cancelled",
+          "order_expired",
+          "ride_unassigned_by_dispatcher",
+          "marketplace_new_listing",
+          "marketplace_listing_sold",
+        ].includes(d.type)
+      )
+        load();
     });
     return () => {
       clearInterval(iv);

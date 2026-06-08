@@ -23,6 +23,8 @@ function ensure() {
     players.call = createAudioPlayer(require("../../assets/sounds/call.wav"));
     players.message = createAudioPlayer(require("../../assets/sounds/message.wav"));
     players.market = createAudioPlayer(require("../../assets/sounds/market_new.wav"));
+    players.removed = createAudioPlayer(require("../../assets/sounds/order_removed.wav"));
+    players.trip_start = createAudioPlayer(require("../../assets/sounds/trip_start.wav"));
     console.log("[SOUND] players created:", Object.keys(players).join(","));
   } catch (e) {
     console.log("[SOUND] createAudioPlayer error", String(e));
@@ -93,4 +95,17 @@ export function stopCall() {
 // New chat message — short blip.
 export function playMessage() {
   fire("message");
+}
+
+// Operator pulled/removed the order from the driver.
+export function playRemoved() {
+  fire("removed");
+  try {
+    Vibration.vibrate(Platform.OS === "android" ? [0, 250, 120, 250] : 300);
+  } catch {}
+}
+
+// Trip started (taxometer on).
+export function playTripStart() {
+  fire("trip_start");
 }

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { View, Text, Pressable, Image, ScrollView, ActivityIndicator } from "react-native";
-import { Car, Plus, Camera, Wallet, Power } from "lucide-react-native";
+import { Car, Plus, Camera, Wallet, Power, Store } from "lucide-react-native";
 import * as ImagePicker from "expo-image-picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -17,12 +17,14 @@ export function HomeScreen({
   isOnline,
   creating,
   onCreate,
+  onSell,
   onGoOnline,
 }: {
   user: DriverUser;
   isOnline: boolean;
   creating?: boolean;
   onCreate: () => void;
+  onSell: () => void;
   onGoOnline: () => void;
 }) {
   const { t } = useT();
@@ -122,14 +124,24 @@ export function HomeScreen({
           <Text className="font-sans-bold text-zinc-900 text-base">{t("go_online")}</Text>
         </Pressable>
       ) : (
-        <Pressable
-          onPress={onCreate}
-          className="mt-4 py-4 rounded-2xl bg-primary flex-row items-center justify-center active:opacity-90"
-          style={{ gap: 8 }}
-        >
-          <Plus size={22} color={colors.primaryForeground} />
-          <Text className="font-sans-bold text-primary-foreground text-base">{t("create_ride")}</Text>
-        </Pressable>
+        <>
+          <Pressable
+            onPress={onCreate}
+            className="mt-4 py-4 rounded-2xl bg-primary flex-row items-center justify-center active:opacity-90"
+            style={{ gap: 8 }}
+          >
+            <Plus size={22} color={colors.primaryForeground} />
+            <Text className="font-sans-bold text-primary-foreground text-base">{t("create_ride")}</Text>
+          </Pressable>
+          <Pressable
+            onPress={onSell}
+            className="mt-3 py-4 rounded-2xl bg-card border border-primary/40 flex-row items-center justify-center active:opacity-90"
+            style={{ gap: 8 }}
+          >
+            <Store size={20} color={colors.primary} />
+            <Text className="font-sans-bold text-primary text-base">{t("sell_to_operator")}</Text>
+          </Pressable>
+        </>
       )}
     </ScrollView>
   );

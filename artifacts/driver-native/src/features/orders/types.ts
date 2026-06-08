@@ -9,9 +9,13 @@ export interface City {
 }
 
 export interface RouteOption {
+  id?: number;
   fromCity: string;
   toCity: string;
   isActive?: boolean;
+  priceEconomy?: number;
+  priceComfort?: number;
+  priceBusiness?: number;
 }
 
 export interface SeatPassenger {
@@ -52,6 +56,7 @@ export interface QueueInfoData {
 export interface Ride {
   id: number;
   status: string;
+  driverId?: number | null;
   fromCity: string;
   toCity: string;
   fromDistrict?: string;

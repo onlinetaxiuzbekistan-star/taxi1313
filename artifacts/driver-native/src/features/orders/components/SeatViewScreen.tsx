@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { View, Text, Pressable, ScrollView, ActivityIndicator, Linking } from "react-native";
-import { Navigation, XCircle, Phone, User, Users, Store } from "lucide-react-native";
+import { Navigation, XCircle, Phone, User, Users } from "lucide-react-native";
 
 import { useAuth } from "@/hooks/use-auth";
 import { API_BASE_URL } from "@/config";
@@ -13,7 +13,6 @@ import { NavSheet } from "./NavSheet";
 import { CarSeatLayout } from "./CarSeatLayout";
 import { ManualClientForm } from "./ManualClientForm";
 import { SeatPassengerCard } from "./SeatPassengerCard";
-import { SellOrderModal } from "./SellOrderModal";
 import { ExpiredRideModal } from "./ExpiredRideModal";
 
 function statusBadge(status: string) {
@@ -61,7 +60,6 @@ export function SeatViewScreen({
   ride,
   passengers,
   cities,
-  routes,
   loading,
   onStartRide,
   onCancel,
@@ -69,10 +67,6 @@ export function SeatViewScreen({
   onRejectClient,
   clientActionLoading,
   passengerActionLoading,
-  onSellOrder,
-  sellLoading,
-  sellError,
-  onClearSellError,
 }: {
   ride: Ride;
   passengers: SeatPassenger[];
@@ -85,10 +79,6 @@ export function SeatViewScreen({
   onRejectClient?: (id: number) => void;
   clientActionLoading?: boolean;
   passengerActionLoading?: number | null;
-  onSellOrder?: (price: number, comment: string) => Promise<boolean>;
-  sellLoading?: boolean;
-  sellError?: string | null;
-  onClearSellError?: () => void;
 }) {
   const { t } = useT();
   const { token } = useAuth();
@@ -96,8 +86,6 @@ export function SeatViewScreen({
   const [showNav, setShowNav] = useState(false);
   const [selectedSeat, setSelectedSeat] = useState<number | null>(null);
   const [showManual, setShowManual] = useState<number | null>(null);
-  const [showSell, setShowSell] = useState(false);
-  const [soldBanner, setSoldBanner] = useState(false);
   const [showExpired, setShowExpired] = useState(false);
   const [extending, setExtending] = useState(false);
 
@@ -260,25 +248,6 @@ export function SeatViewScreen({
             <Text className="font-sans-bold text-red-500 text-sm">{t("cancel_ride")}</Text>
           </Pressable>
         </View>
-        {soldBanner ? (
-          <View className="py-2.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex-row items-center justify-center" style={{ gap: 6 }}>
-            <Store size={15} color={colors.emerald} />
-            <Text className="font-sans-bold text-emerald-400 text-sm">{t("sold_listed")}</Text>
-          </View>
-        ) : onSellOrder && (ride.status === "accepted" || ride.status === "pending") ? (
-          <Pressable
-            onPress={() => {
-              onClearSellError?.();
-              setShowSell(true);
-            }}
-            disabled={loading || sellLoading}
-            className="py-3 rounded-xl bg-primary/10 border border-primary/30 flex-row items-center justify-center active:opacity-80"
-            style={{ gap: 6, opacity: loading || sellLoading ? 0.6 : 1 }}
-          >
-            <Store size={16} color={colors.primary} />
-            <Text className="font-sans-bold text-primary text-sm">{t("sell_to_operator")}</Text>
-          </Pressable>
-        ) : null}
         {ride.status === "accepted" && filledSeats > 0 ? (
           <Pressable
             onPress={onStartRide}
@@ -293,26 +262,6 @@ export function SeatViewScreen({
       </View>
 
       <NavSheet visible={showNav} toLat={ride.fromLat} toLng={ride.fromLng} onClose={() => setShowNav(false)} />
-      {onSellOrder ? (
-        <SellOrderModal
-          visible={showSell}
-          ride={ride}
-          passengers={passengers}
-          routes={routes || []}
-          cities={cities}
-          loading={sellLoading}
-          error={sellError}
-          onClose={() => {
-            setShowSell(false);
-            onClearSellError?.();
-          }}
-          onConfirm={async (price, comment) => {
-            const ok = await onSellOrder(price, comment);
-            if (ok) setSoldBanner(true);
-            return ok;
-          }}
-        />
-      ) : null}
       <ExpiredRideModal
         visible={showExpired}
         extending={extending}

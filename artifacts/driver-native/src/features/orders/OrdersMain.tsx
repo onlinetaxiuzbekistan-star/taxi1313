@@ -7,6 +7,7 @@ import { useT } from "@/lib/i18n";
 import { useOrders } from "./use-orders";
 import { HomeScreen } from "./HomeScreen";
 import { RouteSelectScreen } from "./RouteSelectScreen";
+import { SellOrderScreen } from "./SellOrderScreen";
 import { SeatViewScreen } from "./components/SeatViewScreen";
 import { ActiveRideScreen } from "./components/ActiveRideScreen";
 import { CompletionScreen } from "./components/CompletionScreen";
@@ -17,10 +18,14 @@ export function OrdersMain() {
   const o = useOrders();
   const { user } = useAuth();
   const [showCreate, setShowCreate] = useState(false);
+  const [showSell, setShowSell] = useState(false);
 
-  // Leave the create screen automatically once a ride exists.
+  // Leave the create/sell screens automatically once a ride exists.
   useEffect(() => {
-    if (o.activeRide) setShowCreate(false);
+    if (o.activeRide) {
+      setShowCreate(false);
+      setShowSell(false);
+    }
   }, [o.activeRide]);
 
   const confirmCancel = () => {
@@ -78,15 +83,11 @@ export function OrdersMain() {
         onRejectClient={o.rejectPassenger}
         clientActionLoading={o.clientActionLoading}
         passengerActionLoading={o.passengerActionLoading}
-        onSellOrder={o.sellOrder}
-        sellLoading={o.sellLoading}
-        sellError={o.sellError}
-        onClearSellError={o.clearSellError}
       />
     );
   }
 
-  // No active ride: the home card by default; the create-ride screen on demand.
+  // No active ride: the home card by default; create-ride / sell-order on demand.
   if (showCreate) {
     return (
       <RouteSelectScreen
@@ -96,6 +97,22 @@ export function OrdersMain() {
         onCreateRide={o.createRide}
         userCity={o.userCity}
         onBack={() => setShowCreate(false)}
+      />
+    );
+  }
+
+  if (showSell) {
+    return (
+      <SellOrderScreen
+        cities={o.cities}
+        routes={o.routes}
+        loading={o.sellLoading}
+        error={o.sellError}
+        onSubmit={o.createSellOrder}
+        onBack={() => {
+          o.clearSellError();
+          setShowSell(false);
+        }}
       />
     );
   }
@@ -114,6 +131,10 @@ export function OrdersMain() {
       isOnline={o.isOnline}
       creating={o.actionLoading}
       onCreate={() => setShowCreate(true)}
+      onSell={() => {
+        o.clearSellError();
+        setShowSell(true);
+      }}
       onGoOnline={o.goOnline}
     />
   );
