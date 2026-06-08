@@ -18,8 +18,17 @@ export function ManualClientForm({
   loading?: boolean;
 }) {
   const [phone, setPhone] = useState("");
+  const [touched, setTouched] = useState(false);
+
+  // Phone is REQUIRED — need at least 7 digits before the client can be added.
+  const digits = phone.replace(/\D/g, "");
+  const phoneValid = digits.length >= 7;
 
   const submit = (gender: string) => {
+    if (!phoneValid) {
+      setTouched(true);
+      return;
+    }
     onSubmit(seatNumber, gender, phone.trim());
     onClose();
   };
@@ -33,32 +42,47 @@ export function ManualClientForm({
         </Pressable>
       </View>
       <View className="p-3" style={{ gap: 8 }}>
+        <TextInput
+          value={phone}
+          onChangeText={(v) => {
+            setPhone(v);
+            if (!touched) setTouched(true);
+          }}
+          placeholder="Телефон клиента (обязательно)"
+          placeholderTextColor={colors.mutedForeground}
+          keyboardType="phone-pad"
+          className={`px-3 py-2.5 rounded-lg bg-muted border text-foreground text-sm ${
+            touched && !phoneValid ? "border-red-500" : "border-border"
+          }`}
+          style={{ color: colors.foreground }}
+        />
+        {touched && !phoneValid ? (
+          <Text className="font-sans text-red-400 text-[12px]">Введите номер телефона клиента</Text>
+        ) : null}
+
+        <Text className="font-sans text-muted-foreground text-[11px] uppercase mt-0.5" style={{ letterSpacing: 0.5 }}>
+          Пол пассажира
+        </Text>
         <View className="flex-row" style={{ gap: 8 }}>
           {[
             { g: "male", label: "Муж" },
             { g: "female", label: "Жен" },
-          ].map((b) => (
-            <Pressable
-              key={b.g}
-              onPress={() => submit(b.g)}
-              disabled={loading}
-              className="flex-1 py-3 rounded-xl bg-muted border border-border flex-row items-center justify-center active:opacity-80"
-              style={{ gap: 6, opacity: loading ? 0.5 : 1 }}
-            >
-              {loading ? <ActivityIndicator size="small" color={colors.foreground} /> : <User size={18} color={colors.foreground} />}
-              <Text className="font-sans-bold text-foreground text-sm">{b.label}</Text>
-            </Pressable>
-          ))}
+          ].map((b) => {
+            const disabled = loading || !phoneValid;
+            return (
+              <Pressable
+                key={b.g}
+                onPress={() => submit(b.g)}
+                disabled={disabled}
+                className="flex-1 py-3 rounded-xl bg-muted border border-border flex-row items-center justify-center active:opacity-80"
+                style={{ gap: 6, opacity: disabled ? 0.4 : 1 }}
+              >
+                {loading ? <ActivityIndicator size="small" color={colors.foreground} /> : <User size={18} color={colors.foreground} />}
+                <Text className="font-sans-bold text-foreground text-sm">{b.label}</Text>
+              </Pressable>
+            );
+          })}
         </View>
-        <TextInput
-          value={phone}
-          onChangeText={setPhone}
-          placeholder="Телефон (необязательно)"
-          placeholderTextColor={colors.mutedForeground}
-          keyboardType="phone-pad"
-          className="px-3 py-2.5 rounded-lg bg-muted border border-border text-foreground text-sm"
-          style={{ color: colors.foreground }}
-        />
       </View>
     </View>
   );
