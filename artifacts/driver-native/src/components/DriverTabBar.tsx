@@ -4,23 +4,24 @@ import { Briefcase, Zap, MessageCircle, User, type LucideIcon } from "lucide-rea
 
 import { useT, type TKey } from "@/lib/i18n";
 import { colors } from "@/lib/theme";
-import { PREVIEW_MODE } from "@/config";
+import { useUnread } from "@/features/chat/unread";
 
 // Faithful native port of the bottom nav in web DriverLayout.tsx (lines ~666-731).
 // Rendered as a custom tabBar for expo-router <Tabs>, so navigation is real while
 // the look is fully controlled: 68px card bar, active tab gets a cyan-tinted icon
 // chip + glow, red count badges.
-const TABS: Record<string, { icon: LucideIcon; label: TKey; badge?: number }> = {
-  index: { icon: Briefcase, label: "nav_orders", badge: 0 },
-  urgent: { icon: Zap, label: "nav_urgent", badge: PREVIEW_MODE ? 3 : 0 },
-  chat: { icon: MessageCircle, label: "nav_chat", badge: PREVIEW_MODE ? 2 : 0 },
-  profile: { icon: User, label: "nav_profile", badge: 0 },
+const TABS: Record<string, { icon: LucideIcon; label: TKey }> = {
+  index: { icon: Briefcase, label: "nav_orders" },
+  urgent: { icon: Zap, label: "nav_urgent" },
+  chat: { icon: MessageCircle, label: "nav_chat" },
+  profile: { icon: User, label: "nav_profile" },
 };
 const ORDER = ["index", "urgent", "chat", "profile"];
 
 export function DriverTabBar({ state, navigation }: any) {
   const insets = useSafeAreaInsets();
   const { t } = useT();
+  const { count: unread } = useUnread();
 
   // Keep our visual order regardless of route registration order.
   const routes = ORDER.map((name) => state.routes.find((r: any) => r.name === name)).filter(Boolean);
@@ -36,7 +37,7 @@ export function DriverTabBar({ state, navigation }: any) {
           if (!cfg) return null;
           const isActive = state.routes[state.index]?.key === route.key;
           const Icon = cfg.icon;
-          const badge = cfg.badge ?? 0;
+          const badge = route.name === "chat" ? unread : 0;
 
           const onPress = () => {
             const event = navigation.emit({

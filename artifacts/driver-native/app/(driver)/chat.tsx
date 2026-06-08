@@ -1,22 +1,20 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import {
-  View,
-  Text,
-  TextInput,
-  Pressable,
-  FlatList,
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-} from "react-native";
-import { Send, Check, CheckCheck, MessageCircle } from "lucide-react-native";
+import { View, Text, Pressable, ScrollView, ActivityIndicator } from "react-native";
+import { useFocusEffect } from "expo-router";
+import { MessageCircle, Users, ChevronRight } from "lucide-react-native";
 
 import { useAuth } from "@/hooks/use-auth";
 import { API_BASE_URL } from "@/config";
 import { colors } from "@/lib/theme";
-import { useChat, type ChatMessage } from "@/features/chat/use-chat";
+import { useChat } from "@/features/chat/use-chat";
+import { useGroupList, useGroupChat } from "@/features/chat/use-group-chat";
+import { useUnread } from "@/features/chat/unread";
+import { ChatThread } from "@/features/chat/ChatThread";
 
-function timeOf(iso: string) {
+type Open = null | { kind: "dm"; id: number; name: string } | { kind: "group"; id: number; name: string };
+
+function timeShort(iso: string | null) {
+  if (!iso) return "";
   try {
     const d = new Date(iso);
     return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
@@ -27,164 +25,160 @@ function timeOf(iso: string) {
 
 export default function ChatScreen() {
   const { token, user } = useAuth();
-  const [peer, setPeer] = useState<{ id: number; name: string } | null>(null);
-  const [resolving, setResolving] = useState(true);
+  const { reset } = useUnread();
+  const [dispatcher, setDispatcher] = useState<{ id: number; name: string } | null>(null);
+  const [open, setOpen] = useState<Open>(null);
   const [text, setText] = useState("");
-  const listRef = useRef<FlatList<ChatMessage>>(null);
   const typingThrottle = useRef(0);
 
-  const { messages, loading, sending, peerTyping, peerOnline, sendMessage, sendTyping, markRead } = useChat(
-    peer?.id ?? null,
-    0,
-  );
+  const { chats: groups, loading: groupsLoading } = useGroupList();
 
-  // Resolve the dispatcher to chat with.
+  // active threads (hooks called unconditionally; null when not open)
+  const dm = useChat(open?.kind === "dm" ? open.id : null, 0);
+  const group = useGroupChat(open?.kind === "group" ? open.id : null);
+
   useEffect(() => {
     if (!token) return;
-    setResolving(true);
     fetch(`${API_BASE_URL}/api/chat/dispatcher-info`, { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => r.json())
       .then((d) => {
-        if (d?.id) setPeer({ id: d.id, name: d.name || "Диспетчер" });
-        else setPeer(null);
+        if (d?.id) setDispatcher({ id: d.id, name: d.name || "Диспетчер" });
       })
-      .catch(() => setPeer(null))
-      .finally(() => setResolving(false));
+      .catch(() => {});
   }, [token]);
 
-  // Mark incoming (peer) messages as read.
+  // Reset the unread badge whenever the chat tab is focused.
+  useFocusEffect(
+    useCallback(() => {
+      reset();
+    }, [reset]),
+  );
+
+  // Mark dispatcher DM messages read while open.
   useEffect(() => {
-    const unread = messages.filter((m) => m.senderId !== user?.id && m.status !== "read").map((m) => m.id);
-    if (unread.length) markRead(unread);
-  }, [messages, user?.id, markRead]);
+    if (open?.kind !== "dm") return;
+    const unread = dm.messages.filter((m) => m.senderId !== user?.id && m.status !== "read").map((m) => m.id);
+    if (unread.length) dm.markRead(unread);
+  }, [open, dm, user?.id]);
 
   const onChangeText = useCallback(
     (v: string) => {
       setText(v);
-      const now = Date.now();
-      if (now - typingThrottle.current > 1500) {
-        typingThrottle.current = now;
-        sendTyping();
+      if (open?.kind === "dm") {
+        const now = Date.now();
+        if (now - typingThrottle.current > 1500) {
+          typingThrottle.current = now;
+          dm.sendTyping();
+        }
       }
     },
-    [sendTyping],
+    [open, dm],
   );
 
   const onSend = () => {
     const t = text.trim();
     if (!t) return;
     setText("");
-    sendMessage(t);
+    if (open?.kind === "dm") dm.sendMessage(t);
+    else if (open?.kind === "group") group.sendMessage(t);
   };
 
-  const renderItem = ({ item }: { item: ChatMessage }) => {
-    const mine = item.senderId === user?.id;
+  const back = () => {
+    setOpen(null);
+    setText("");
+  };
+
+  // ---- thread views ----
+  if (open?.kind === "dm") {
     return (
-      <View className={`px-4 mb-2 ${mine ? "items-end" : "items-start"}`}>
-        <View
-          className={`max-w-[80%] rounded-2xl px-3.5 py-2.5 ${mine ? "bg-primary" : "bg-card border border-border"}`}
-        >
-          <Text className={`font-sans text-[15px] ${mine ? "text-primary-foreground" : "text-foreground"}`}>
-            {item.message}
-          </Text>
-          <View className="flex-row items-center justify-end mt-1" style={{ gap: 4 }}>
-            <Text className={`font-sans text-[10px] ${mine ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
-              {timeOf(item.createdAt)}
-            </Text>
-            {mine &&
-              (item.status === "read" ? (
-                <CheckCheck size={13} color="#67e8f9" />
-              ) : item.status === "delivered" ? (
-                <CheckCheck size={13} color={colors.primaryForeground} />
-              ) : (
-                <Check size={13} color={colors.primaryForeground} />
-              ))}
-          </View>
-        </View>
-      </View>
+      <ChatThread
+        title={open.name}
+        subtitle={dm.peerTyping ? "печатает…" : dm.peerOnline ? "в сети" : "не в сети"}
+        subtitleColor={dm.peerOnline && !dm.peerTyping ? "online" : "muted"}
+        messages={dm.messages}
+        myUserId={user?.id}
+        loading={dm.loading}
+        sending={dm.sending}
+        showStatusTicks
+        text={text}
+        onChangeText={onChangeText}
+        onSend={onSend}
+        onBack={back}
+      />
     );
-  };
-
-  if (resolving) {
+  }
+  if (open?.kind === "group") {
     return (
-      <View className="flex-1 bg-background items-center justify-center">
-        <ActivityIndicator color={colors.primary} />
-      </View>
+      <ChatThread
+        title={open.name}
+        messages={group.messages}
+        myUserId={user?.id}
+        loading={group.loading}
+        sending={group.sending}
+        showSenderName
+        text={text}
+        onChangeText={onChangeText}
+        onSend={onSend}
+        onBack={back}
+      />
     );
   }
 
-  if (!peer) {
-    return (
-      <View className="flex-1 bg-background items-center justify-center px-8">
-        <View className="w-20 h-20 rounded-2xl bg-primary/[0.12] items-center justify-center mb-4">
-          <MessageCircle size={36} color={colors.primary} />
-        </View>
-        <Text className="font-display text-foreground text-xl mb-1">Чат</Text>
-        <Text className="font-sans text-muted-foreground text-sm text-center">Диспетчер сейчас недоступен</Text>
-      </View>
-    );
-  }
-
+  // ---- conversations list ----
   return (
-    <KeyboardAvoidingView
-      className="flex-1 bg-background"
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
-      {/* sub-header: dispatcher + presence */}
-      <View className="flex-row items-center bg-card border-b border-border px-4 py-2.5" style={{ gap: 10 }}>
-        <View className="w-9 h-9 rounded-full bg-primary/15 items-center justify-center">
-          <MessageCircle size={18} color={colors.primary} />
-        </View>
-        <View className="flex-1">
-          <Text className="font-sans-bold text-foreground text-sm">{peer.name}</Text>
-          <Text className={`font-sans text-[12px] ${peerOnline ? "text-emerald-400" : "text-muted-foreground"}`}>
-            {peerTyping ? "печатает…" : peerOnline ? "в сети" : "не в сети"}
-          </Text>
-        </View>
-      </View>
-
-      {loading ? (
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator color={colors.primary} />
-        </View>
-      ) : (
-        <FlatList
-          ref={listRef}
-          data={messages}
-          keyExtractor={(m) => String(m.id)}
-          renderItem={renderItem}
-          contentContainerStyle={{ paddingVertical: 12 }}
-          onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
-          ListEmptyComponent={
-            <View className="items-center py-16">
-              <Text className="font-sans text-muted-foreground text-sm">Нет сообщений</Text>
-            </View>
-          }
-        />
+    <ScrollView className="flex-1 bg-background" contentContainerClassName="py-2">
+      {dispatcher && (
+        <Pressable
+          onPress={() => setOpen({ kind: "dm", id: dispatcher.id, name: dispatcher.name })}
+          className="flex-row items-center px-4 py-3 active:opacity-80"
+          style={{ gap: 12 }}
+        >
+          <View className="w-12 h-12 rounded-full bg-primary/15 items-center justify-center">
+            <MessageCircle size={22} color={colors.primary} />
+          </View>
+          <View className="flex-1">
+            <Text className="font-sans-bold text-foreground text-[15px]">{dispatcher.name}</Text>
+            <Text className="font-sans text-muted-foreground text-[13px]">Диспетчерская</Text>
+          </View>
+          <ChevronRight size={18} color={colors.mutedForeground} />
+        </Pressable>
       )}
 
-      {/* input */}
-      <View className="flex-row items-end bg-card border-t border-border px-3 py-2.5" style={{ gap: 8 }}>
-        <TextInput
-          value={text}
-          onChangeText={onChangeText}
-          placeholder="Сообщение…"
-          placeholderTextColor={colors.mutedForeground}
-          multiline
-          className="flex-1 bg-secondary rounded-2xl px-4 py-2.5 text-foreground font-sans text-[15px] max-h-28"
-        />
-        <Pressable
-          onPress={onSend}
-          disabled={sending || !text.trim()}
-          className={`w-11 h-11 rounded-full items-center justify-center ${text.trim() ? "bg-primary" : "bg-secondary"}`}
-        >
-          {sending ? (
-            <ActivityIndicator color={colors.primaryForeground} />
-          ) : (
-            <Send size={18} color={text.trim() ? colors.primaryForeground : colors.mutedForeground} />
-          )}
-        </Pressable>
-      </View>
-    </KeyboardAvoidingView>
+      <View className="h-px bg-border mx-4 my-1" />
+      <Text className="font-sans-semibold text-muted-foreground text-[11px] uppercase px-4 py-2" style={{ letterSpacing: 0.5 }}>
+        Группы
+      </Text>
+
+      {groupsLoading ? (
+        <ActivityIndicator color={colors.primary} className="mt-4" />
+      ) : groups.length === 0 ? (
+        <Text className="font-sans text-muted-foreground text-sm px-4 py-3">Нет групповых чатов</Text>
+      ) : (
+        groups.map((g) => (
+          <Pressable
+            key={g.id}
+            onPress={() => setOpen({ kind: "group", id: g.id, name: g.name })}
+            className="flex-row items-center px-4 py-3 active:opacity-80"
+            style={{ gap: 12 }}
+          >
+            <View className="w-12 h-12 rounded-full bg-secondary items-center justify-center">
+              <Users size={22} color={colors.mutedForeground} />
+            </View>
+            <View className="flex-1">
+              <View className="flex-row items-center justify-between">
+                <Text className="font-sans-bold text-foreground text-[15px]" numberOfLines={1}>
+                  {g.name}
+                </Text>
+                <Text className="font-sans text-muted-foreground text-[11px]">{timeShort(g.lastMessageAt)}</Text>
+              </View>
+              <Text className="font-sans text-muted-foreground text-[13px]" numberOfLines={1}>
+                {g.lastSenderName ? `${g.lastSenderName}: ` : ""}
+                {g.lastMessage || `${g.memberCount} участников`}
+              </Text>
+            </View>
+          </Pressable>
+        ))
+      )}
+    </ScrollView>
   );
 }

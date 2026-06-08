@@ -8,6 +8,7 @@ import { useOnlineService } from "@/hooks/use-online-service";
 import { DriverHeader } from "@/components/DriverHeader";
 import { DriverTabBar } from "@/components/DriverTabBar";
 import { IncomingOfferModal } from "@/features/orders/components/IncomingOfferModal";
+import { UnreadProvider } from "@/features/chat/unread";
 import { DEMO_DRIVER } from "@/lib/driver";
 import { PREVIEW_MODE, API_BASE_URL } from "@/config";
 import { colors } from "@/lib/theme";
@@ -81,7 +82,7 @@ export default function DriverShellLayout() {
   };
 
   return (
-    <>
+    <UnreadProvider>
       <Tabs
         tabBar={(props) => <DriverTabBar {...props} />}
         screenOptions={{
@@ -105,6 +106,6 @@ export default function DriverShellLayout() {
 
       {/* Global incoming-order offer (works on any tab) */}
       {user ? <IncomingOfferModal /> : null}
-    </>
+    </UnreadProvider>
   );
 }
