@@ -9,7 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
-import { Send, Check, CheckCheck, ChevronLeft } from "lucide-react-native";
+import { Send, Check, CheckCheck, ChevronLeft, Phone } from "lucide-react-native";
 
 import { colors } from "@/lib/theme";
 
@@ -46,6 +46,7 @@ export function ChatThread({
   onChangeText,
   onSend,
   onBack,
+  onCall,
 }: {
   title: string;
   subtitle?: string;
@@ -60,6 +61,7 @@ export function ChatThread({
   onChangeText: (v: string) => void;
   onSend: () => void;
   onBack: () => void;
+  onCall?: () => void;
 }) {
   const listRef = useRef<FlatList<ThreadMessage>>(null);
 
@@ -112,6 +114,14 @@ export function ChatThread({
             </Text>
           ) : null}
         </View>
+        {onCall ? (
+          <Pressable
+            onPress={onCall}
+            className="w-10 h-10 rounded-full bg-emerald-500/15 items-center justify-center active:opacity-80 mr-1"
+          >
+            <Phone size={18} color={colors.emerald} />
+          </Pressable>
+        ) : null}
       </View>
 
       {loading ? (

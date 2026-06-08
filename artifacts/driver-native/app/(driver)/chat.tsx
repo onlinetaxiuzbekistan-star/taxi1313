@@ -9,6 +9,7 @@ import { colors } from "@/lib/theme";
 import { useChat } from "@/features/chat/use-chat";
 import { useGroupList, useGroupChat } from "@/features/chat/use-group-chat";
 import { useUnread } from "@/features/chat/unread";
+import { useVoiceCall } from "@/features/voice/VoiceCallProvider";
 import { ChatThread } from "@/features/chat/ChatThread";
 
 type Open = null | { kind: "dm"; id: number; name: string } | { kind: "group"; id: number; name: string };
@@ -26,6 +27,7 @@ function timeShort(iso: string | null) {
 export default function ChatScreen() {
   const { token, user } = useAuth();
   const { reset } = useUnread();
+  const { startCall } = useVoiceCall();
   const [dispatcher, setDispatcher] = useState<{ id: number; name: string } | null>(null);
   const [open, setOpen] = useState<Open>(null);
   const [text, setText] = useState("");
@@ -104,6 +106,7 @@ export default function ChatScreen() {
         onChangeText={onChangeText}
         onSend={onSend}
         onBack={back}
+        onCall={() => startCall(open.id, open.name)}
       />
     );
   }
