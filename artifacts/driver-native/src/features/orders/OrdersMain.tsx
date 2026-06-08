@@ -78,6 +78,8 @@ export function OrdersMain() {
         onRejectClient={o.rejectPassenger}
         clientActionLoading={o.clientActionLoading}
         passengerActionLoading={o.passengerActionLoading}
+        onSellOrder={o.sellOrder}
+        sellLoading={o.sellLoading}
       />
     );
   }

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { View, Text, Pressable, ScrollView, ActivityIndicator, Linking } from "react-native";
-import { Navigation, XCircle, Phone, User, Users } from "lucide-react-native";
+import { Navigation, XCircle, Phone, User, Users, Store } from "lucide-react-native";
 
 import { useAuth } from "@/hooks/use-auth";
 import { API_BASE_URL } from "@/config";
@@ -13,6 +13,7 @@ import { NavSheet } from "./NavSheet";
 import { CarSeatLayout } from "./CarSeatLayout";
 import { ManualClientForm } from "./ManualClientForm";
 import { SeatPassengerCard } from "./SeatPassengerCard";
+import { SellOrderModal } from "./SellOrderModal";
 import { ExpiredRideModal } from "./ExpiredRideModal";
 
 function statusBadge(status: string) {
@@ -66,6 +67,8 @@ export function SeatViewScreen({
   onRejectClient,
   clientActionLoading,
   passengerActionLoading,
+  onSellOrder,
+  sellLoading,
 }: {
   ride: Ride;
   passengers: SeatPassenger[];
@@ -77,12 +80,15 @@ export function SeatViewScreen({
   onRejectClient?: (id: number) => void;
   clientActionLoading?: boolean;
   passengerActionLoading?: number | null;
+  onSellOrder?: (price: number, comment: string) => void;
+  sellLoading?: boolean;
 }) {
   const { token } = useAuth();
   const [queueInfo, setQueueInfo] = useState<QueueInfoData | null>(null);
   const [showNav, setShowNav] = useState(false);
   const [selectedSeat, setSelectedSeat] = useState<number | null>(null);
   const [showManual, setShowManual] = useState<number | null>(null);
+  const [showSell, setShowSell] = useState(false);
   const [showExpired, setShowExpired] = useState(false);
   const [extending, setExtending] = useState(false);
 
@@ -250,6 +256,17 @@ export function SeatViewScreen({
             <Text className="font-sans-bold text-red-500 text-sm">Отменить</Text>
           </Pressable>
         </View>
+        {onSellOrder && (ride.status === "accepted" || ride.status === "pending") ? (
+          <Pressable
+            onPress={() => setShowSell(true)}
+            disabled={loading || sellLoading}
+            className="py-3 rounded-xl bg-primary/10 border border-primary/30 flex-row items-center justify-center active:opacity-80"
+            style={{ gap: 6, opacity: loading || sellLoading ? 0.6 : 1 }}
+          >
+            <Store size={16} color={colors.primary} />
+            <Text className="font-sans-bold text-primary text-sm">Продать заказ оператору</Text>
+          </Pressable>
+        ) : null}
         {ride.status === "accepted" && filledSeats > 0 ? (
           <Pressable
             onPress={onStartRide}
@@ -264,6 +281,18 @@ export function SeatViewScreen({
       </View>
 
       <NavSheet visible={showNav} toLat={ride.fromLat} toLng={ride.fromLng} onClose={() => setShowNav(false)} />
+      {onSellOrder ? (
+        <SellOrderModal
+          visible={showSell}
+          defaultPrice={Number(ride.price || 0)}
+          loading={sellLoading}
+          onClose={() => setShowSell(false)}
+          onConfirm={(price, comment) => {
+            setShowSell(false);
+            onSellOrder(price, comment);
+          }}
+        />
+      ) : null}
       <ExpiredRideModal
         visible={showExpired}
         extending={extending}

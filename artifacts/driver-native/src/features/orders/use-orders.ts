@@ -22,6 +22,7 @@ export function useOrders() {
   const [actionLoading, setActionLoading] = useState(false);
   const [passengerActionLoading, setPassengerActionLoading] = useState<number | null>(null);
   const [clientActionLoading, setClientActionLoading] = useState(false);
+  const [sellLoading, setSellLoading] = useState(false);
   const [completedRide, setCompletedRide] = useState<Ride | null>(null);
   const [commissionRate, setCommissionRate] = useState(0.15);
 
@@ -380,6 +381,35 @@ export function useOrders() {
     [passengerActionLoading, post, loadActiveRide],
   );
 
+  // Sell/return the current order to the operator (marketplace). Mirrors backend
+  // POST /api/marketplace/sell — only for not-yet-started rides (accepted/pending).
+  const sellOrder = useCallback(
+    async (price: number, comment?: string): Promise<boolean> => {
+      if (!activeRide || sellLoading) return false;
+      setSellLoading(true);
+      try {
+        const { ok, data } = await post("/api/marketplace/sell", {
+          rideId: activeRide.id,
+          price,
+          comment: comment || undefined,
+        });
+        if (ok) {
+          Alert.alert("Готово", "Заказ выставлен на продажу оператору");
+          loadActiveRide();
+          return true;
+        }
+        Alert.alert("Ошибка", data?.message || "Не удалось продать заказ");
+        return false;
+      } catch {
+        Alert.alert("Ошибка сети", "Проверьте подключение");
+        return false;
+      } finally {
+        setSellLoading(false);
+      }
+    },
+    [activeRide, sellLoading, post, loadActiveRide],
+  );
+
   const handleCompletionClose = useCallback(() => {
     setCompletedRide(null);
     setScreen("route_select");
@@ -414,6 +444,8 @@ export function useOrders() {
     clientActionLoading,
     manualClient,
     rejectPassenger,
+    sellLoading,
+    sellOrder,
     goOnline,
     createRide,
     startRide,
