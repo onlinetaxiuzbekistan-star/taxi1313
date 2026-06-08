@@ -8,7 +8,6 @@ import { colors } from "@/lib/theme";
 import { formatCurrency, formatRoutePoint } from "../utils";
 import type { Ride, SeatPassenger, City, QueueInfoData } from "../types";
 import { QueueWidget } from "./QueueWidget";
-import { RideMap } from "./RideMap";
 import { NavSheet } from "./NavSheet";
 import { CarSeatLayout } from "./CarSeatLayout";
 import { ManualClientForm } from "./ManualClientForm";
@@ -167,11 +166,6 @@ export function SeatViewScreen({
               <Text className="font-sans text-zinc-400 text-[8px] uppercase">км</Text>
             </View>
           </View>
-        </View>
-
-        {/* route map */}
-        <View className="mt-3">
-          <RideMap ride={ride} height={180} />
         </View>
 
         {/* seat map */}

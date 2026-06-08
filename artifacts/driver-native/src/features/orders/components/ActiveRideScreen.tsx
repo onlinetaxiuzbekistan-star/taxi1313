@@ -7,7 +7,6 @@ import { formatCurrency, formatRoutePoint } from "../utils";
 import type { Ride, SeatPassenger, City } from "../types";
 import { PassengerRow } from "./SeatViewScreen";
 import { ElapsedTimer } from "./ElapsedTimer";
-import { RideMap } from "./RideMap";
 import { NavSheet } from "./NavSheet";
 
 // Ported from web orders/components/ActiveRideScreen.tsx (CP3: list-based
@@ -81,10 +80,6 @@ export function ActiveRideScreen({
         </View>
 
         <View className="px-4 py-3" style={{ gap: 10 }}>
-          {!allDroppedOff && (
-            <RideMap ride={ride} height={170} />
-          )}
-
           {/* sequential action buttons */}
           {!allDroppedOff && waiting.length > 0 && (
             <View style={{ gap: 8 }}>
