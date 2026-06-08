@@ -80,6 +80,7 @@ export const translations = {
   home_change_photo: { ru: "Изменить фото", uz: "Fotoni o‘zgartirish" },
   go_online: { ru: "Выйти на линию", uz: "Liniyaga chiqish" },
   create_ride: { ru: "Создать рейс", uz: "Reys yaratish" },
+  start_work: { ru: "Начать работу", uz: "Иш бошлаш" },
 
   // ── route select ──
   rs_from: { ru: "Откуда", uz: "Qayerdan" },

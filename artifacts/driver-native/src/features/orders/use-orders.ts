@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { API_BASE_URL } from "@/config";
 import { wsEvents } from "@/lib/ws-events";
 import { playRemoved, playTripStart } from "@/lib/sounds";
+import { markUnassigned } from "@/lib/unassigned-guard";
 import { useT } from "@/lib/i18n";
 import type { City, RouteOption, Ride, SeatPassenger, DriverScreen } from "./types";
 
@@ -134,6 +135,7 @@ export function useOrders() {
         const lc = lastClearedRef.current;
         if (rideId != null && lc.id === rideId && Date.now() - lc.at < 5000) return;
         lastClearedRef.current = { id: rideId ?? null, at: Date.now() };
+        markUnassigned(rideId); // suppress same-ride re-offers on this device for 2 min
         clearActive();
         activeRideRef.current = null; // immediate, so a same-tick sibling event is a no-op
         playRemoved();

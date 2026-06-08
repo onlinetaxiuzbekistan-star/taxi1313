@@ -675,6 +675,13 @@ router.post("/:id/unassign-driver", authMiddleware, requireRole("dispatcher", "a
 
     const previousDriverId = existing.driverId;
 
+    // 0. НЕ предлагать тот же заказ этому же водителю в течение cooldown (2 мин).
+    //    Read-side (isInUnassignCooldown) уже проверяется при подборе кандидатов
+    //    в autodispatch — здесь активируем запись, которая ранее не вызывалась.
+    if (previousDriverId != null) {
+      addUnassignCooldown(rideId, previousDriverId);
+    }
+
     // 1. остановим текущий dispatch loop (если ещё крутится)
     stopDispatchLoop(rideId);
 

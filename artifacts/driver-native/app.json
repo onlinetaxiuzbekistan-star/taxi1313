@@ -2,7 +2,7 @@
   "expo": {
     "name": "Taxi 1313 — Водитель",
     "slug": "driver-native",
-    "version": "1.0.6",
+    "version": "1.0.7",
     "scheme": "taxi1313driver",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -20,7 +20,7 @@
     },
     "android": {
       "package": "ru.taxi1313.drivernative",
-      "versionCode": 7,
+      "versionCode": 8,
       "adaptiveIcon": {
         "backgroundColor": "#0A0A1A",
         "foregroundImage": "./assets/android-icon-foreground.png",

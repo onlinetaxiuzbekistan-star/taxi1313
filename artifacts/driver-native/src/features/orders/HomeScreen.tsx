@@ -131,7 +131,7 @@ export function HomeScreen({
             style={{ gap: 8 }}
           >
             <Plus size={22} color={colors.primaryForeground} />
-            <Text className="font-sans-bold text-primary-foreground text-base">{t("create_ride")}</Text>
+            <Text className="font-sans-bold text-primary-foreground text-base">{t("start_work")}</Text>
           </Pressable>
           <Pressable
             onPress={onSell}

@@ -8,6 +8,7 @@ import { colors } from "@/lib/theme";
 import { formatCurrency } from "@/features/orders/utils";
 import { wsEvents } from "@/lib/ws-events";
 import { playMarket, playNewOrder } from "@/lib/sounds";
+import { isRecentlyUnassigned } from "@/lib/unassigned-guard";
 import { useT } from "@/lib/i18n";
 
 type Offer = { offerId: number; ride: any };
@@ -45,7 +46,8 @@ export default function UrgentScreen() {
         fetch(`${API_BASE_URL}/api/drivers/pending-offers`, { headers }),
         fetch(`${API_BASE_URL}/api/marketplace/listings`, { headers }),
       ]);
-      const newOffers: Offer[] = oRes.ok ? (await oRes.json()).offers || [] : [];
+      const rawOffers: Offer[] = oRes.ok ? (await oRes.json()).offers || [] : [];
+      const newOffers: Offer[] = rawOffers.filter((o) => !isRecentlyUnassigned(o.ride?.id));
       const newListings: Listing[] = lRes.ok ? (await lRes.json()).listings || [] : [];
       if (oRes.ok) setOffers(newOffers);
       if (lRes.ok) setListings(newListings);

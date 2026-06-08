@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { API_BASE_URL } from "@/config";
 import { wsEvents } from "@/lib/ws-events";
 import { playNewOrder } from "@/lib/sounds";
+import { isRecentlyUnassigned } from "@/lib/unassigned-guard";
 import { colors } from "@/lib/theme";
 import { useT } from "@/lib/i18n";
 import { formatCurrency } from "../utils";
@@ -31,7 +32,9 @@ export function IncomingOfferModal({ onAccepted }: { onAccepted?: () => void }) 
       });
       if (!res.ok) return;
       const data = await res.json();
-      const offers: Offer[] = (data.offers || []).filter((o: Offer) => !dismissed.current.has(o.offerId));
+      const offers: Offer[] = (data.offers || []).filter(
+        (o: Offer) => !dismissed.current.has(o.offerId) && !isRecentlyUnassigned(o.ride?.id),
+      );
       setOffer((cur) => {
         const next = offers[0] || null;
         if (next && (!cur || cur.offerId !== next.offerId)) {
