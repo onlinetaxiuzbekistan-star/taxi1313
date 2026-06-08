@@ -13,11 +13,13 @@ export function RouteSelectScreen({
   routes,
   creating,
   onCreateRide,
+  userCity,
 }: {
   cities: City[];
   routes: RouteOption[];
   creating: boolean;
   onCreateRide: (fromCity: string, toCity: string, departureTime: string, urgent?: boolean, timeSlot?: string) => void;
+  userCity?: string | null;
 }) {
   const [fromCity, setFromCity] = useState("");
   const [toCity, setToCity] = useState("");
@@ -32,11 +34,23 @@ export function RouteSelectScreen({
   const matchesTo = (rt: string, c: City) =>
     rt === c.nameRu || rt === c.id || rt.toLowerCase() === c.nameRu.toLowerCase();
 
+  // Auto-detect the driver's current city as the origin (matches web GPS flow).
+  useEffect(() => {
+    if (fromCity || !userCity || cities.length === 0) return;
+    const uc = String(userCity).toLowerCase();
+    const match = cities.find(
+      (c) => c.id === userCity || c.nameRu === userCity || c.nameRu.toLowerCase() === uc,
+    );
+    if (match) setFromCity(match.id);
+  }, [userCity, cities, fromCity]);
+
+  // Destination list = ONLY cities reachable via an ENABLED route from the
+  // origin. `routes` is already filtered to isActive !== false upstream, so a
+  // disabled route is completely absent here (no greyed-out / "недоступно").
   const destinationCities = useMemo(() => {
-    if (!fromCity || routes.length === 0) return cities.filter((c) => c.id !== fromCity);
+    if (!fromCity) return [];
     const matching = routes.filter((r) => matchesFrom(r.fromCity));
-    if (matching.length === 0) return cities.filter((c) => c.id !== fromCity);
-    return cities.filter((c) => matching.some((r) => matchesTo(r.toCity, c)));
+    return cities.filter((c) => c.id !== fromCity && matching.some((r) => matchesTo(r.toCity, c)));
   }, [fromCity, routes, cities]);
 
   // Auto-select the single destination if there's only one.

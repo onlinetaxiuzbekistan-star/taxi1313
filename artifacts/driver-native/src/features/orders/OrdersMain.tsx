@@ -34,6 +34,7 @@ export function OrdersMain() {
         routes={o.routes}
         creating={o.actionLoading}
         onCreateRide={o.createRide}
+        userCity={o.userCity}
       />
     );
   }

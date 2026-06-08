@@ -41,8 +41,10 @@ export function useOrders() {
       .then((r) => r.json())
       .then((d) => setCities(d.cities || []))
       .catch(() => {});
-    const cityQ = (user as any)?.city ? `?city=${encodeURIComponent((user as any).city)}` : "";
-    fetch(`${API_BASE_URL}/api/routes${cityQ}`)
+    // Load ALL routes (same endpoint the dispatcher panel uses) and keep only
+    // ENABLED ones (isActive !== false). The destination list is then filtered
+    // per-origin in RouteSelectScreen, so disabled routes never appear at all.
+    fetch(`${API_BASE_URL}/api/routes`)
       .then((r) => r.json())
       .then((d) => setRoutes((d.routes || []).filter((r: any) => r.isActive !== false)))
       .catch(() => {});
@@ -400,6 +402,7 @@ export function useOrders() {
   return {
     cities,
     routes,
+    userCity: (user as any)?.city ?? null,
     activeRide,
     passengers,
     completedRide,
