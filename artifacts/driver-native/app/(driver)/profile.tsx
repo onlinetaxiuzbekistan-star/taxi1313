@@ -1,20 +1,37 @@
+import { useState, useEffect } from "react";
 import { View, Text, Pressable, ScrollView } from "react-native";
-import { User, Star, Car } from "lucide-react-native";
+import { useRouter } from "expo-router";
+import { User, Star, Car, Wallet, TrendingUp, Bell, ChevronRight, LogOut } from "lucide-react-native";
 
 import { useAuth } from "@/hooks/use-auth";
 import { useSettingsStore, type Language } from "@/stores/settings";
 import { useT } from "@/lib/i18n";
 import { getCallsign, DEMO_DRIVER } from "@/lib/driver";
-import { PREVIEW_MODE } from "@/config";
+import { PREVIEW_MODE, API_BASE_URL } from "@/config";
 import { colors } from "@/lib/theme";
+import { formatCurrency } from "@/features/orders/utils";
 
 export default function ProfileScreen() {
-  const { user } = useAuth();
+  const { user, token, logout } = useAuth();
   const { t } = useT();
+  const router = useRouter();
   const language = useSettingsStore((s) => s.language);
   const setLanguage = useSettingsStore((s) => s.setLanguage);
+  const [ratingCount, setRatingCount] = useState<number | null>(null);
 
   const driver = user ?? (PREVIEW_MODE ? DEMO_DRIVER : null);
+
+  useEffect(() => {
+    if (!token) return;
+    fetch(`${API_BASE_URL}/api/drivers/my-rating-history`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        const arr = d?.ratings || d?.history || d?.items || [];
+        setRatingCount(Array.isArray(arr) ? arr.length : null);
+      })
+      .catch(() => {});
+  }, [token]);
+
   if (!driver) return null;
 
   const langs: { code: Language; label: string }[] = [
@@ -22,9 +39,15 @@ export default function ProfileScreen() {
     { code: "uz", label: "Oʻzbekcha" },
   ];
 
+  const menu = [
+    { icon: Wallet, label: "Кошелёк", sub: formatCurrency(Number((driver as any).balance || 0)), to: "/wallet" as const },
+    { icon: TrendingUp, label: "Заработок", sub: "Статистика и поездки", to: "/earnings" as const },
+    { icon: Bell, label: "Новости", sub: "Объявления диспетчерской", to: "/news" as const },
+  ];
+
   return (
     <ScrollView className="flex-1 bg-background" contentContainerClassName="p-4">
-      {/* identity card */}
+      {/* identity */}
       <View className="bg-card border border-border rounded-2xl p-5 items-center mb-4">
         <View className="w-20 h-20 rounded-full bg-primary/15 items-center justify-center mb-3">
           <User size={40} color={colors.primary} />
@@ -33,24 +56,60 @@ export default function ProfileScreen() {
         <Text className="font-mono text-primary text-sm" style={{ fontWeight: "700" }}>
           {getCallsign(driver)}
         </Text>
-
-        <View className="flex-row items-center mt-4" style={{ gap: 16 }}>
-          <View className="flex-row items-center" style={{ gap: 5 }}>
-            <Car size={15} color={colors.mutedForeground} />
-            <Text className="font-sans text-muted-foreground text-[13px]">
-              {driver.carModel ?? "—"}
-            </Text>
-          </View>
-          <View className="flex-row items-center" style={{ gap: 5 }}>
-            <Star size={15} color={colors.amber} fill={colors.amber} />
-            <Text className="font-sans-semibold text-foreground text-[13px]">
-              {driver.rating ?? "—"}
-            </Text>
-          </View>
+        <View className="flex-row items-center mt-3" style={{ gap: 6 }}>
+          <Car size={15} color={colors.mutedForeground} />
+          <Text className="font-sans text-muted-foreground text-[13px]">{driver.carModel ?? "—"}</Text>
+          {(driver as any).carNumber ? (
+            <Text className="font-sans-bold text-foreground text-[13px]">· {(driver as any).carNumber}</Text>
+          ) : null}
         </View>
       </View>
 
-      {/* language switch — demonstrates ported i18n (ru/uz) */}
+      {/* stats */}
+      <View className="flex-row mb-4" style={{ gap: 10 }}>
+        <View className="flex-1 bg-card border border-border rounded-2xl p-3 items-center">
+          <Star size={18} color={colors.amber} fill={colors.amber} />
+          <Text className="font-display text-foreground text-lg mt-1">{driver.rating ?? "—"}</Text>
+          <Text className="font-sans text-muted-foreground text-[11px]">
+            {ratingCount != null ? `${ratingCount} оценок` : "рейтинг"}
+          </Text>
+        </View>
+        <View className="flex-1 bg-card border border-border rounded-2xl p-3 items-center">
+          <Car size={18} color={colors.primary} />
+          <Text className="font-display text-foreground text-lg mt-1">{(driver as any).totalRides ?? 0}</Text>
+          <Text className="font-sans text-muted-foreground text-[11px]">поездок</Text>
+        </View>
+        <View className="flex-1 bg-card border border-border rounded-2xl p-3 items-center">
+          <Wallet size={18} color={colors.emerald} />
+          <Text className="font-display text-foreground text-base mt-1" numberOfLines={1}>
+            {formatCurrency(Number((driver as any).balance || 0))}
+          </Text>
+          <Text className="font-sans text-muted-foreground text-[11px]">баланс</Text>
+        </View>
+      </View>
+
+      {/* menu */}
+      <View className="bg-card border border-border rounded-2xl overflow-hidden mb-4">
+        {menu.map((m, i) => (
+          <Pressable
+            key={m.label}
+            onPress={() => router.push(m.to)}
+            className={`flex-row items-center px-4 py-3.5 active:opacity-80 ${i > 0 ? "border-t border-border" : ""}`}
+            style={{ gap: 12 }}
+          >
+            <View className="w-9 h-9 rounded-xl bg-secondary items-center justify-center">
+              <m.icon size={18} color={colors.primary} />
+            </View>
+            <View className="flex-1">
+              <Text className="font-sans-bold text-foreground text-sm">{m.label}</Text>
+              <Text className="font-sans text-muted-foreground text-[12px]">{m.sub}</Text>
+            </View>
+            <ChevronRight size={18} color={colors.mutedForeground} />
+          </Pressable>
+        ))}
+      </View>
+
+      {/* language */}
       <View className="bg-card border border-border rounded-2xl p-4 mb-4">
         <Text className="font-sans-semibold text-muted-foreground text-[12px] uppercase mb-3" style={{ letterSpacing: 0.5 }}>
           {t("language")}
@@ -66,11 +125,7 @@ export default function ProfileScreen() {
                   active ? "bg-primary border-primary" : "bg-secondary border-border"
                 }`}
               >
-                <Text
-                  className={`font-sans-semibold text-sm ${
-                    active ? "text-primary-foreground" : "text-foreground"
-                  }`}
-                >
+                <Text className={`font-sans-semibold text-sm ${active ? "text-primary-foreground" : "text-foreground"}`}>
                   {l.label}
                 </Text>
               </Pressable>
@@ -79,9 +134,15 @@ export default function ProfileScreen() {
         </View>
       </View>
 
-      <Text className="font-sans text-muted-foreground text-[12px] text-center">
-        {t("phase0_note")}
-      </Text>
+      {/* logout */}
+      <Pressable
+        onPress={() => logout()}
+        className="bg-red-500/10 border border-red-500/20 rounded-2xl py-3.5 flex-row items-center justify-center active:opacity-80"
+        style={{ gap: 8 }}
+      >
+        <LogOut size={18} color={colors.red} />
+        <Text className="font-sans-bold text-red-500 text-sm">Выйти из аккаунта</Text>
+      </Pressable>
     </ScrollView>
   );
 }
