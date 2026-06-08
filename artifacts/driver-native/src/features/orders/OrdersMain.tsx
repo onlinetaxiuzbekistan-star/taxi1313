@@ -73,6 +73,10 @@ export function OrdersMain() {
         loading={o.actionLoading}
         onStartRide={o.startRide}
         onCancel={confirmCancel}
+        onManualClient={o.manualClient}
+        onRejectClient={o.rejectPassenger}
+        clientActionLoading={o.clientActionLoading}
+        passengerActionLoading={o.passengerActionLoading}
       />
     );
   }

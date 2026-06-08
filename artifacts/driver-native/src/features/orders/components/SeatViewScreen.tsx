@@ -11,6 +11,8 @@ import { QueueWidget } from "./QueueWidget";
 import { RideMap } from "./RideMap";
 import { NavSheet } from "./NavSheet";
 import { CarSeatLayout } from "./CarSeatLayout";
+import { ManualClientForm } from "./ManualClientForm";
+import { SeatPassengerCard } from "./SeatPassengerCard";
 import { ExpiredRideModal } from "./ExpiredRideModal";
 
 function statusBadge(status: string) {
@@ -60,6 +62,10 @@ export function SeatViewScreen({
   loading,
   onStartRide,
   onCancel,
+  onManualClient,
+  onRejectClient,
+  clientActionLoading,
+  passengerActionLoading,
 }: {
   ride: Ride;
   passengers: SeatPassenger[];
@@ -67,17 +73,23 @@ export function SeatViewScreen({
   loading: boolean;
   onStartRide: () => void;
   onCancel: () => void;
+  onManualClient?: (seatNumber: number, gender: string, phone: string) => void;
+  onRejectClient?: (id: number) => void;
+  clientActionLoading?: boolean;
+  passengerActionLoading?: number | null;
 }) {
   const { token } = useAuth();
   const [queueInfo, setQueueInfo] = useState<QueueInfoData | null>(null);
   const [showNav, setShowNav] = useState(false);
   const [selectedSeat, setSelectedSeat] = useState<number | null>(null);
+  const [showManual, setShowManual] = useState<number | null>(null);
   const [showExpired, setShowExpired] = useState(false);
   const [extending, setExtending] = useState(false);
 
   const filledSeats = passengers.length;
   const totalSeats = ride.seatsTotal ?? ride.totalSeats ?? 4;
   const totalEarnings = passengers.reduce((s, p) => s + (p.price || 0), 0);
+  const selectedPassenger = selectedSeat != null ? passengers.find((p) => p.seatNumber === selectedSeat) : undefined;
 
   const fromName = formatRoutePoint(ride.fromDistrictName, cities.find((c) => c.id === ride.fromCity)?.nameRu || ride.fromCity);
   const toName = formatRoutePoint(ride.toDistrictName, cities.find((c) => c.id === ride.toCity)?.nameRu || ride.toCity);
@@ -160,11 +172,41 @@ export function SeatViewScreen({
         <View className="mt-3">
           <CarSeatLayout
             passengers={passengers}
-            selectedSeat={selectedSeat}
-            onSeatClick={(n) => setSelectedSeat((s) => (s === n ? null : n))}
+            selectedSeat={selectedSeat ?? showManual}
+            onSeatClick={(n) => {
+              const p = passengers.find((pp) => pp.seatNumber === n);
+              if (p) {
+                setShowManual(null);
+                setSelectedSeat((s) => (s === n ? null : n));
+              } else {
+                setSelectedSeat(null);
+                setShowManual((s) => (s === n ? null : n));
+              }
+            }}
             totalSeats={totalSeats}
           />
         </View>
+
+        {/* tap an occupied seat → passenger card; tap an empty seat → manual add */}
+        {selectedPassenger ? (
+          <View className="mt-3">
+            <SeatPassengerCard
+              passenger={selectedPassenger}
+              onClose={() => setSelectedSeat(null)}
+              onReject={onRejectClient}
+              loading={passengerActionLoading === selectedPassenger.id}
+            />
+          </View>
+        ) : showManual !== null && onManualClient ? (
+          <View className="mt-3">
+            <ManualClientForm
+              seatNumber={showManual}
+              onClose={() => setShowManual(null)}
+              onSubmit={onManualClient}
+              loading={clientActionLoading}
+            />
+          </View>
+        ) : null}
 
         {/* passengers */}
         <View className="mt-3" style={{ gap: 8 }}>

@@ -21,6 +21,7 @@ export function useOrders() {
   const [screen, setScreen] = useState<DriverScreen>("loading");
   const [actionLoading, setActionLoading] = useState(false);
   const [passengerActionLoading, setPassengerActionLoading] = useState<number | null>(null);
+  const [clientActionLoading, setClientActionLoading] = useState(false);
   const [completedRide, setCompletedRide] = useState<Ride | null>(null);
   const [commissionRate, setCommissionRate] = useState(0.15);
 
@@ -332,6 +333,51 @@ export function useOrders() {
     [passengerActionLoading, post, refreshUser, loadActiveRide, activeRide, passengers],
   );
 
+  // Manually book a seat with a driver-entered client (web handleManualClient).
+  const manualClient = useCallback(
+    async (seatNumber: number, gender: string, phone: string) => {
+      if (!activeRide || clientActionLoading) return;
+      setClientActionLoading(true);
+      try {
+        const { ok, data } = await post("/api/drivers/manual-client", {
+          orderId: activeRide.id,
+          seatNumber,
+          gender,
+          phone: phone || undefined,
+        });
+        if (ok) await loadActiveRide();
+        else Alert.alert("Ошибка", data?.message || "Не удалось добавить пассажира");
+      } catch {
+        Alert.alert("Ошибка сети", "Проверьте подключение");
+      } finally {
+        setClientActionLoading(false);
+      }
+    },
+    [activeRide, clientActionLoading, post, loadActiveRide],
+  );
+
+  // Remove a (manually-added) client from a seat (web handlePassengerReject).
+  const rejectPassenger = useCallback(
+    async (id: number) => {
+      if (passengerActionLoading) return;
+      setPassengerActionLoading(id);
+      try {
+        const { ok, data } = await post(`/api/drivers/passenger/${id}/reject`);
+        if (ok) {
+          setPassengers((prev) => prev.filter((p) => p.id !== id));
+          loadActiveRide();
+        } else {
+          Alert.alert("Ошибка", data?.message || "Не удалось снять клиента");
+        }
+      } catch {
+        Alert.alert("Ошибка сети", "Проверьте подключение");
+      } finally {
+        setPassengerActionLoading(null);
+      }
+    },
+    [passengerActionLoading, post, loadActiveRide],
+  );
+
   const handleCompletionClose = useCallback(() => {
     setCompletedRide(null);
     setScreen("route_select");
@@ -362,6 +408,9 @@ export function useOrders() {
     isOnline,
     actionLoading,
     passengerActionLoading,
+    clientActionLoading,
+    manualClient,
+    rejectPassenger,
     goOnline,
     createRide,
     startRide,
