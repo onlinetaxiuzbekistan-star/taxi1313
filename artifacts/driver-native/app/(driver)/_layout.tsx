@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Alert } from "react-native";
+import { Alert, BackHandler } from "react-native";
 import { Tabs, Redirect } from "expo-router";
 
 import { useAuth } from "@/hooks/use-auth";
@@ -42,6 +42,15 @@ export default function DriverShellLayout() {
   if (!activeUser) return <Redirect href="/driver-login" />;
 
   const isOnline = activeUser.status === "online" || activeUser.status === "busy";
+
+  // Red top-right button = EXIT the app (like the WebView app's exitApp), NOT
+  // logout. Logout (clearing the session) lives only in Profile. Confirm first.
+  const handleExit = () => {
+    Alert.alert("Выйти из приложения?", "Приложение закроется. Вы останетесь в аккаунте.", [
+      { text: "Отмена", style: "cancel" },
+      { text: "Выйти", style: "destructive", onPress: () => BackHandler.exitApp() },
+    ]);
+  };
 
   // Real status toggle — ported from web DriverLayout.tsx toggleStatus. Flipping
   // user.status on the server (then refreshUser) is what drives useOnlineService
@@ -95,7 +104,7 @@ export default function DriverShellLayout() {
               user={activeUser}
               toggling={toggling}
               onToggleStatus={handleToggleStatus}
-              onExit={logout}
+              onExit={handleExit}
             />
           ),
           sceneStyle: { backgroundColor: colors.background },
