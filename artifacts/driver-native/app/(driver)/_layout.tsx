@@ -8,6 +8,7 @@ import { useOnlineService } from "@/hooks/use-online-service";
 import { DriverHeader } from "@/components/DriverHeader";
 import { DriverTabBar } from "@/components/DriverTabBar";
 import { IncomingOfferModal } from "@/features/orders/components/IncomingOfferModal";
+import { NotificationBanner } from "@/features/notifications/NotificationBanner";
 import { UnreadProvider } from "@/features/chat/unread";
 import { VoiceCallProvider } from "@/features/voice/VoiceCallProvider";
 import { DEMO_DRIVER } from "@/lib/driver";
@@ -106,8 +107,9 @@ export default function DriverShellLayout() {
         <Tabs.Screen name="profile" />
       </Tabs>
 
-      {/* Global incoming-order offer (works on any tab) */}
+      {/* Global incoming-order offer + push banners (work on any tab) */}
       {user ? <IncomingOfferModal /> : null}
+      {user ? <NotificationBanner /> : null}
       </VoiceCallProvider>
     </UnreadProvider>
   );
