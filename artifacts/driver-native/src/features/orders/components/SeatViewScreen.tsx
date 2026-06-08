@@ -6,7 +6,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { API_BASE_URL } from "@/config";
 import { colors } from "@/lib/theme";
 import { formatCurrency, formatRoutePoint } from "../utils";
-import type { Ride, SeatPassenger, City, QueueInfoData } from "../types";
+import type { Ride, SeatPassenger, City, RouteOption, QueueInfoData } from "../types";
 import { QueueWidget } from "./QueueWidget";
 import { NavSheet } from "./NavSheet";
 import { CarSeatLayout } from "./CarSeatLayout";
@@ -59,6 +59,7 @@ export function SeatViewScreen({
   ride,
   passengers,
   cities,
+  routes,
   loading,
   onStartRide,
   onCancel,
@@ -72,6 +73,7 @@ export function SeatViewScreen({
   ride: Ride;
   passengers: SeatPassenger[];
   cities: City[];
+  routes?: RouteOption[];
   loading: boolean;
   onStartRide: () => void;
   onCancel: () => void;
@@ -280,6 +282,8 @@ export function SeatViewScreen({
           visible={showSell}
           ride={ride}
           passengers={passengers}
+          routes={routes || []}
+          cities={cities}
           loading={sellLoading}
           onClose={() => setShowSell(false)}
           onConfirm={(price, comment) => {

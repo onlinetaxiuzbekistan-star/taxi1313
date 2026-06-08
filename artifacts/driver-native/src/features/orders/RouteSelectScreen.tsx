@@ -45,9 +45,16 @@ export function RouteSelectScreen({
     if (match) setFromCity(match.id);
   }, [userCity, cities, fromCity]);
 
+  // Origin list = ONLY cities that have at least one ENABLED outgoing route
+  // (`routes` is already isActive-filtered upstream). So a city whose routes are
+  // all disabled (e.g. Жиззах/Карши) never appears as an origin either.
+  const originCities = useMemo(() => {
+    if (routes.length === 0) return cities; // no route data (offline) → don't hide everything
+    return cities.filter((c) => routes.some((r) => matchesTo(r.fromCity, c)));
+  }, [routes, cities]);
+
   // Destination list = ONLY cities reachable via an ENABLED route from the
-  // origin. `routes` is already filtered to isActive !== false upstream, so a
-  // disabled route is completely absent here (no greyed-out / "недоступно").
+  // origin. Disabled routes are completely absent (no greyed-out / "недоступно").
   const destinationCities = useMemo(() => {
     if (!fromCity) return [];
     const matching = routes.filter((r) => matchesFrom(r.fromCity));
@@ -107,7 +114,7 @@ export function RouteSelectScreen({
       <Pressable
         onPress={onPress}
         className={`flex-row items-center rounded-xl border-2 px-3 py-3 active:opacity-90 ${box}`}
-        style={{ width: "48%", gap: 8 }}
+        style={{ gap: 8 }}
       >
         <View className={`w-2.5 h-2.5 rounded-full ${dot}`} />
         <Text
@@ -138,8 +145,8 @@ export function RouteSelectScreen({
       <Text className="font-sans-bold text-muted-foreground text-[11px] uppercase mb-2" style={{ letterSpacing: 0.5 }}>
         Откуда
       </Text>
-      <View className="flex-row flex-wrap justify-between" style={{ rowGap: 8 }}>
-        {cities.map((c) => (
+      <View style={{ gap: 8 }}>
+        {originCities.map((c) => (
           <Chip
             key={c.id}
             label={c.nameRu}
@@ -167,7 +174,12 @@ export function RouteSelectScreen({
           </Text>
         ) : null}
       </Text>
-      <View className="flex-row flex-wrap justify-between" style={{ rowGap: 8 }}>
+      {fromCity && destinationCities.length === 0 ? (
+        <Text className="font-sans text-muted-foreground text-[13px] py-2">
+          Нет доступных направлений из этого города
+        </Text>
+      ) : null}
+      <View style={{ gap: 8 }}>
         {destinationCities.map((c) => (
           <Chip
             key={c.id}

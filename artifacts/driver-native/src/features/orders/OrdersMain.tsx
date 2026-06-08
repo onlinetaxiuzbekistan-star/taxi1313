@@ -71,6 +71,7 @@ export function OrdersMain() {
         ride={o.activeRide}
         passengers={o.passengers}
         cities={o.cities}
+        routes={o.routes}
         loading={o.actionLoading}
         onStartRide={o.startRide}
         onCancel={confirmCancel}

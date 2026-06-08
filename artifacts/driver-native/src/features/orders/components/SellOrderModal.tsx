@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { View, Text, Pressable, TextInput, Modal, ActivityIndicator } from "react-native";
 import { Store, X, Check } from "lucide-react-native";
 
@@ -6,24 +6,28 @@ import { useAuth } from "@/hooks/use-auth";
 import { API_BASE_URL } from "@/config";
 import { colors } from "@/lib/theme";
 import { formatCurrency } from "../utils";
-import type { Ride, SeatPassenger } from "../types";
+import type { Ride, SeatPassenger, RouteOption, City } from "../types";
 
 // Tariff tiers — labels per owner (Стандарт / Comfort / Бизнес) mapped to the
-// backend carClass values the dispatcher's price-estimate uses.
-const TARIFFS: { key: string; carClass: string; label: string }[] = [
-  { key: "economy", carClass: "economy", label: "Стандарт" },
-  { key: "comfort", carClass: "comfort", label: "Comfort" },
-  { key: "business", carClass: "business", label: "Бизнес" },
-];
+// backend carClass + the route price columns (for the offline fallback).
+const TARIFFS = [
+  { key: "economy", carClass: "economy", label: "Стандарт", back: "priceEconomy", front: "priceFrontEconomy" },
+  { key: "comfort", carClass: "comfort", label: "Comfort", back: "priceComfort", front: "priceFrontComfort" },
+  { key: "business", carClass: "business", label: "Бизнес", back: "priceBusiness", front: "priceFrontBusiness" },
+] as const;
 
-// Driver sells / returns the current order to the operator (marketplace).
-// Price is NOT typed — the driver picks a tariff tier and the price is fetched
-// LIVE from POST /api/rides/price-estimate (mirrors dispatcher CreateOrderDrawer),
-// so any admin price raise (peak) is reflected automatically.
+// Driver sells the order to the operator. Price is NOT typed — driver picks a
+// tariff and the price is fetched LIVE from /api/rides/price-estimate (mirrors
+// dispatcher). To guarantee the estimate's city strings match the routes table
+// (calcPrice does an exact eq), we resolve the order against the loaded routes
+// and use THAT route's fromCity/toCity; if the estimate still fails we fall back
+// to the route's own price columns so prices always show.
 export function SellOrderModal({
   visible,
   ride,
   passengers,
+  routes,
+  cities,
   loading,
   onClose,
   onConfirm,
@@ -31,6 +35,8 @@ export function SellOrderModal({
   visible: boolean;
   ride: Ride;
   passengers: SeatPassenger[];
+  routes: RouteOption[];
+  cities: City[];
   loading?: boolean;
   onClose: () => void;
   onConfirm: (price: number, comment: string) => void;
@@ -41,36 +47,72 @@ export function SellOrderModal({
   const [selected, setSelected] = useState<string>("economy");
   const [comment, setComment] = useState("");
 
-  // Same seat composition the dispatcher prices: front = seat 1, back = 2..4.
-  // Fall back to a single standard seat if the order has no seated passengers yet.
+  // Seat composition (same as dispatcher): front = seat 1, back = seats 2..4.
   let frontSeats = passengers.some((p) => p.seatNumber === 1) ? 1 : 0;
   let backSeats = passengers.filter((p) => p.seatNumber >= 2).length;
   if (frontSeats + backSeats === 0) backSeats = 1;
 
+  // Resolve the order's route from the loaded routes (forward OR reverse), so
+  // the estimate uses the EXACT city strings the routes table stores.
+  const matchedRoute = useMemo(() => {
+    const cityOf = (slug?: string) => cities.find((c) => c.id === slug);
+    const same = (routeCity?: string, rideCity?: string) => {
+      if (!routeCity || !rideCity) return false;
+      if (routeCity === rideCity) return true;
+      const c = cityOf(rideCity);
+      if (!c) return routeCity.toLowerCase() === String(rideCity).toLowerCase();
+      return routeCity === c.id || routeCity === c.nameRu || routeCity.toLowerCase() === c.nameRu.toLowerCase();
+    };
+    return (
+      routes.find(
+        (r) =>
+          (same(r.fromCity, ride.fromCity) && same(r.toCity, ride.toCity)) ||
+          (same(r.fromCity, ride.toCity) && same(r.toCity, ride.fromCity)),
+      ) || null
+    );
+  }, [routes, cities, ride.fromCity, ride.toCity]);
+
+  const estFrom = matchedRoute?.fromCity || ride.fromCity;
+  const estTo = matchedRoute?.toCity || ride.toCity;
+
+  const columnFallback = useCallback(
+    (t: (typeof TARIFFS)[number]): number | null => {
+      const r: any = matchedRoute;
+      if (!r) return null;
+      const back = Number(r[t.back] || 0);
+      const front = Number(r[t.front] || back);
+      const total = backSeats * back + frontSeats * front;
+      return total > 0 ? Math.round(total) : null;
+    },
+    [matchedRoute, backSeats, frontSeats],
+  );
+
   const fetchPrices = useCallback(async () => {
-    if (!token || !ride.fromCity || !ride.toCity) return;
     setFetching(true);
+    console.log("[SELL] estimate route:", { estFrom, estTo, frontSeats, backSeats, matched: !!matchedRoute });
     try {
       const results = await Promise.all(
         TARIFFS.map(async (t) => {
           try {
             const res = await fetch(`${API_BASE_URL}/api/rides/price-estimate`, {
               method: "POST",
-              headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-              body: JSON.stringify({
-                fromCity: ride.fromCity,
-                toCity: ride.toCity,
-                carClass: t.carClass,
-                roundTrip: false,
-                frontSeats,
-                backSeats,
-              }),
+              headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+              body: JSON.stringify({ fromCity: estFrom, toCity: estTo, carClass: t.carClass, roundTrip: false, frontSeats, backSeats }),
             });
-            if (!res.ok) return [t.key, null] as const;
-            const d = await res.json();
-            return [t.key, typeof d.price === "number" ? d.price : null] as const;
-          } catch {
-            return [t.key, null] as const;
+            const text = await res.text();
+            let price: number | null = null;
+            if (res.ok) {
+              try {
+                const d = JSON.parse(text);
+                price = typeof d.price === "number" && d.price > 0 ? d.price : null;
+              } catch {}
+            }
+            console.log(`[SELL] ${t.carClass} -> ${res.status}`, res.ok ? price : text.slice(0, 120));
+            if (price == null) price = columnFallback(t); // offline / mismatch fallback
+            return [t.key, price] as const;
+          } catch (e) {
+            console.log(`[SELL] ${t.carClass} error`, String(e));
+            return [t.key, columnFallback(t)] as const;
           }
         }),
       );
@@ -78,9 +120,8 @@ export function SellOrderModal({
     } finally {
       setFetching(false);
     }
-  }, [token, ride.fromCity, ride.toCity, frontSeats, backSeats]);
+  }, [token, estFrom, estTo, frontSeats, backSeats, matchedRoute, columnFallback]);
 
-  // Re-fetch live every time the sheet opens (no caching → peak prices show).
   useEffect(() => {
     if (visible) fetchPrices();
   }, [visible, fetchPrices]);
@@ -106,7 +147,6 @@ export function SellOrderModal({
             Выберите тариф — цена берётся из текущего тарифа маршрута. Оплату получите после того, как покупатель завершит заказ.
           </Text>
 
-          {/* three live tariff prices */}
           <View style={{ gap: 8 }}>
             {TARIFFS.map((t) => {
               const price = prices[t.key];
@@ -122,21 +162,13 @@ export function SellOrderModal({
                   }`}
                   style={{ gap: 12, opacity: unavailable ? 0.4 : 1 }}
                 >
-                  <View
-                    className={`w-9 h-9 rounded-xl items-center justify-center ${isSel ? "bg-emerald-500" : "bg-muted"}`}
-                  >
+                  <View className={`w-9 h-9 rounded-xl items-center justify-center ${isSel ? "bg-emerald-500" : "bg-muted"}`}>
                     <Store size={16} color={isSel ? "#fff" : colors.mutedForeground} />
                   </View>
                   <View className="flex-1">
-                    <Text className={`font-sans-bold text-sm ${isSel ? "text-emerald-400" : "text-foreground"}`}>
-                      {t.label}
-                    </Text>
+                    <Text className={`font-sans-bold text-sm ${isSel ? "text-emerald-400" : "text-foreground"}`}>{t.label}</Text>
                     <Text className="font-sans text-muted-foreground text-[12px]">
-                      {fetching && price == null
-                        ? "Загрузка…"
-                        : price == null
-                          ? "Тариф не настроен"
-                          : formatCurrency(price)}
+                      {fetching && price == null ? "Загрузка…" : price == null ? "Тариф не настроен" : formatCurrency(price)}
                     </Text>
                   </View>
                   {isSel ? (
