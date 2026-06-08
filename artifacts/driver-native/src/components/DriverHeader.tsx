@@ -1,5 +1,6 @@
 import { View, Text, Pressable, Image } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
 import { User, Wallet, Power, LogOut, Loader2 } from "lucide-react-native";
 
 import type { DriverUser } from "@/types";
@@ -23,6 +24,7 @@ export function DriverHeader({
 }) {
   const insets = useSafeAreaInsets();
   const { t } = useT();
+  const router = useRouter();
 
   const callsign = getCallsign(user);
   const photo = getPhotoUrl(user.driverPhoto);
@@ -67,6 +69,7 @@ export function DriverHeader({
           </Pressable>
 
           <Pressable
+            onPress={() => router.push("/wallet")}
             className={`flex-row items-center px-2 py-1 rounded-lg border active:opacity-80 ${
               neg ? "bg-red-500/10 border-red-500/30" : "bg-zinc-900 border-zinc-700"
             }`}
