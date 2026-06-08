@@ -45,7 +45,8 @@
         }
       ],
       "@maplibre/maplibre-react-native",
-      "@config-plugins/react-native-webrtc"
+      "@config-plugins/react-native-webrtc",
+      "expo-audio"
     ],
     "experiments": {
       "typedRoutes": true,

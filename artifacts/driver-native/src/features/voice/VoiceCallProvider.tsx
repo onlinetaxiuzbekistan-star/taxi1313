@@ -20,6 +20,7 @@ import { Phone, PhoneOff, Mic, MicOff } from "lucide-react-native";
 import { useAuth } from "@/hooks/use-auth";
 import { wsEvents } from "@/lib/ws-events";
 import { sendWsMessage } from "@/hooks/use-ride-websocket";
+import { playCall, stopCall } from "@/lib/sounds";
 import { colors } from "@/lib/theme";
 
 // App-WS-signaled WebRTC voice — ported from web DriverIncomingCall.tsx, using
@@ -76,6 +77,7 @@ export function VoiceCallProvider({ children }: { children: ReactNode }) {
 
   const cleanup = useCallback(() => {
     Vibration.cancel();
+    stopCall();
     activePeerIdRef.current = null;
     if (timerRef.current) {
       clearInterval(timerRef.current);
@@ -123,6 +125,7 @@ export function VoiceCallProvider({ children }: { children: ReactNode }) {
         const st = (pc as any).iceConnectionState;
         if (st === "connected" || st === "completed") {
           Vibration.cancel();
+          stopCall();
           setCall((p) => (p ? { ...p, state: "active" } : null));
           if (!timerRef.current) {
             setDuration(0);
@@ -174,6 +177,7 @@ export function VoiceCallProvider({ children }: { children: ReactNode }) {
     if (!call?.offer) return;
     if (!(await ensureMic())) return;
     Vibration.cancel();
+    stopCall();
     setCall((p) => (p ? { ...p, state: "connecting" } : null));
     try {
       const pc = await createPC(call.peerId);
@@ -228,6 +232,7 @@ export function VoiceCallProvider({ children }: { children: ReactNode }) {
         activePeerIdRef.current = fromId;
         setCall({ peerId: fromId, peerName: msg.fromUserName || "Диспетчер", direction: "incoming", state: "ringing", offer: offerDesc });
         Vibration.vibrate([0, 800, 600, 800, 600], true);
+        playCall(); // bundled call.mp3 ringtone (loops until answered/ended)
       } else if (msg.type === "call_answer" && pcRef.current && msg.sdp && fromId === activePeerIdRef.current) {
         const sdp = typeof msg.sdp === "string" ? { type: "answer", sdp: msg.sdp } : msg.sdp.sdp ? { type: "answer", sdp: msg.sdp.sdp } : msg.sdp;
         (pcRef.current as any)

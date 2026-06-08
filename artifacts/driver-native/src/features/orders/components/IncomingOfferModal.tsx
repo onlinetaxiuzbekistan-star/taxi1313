@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Modal, View, Text, Pressable, ActivityIndicator, Vibration } from "react-native";
+import { Modal, View, Text, Pressable, ActivityIndicator } from "react-native";
 import { Zap, MapPin, User, Check, X } from "lucide-react-native";
 
 import { useAuth } from "@/hooks/use-auth";
 import { API_BASE_URL } from "@/config";
 import { wsEvents } from "@/lib/ws-events";
+import { playNewOrder } from "@/lib/sounds";
 import { colors } from "@/lib/theme";
 import { formatCurrency } from "../utils";
 
@@ -32,7 +33,7 @@ export function IncomingOfferModal({ onAccepted }: { onAccepted?: () => void }) 
       setOffer((cur) => {
         const next = offers[0] || null;
         if (next && (!cur || cur.offerId !== next.offerId)) {
-          Vibration.vibrate([0, 400, 150, 400]);
+          playNewOrder(); // bundled new_order.mp3 + vibration
         }
         return next;
       });

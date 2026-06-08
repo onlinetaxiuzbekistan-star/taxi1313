@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, useRef, useCallback, ty
 
 import { useAuth } from "@/hooks/use-auth";
 import { wsEvents } from "@/lib/ws-events";
+import { playMessage } from "@/lib/sounds";
 
 // Global unread-chat counter (web use-unread-chat equivalent): counts inbound
 // DM + group messages from others, drives the Чат tab badge, resets when the
@@ -26,6 +27,8 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
             seen.current = new Set(Array.from(seen.current).slice(-250));
           }
           setCount((c) => c + 1);
+          playMessage(); // bundled message.mp3
+
         }
       }
     });
