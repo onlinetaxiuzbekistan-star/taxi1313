@@ -10,6 +10,7 @@ import {
 } from "@maplibre/maplibre-react-native";
 
 import { Text } from "react-native";
+import { useT } from "@/lib/i18n";
 import type { Ride } from "../types";
 
 // Keyless OSM raster style (no API key / billing) — closest to the web Leaflet/OSM look.
@@ -36,6 +37,7 @@ function zoomFor(a: LngLat, b: LngLat): number {
 // MapLibre port of web orders/components/FullScreenMap.tsx: A/B markers, the
 // driving route (OSRM, with straight-line fallback) and the live driver dot.
 export function RideMap({ ride, height = 200 }: { ride: Ride; height?: number }) {
+  const { t } = useT();
   const hasRoute = ride.fromLat != null && ride.fromLng != null && ride.toLat != null && ride.toLng != null;
   const from: LngLat | null = hasRoute ? [ride.fromLng!, ride.fromLat!] : null;
   const to: LngLat | null = hasRoute ? [ride.toLng!, ride.toLat!] : null;
@@ -68,7 +70,7 @@ export function RideMap({ ride, height = 200 }: { ride: Ride; height?: number })
         style={{ height, borderRadius: 16 }}
         className="bg-card border border-border items-center justify-center overflow-hidden"
       >
-        <Text className="font-sans text-muted-foreground text-sm">Маршрут на карте недоступен</Text>
+        <Text className="font-sans text-muted-foreground text-sm">{t("map_unavailable")}</Text>
       </View>
     );
   }

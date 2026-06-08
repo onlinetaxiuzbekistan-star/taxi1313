@@ -1,4 +1,5 @@
 import { Linking } from "react-native";
+import { useSettingsStore } from "@/stores/settings";
 
 // Ported from web orders/utils.ts + lib/utils.formatCurrency (RN-safe: no Intl
 // dependency — manual thousands grouping for Hermes reliability).
@@ -6,7 +7,9 @@ import { Linking } from "react-native";
 export function formatCurrency(amount: number | undefined | null): string {
   const v = Math.round(Number(amount) || 0);
   const grouped = v.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
-  return `${grouped} сум`;
+  const lang = useSettingsStore.getState().language;
+  const unit = lang === "uz" ? "so‘m" : "сум";
+  return `${grouped} ${unit}`;
 }
 
 export function formatRoutePoint(districtName: string | null | undefined, cityName: string): string {

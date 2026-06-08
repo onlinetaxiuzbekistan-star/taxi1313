@@ -3,6 +3,7 @@ import { View, ActivityIndicator, Alert } from "react-native";
 
 import { useAuth } from "@/hooks/use-auth";
 import { colors } from "@/lib/theme";
+import { useT } from "@/lib/i18n";
 import { useOrders } from "./use-orders";
 import { HomeScreen } from "./HomeScreen";
 import { RouteSelectScreen } from "./RouteSelectScreen";
@@ -12,6 +13,7 @@ import { CompletionScreen } from "./components/CompletionScreen";
 
 // Ride-flow state machine (web OrdersMain + RideStateRouter equivalent).
 export function OrdersMain() {
+  const { t } = useT();
   const o = useOrders();
   const { user } = useAuth();
   const [showCreate, setShowCreate] = useState(false);
@@ -22,9 +24,9 @@ export function OrdersMain() {
   }, [o.activeRide]);
 
   const confirmCancel = () => {
-    Alert.alert("Отменить рейс?", "Это действие нельзя отменить.", [
-      { text: "Назад", style: "cancel" },
-      { text: "Отменить рейс", style: "destructive", onPress: () => o.cancelRide() },
+    Alert.alert(t("cancel_ride_q"), t("cancel_ride_sub"), [
+      { text: t("back"), style: "cancel" },
+      { text: t("cancel_ride"), style: "destructive", onPress: () => o.cancelRide() },
     ]);
   };
 
@@ -78,6 +80,8 @@ export function OrdersMain() {
         passengerActionLoading={o.passengerActionLoading}
         onSellOrder={o.sellOrder}
         sellLoading={o.sellLoading}
+        sellError={o.sellError}
+        onClearSellError={o.clearSellError}
       />
     );
   }

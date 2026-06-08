@@ -1,6 +1,8 @@
 import { Modal, View, Text, Pressable, ActivityIndicator } from "react-native";
 import { Clock, Navigation, XCircle } from "lucide-react-native";
 
+import { useT } from "@/lib/i18n";
+
 // Ported from web orders/components/ExpiredRideModal.tsx.
 export function ExpiredRideModal({
   visible,
@@ -19,15 +21,16 @@ export function ExpiredRideModal({
   onEndRide: () => void;
   onClose: () => void;
 }) {
+  const { t } = useT();
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View className="flex-1 bg-black/60 items-center justify-center px-6">
         <View className="w-full max-w-sm bg-card rounded-2xl overflow-hidden">
           <View className="bg-zinc-900 p-5 items-center">
             <Clock size={40} color="#fff" />
-            <Text className="font-display text-white text-lg mt-2">Рейс просрочен</Text>
+            <Text className="font-display text-white text-lg mt-2">{t("exp_title")}</Text>
             <Text className="font-sans text-white/80 text-sm mt-1 text-center">
-              Время рейса истекло, а места не заполнены
+              {t("exp_sub")}
             </Text>
           </View>
           <View className="p-4" style={{ gap: 10 }}>
@@ -38,7 +41,7 @@ export function ExpiredRideModal({
               style={{ gap: 8 }}
             >
               {extending ? <ActivityIndicator color="#fff" /> : <Clock size={16} color="#fff" />}
-              <Text className="font-sans-bold text-white text-sm">Продлить на 30 мин</Text>
+              <Text className="font-sans-bold text-white text-sm">{t("exp_extend")}</Text>
             </Pressable>
             <Pressable
               onPress={() => {
@@ -50,7 +53,7 @@ export function ExpiredRideModal({
               style={{ gap: 8 }}
             >
               <Navigation size={16} color="#fff" />
-              <Text className="font-sans-bold text-white text-sm">Начать поездку</Text>
+              <Text className="font-sans-bold text-white text-sm">{t("exp_start")}</Text>
             </Pressable>
             <Pressable
               onPress={() => {
@@ -61,7 +64,7 @@ export function ExpiredRideModal({
               style={{ gap: 8 }}
             >
               <XCircle size={16} color="#ef4444" />
-              <Text className="font-sans-bold text-red-500 text-sm">Отменить рейс</Text>
+              <Text className="font-sans-bold text-red-500 text-sm">{t("cancel_ride")}</Text>
             </Pressable>
           </View>
         </View>

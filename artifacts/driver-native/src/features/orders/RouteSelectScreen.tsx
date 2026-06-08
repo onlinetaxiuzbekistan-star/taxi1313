@@ -4,6 +4,7 @@ import { Car, Clock, Zap, Check, MapPin, ChevronDown, ChevronUp, ChevronLeft } f
 
 import { colors } from "@/lib/theme";
 import { BUILD_TAG } from "@/config";
+import { useT } from "@/lib/i18n";
 import type { City, RouteOption } from "./types";
 
 // Create-ride screen — origin auto-detected; КУДА and ВАКТ are collapsible
@@ -24,6 +25,7 @@ export function RouteSelectScreen({
   userCity?: string | null;
   onBack?: () => void;
 }) {
+  const { t } = useT();
   const [fromCity, setFromCity] = useState("");
   const [toCity, setToCity] = useState("");
   const [timeSlot, setTimeSlot] = useState("");
@@ -104,16 +106,16 @@ export function RouteSelectScreen({
             <ChevronLeft size={24} color={colors.foreground} />
           </Pressable>
         ) : null}
-        <Text className="font-display text-foreground text-lg">Создать рейс</Text>
+        <Text className="font-display text-foreground text-lg">{t("create_ride")}</Text>
       </View>
       <Text className="font-sans text-primary/50 text-[10px] mb-4">{BUILD_TAG}</Text>
 
       {/* ОТКУДА — auto-detected origin, shown as a compact field (tap to change) */}
-      <Label text="Откуда" />
+      <Label text={t("rs_from")} />
       <Dropdown
         open={openDD === "from"}
         onToggle={() => toggle("from")}
-        placeholder="Танланг"
+        placeholder={t("rs_choose")}
         valueLabel={fromCityObj?.nameRu}
         leftIcon={<MapPin size={16} color={colors.primary} />}
       >
@@ -132,18 +134,18 @@ export function RouteSelectScreen({
       </Dropdown>
 
       {/* КУДА — dropdown of enabled destinations */}
-      <Label text="Куда" className="mt-4" />
+      <Label text={t("rs_to")} className="mt-4" />
       <Dropdown
         open={openDD === "to"}
         onToggle={() => toggle("to")}
-        placeholder="Танланг"
+        placeholder={t("rs_choose")}
         valueLabel={toCityObj?.nameRu}
         leftIcon={<MapPin size={16} color={colors.red} />}
         disabled={!fromCity}
       >
         {destinationCities.length === 0 ? (
           <View className="px-3 py-3">
-            <Text className="font-sans text-muted-foreground text-[13px]">Нет доступных направлений</Text>
+            <Text className="font-sans text-muted-foreground text-[13px]">{t("rs_no_dest")}</Text>
           </View>
         ) : (
           destinationCities.map((c) => (
@@ -168,7 +170,7 @@ export function RouteSelectScreen({
             !urgentMode ? "bg-primary border-primary" : "bg-card border-border"
           }`}
         >
-          <Text className={`font-sans-bold text-xs ${!urgentMode ? "text-white" : "text-foreground"}`}>По времени</Text>
+          <Text className={`font-sans-bold text-xs ${!urgentMode ? "text-white" : "text-foreground"}`}>{t("rs_by_time")}</Text>
         </Pressable>
         <Pressable
           onPress={() => {
@@ -182,18 +184,18 @@ export function RouteSelectScreen({
           style={{ gap: 4 }}
         >
           <Zap size={14} color={urgentMode ? "#fff" : colors.foreground} />
-          <Text className={`font-sans-bold text-xs ${urgentMode ? "text-white" : "text-foreground"}`}>Только срочные</Text>
+          <Text className={`font-sans-bold text-xs ${urgentMode ? "text-white" : "text-foreground"}`}>{t("rs_urgent_only")}</Text>
         </Pressable>
       </View>
 
       {/* ВАКТ — time dropdown */}
       {!urgentMode ? (
         <>
-          <Label text="Время отправления" className="mt-4" />
+          <Label text={t("rs_dep_time")} className="mt-4" />
           <Dropdown
             open={openDD === "time"}
             onToggle={() => toggle("time")}
-            placeholder="Выберите время"
+            placeholder={t("rs_choose_time")}
             valueLabel={timeSlot ? timeSlot.replace("–", " – ") : undefined}
             leftIcon={<Clock size={16} color={colors.primary} />}
           >
@@ -213,7 +215,7 @@ export function RouteSelectScreen({
       ) : (
         <View className="mt-4 rounded-xl bg-amber-500/10 border border-amber-500/30 p-3">
           <Text className="font-sans text-xs text-amber-400" style={{ lineHeight: 18 }}>
-            Получаете только срочные заказы (без интервала времени) на выбранный маршрут. Время отправления — сейчас.
+            {t("rs_urgent_note")}
           </Text>
         </View>
       )}
@@ -235,7 +237,7 @@ export function RouteSelectScreen({
           <Car size={20} color="#fff" />
         )}
         <Text className="font-sans-bold text-white text-base">
-          {creating ? "Создаём рейс..." : urgentMode ? "Принимать срочные" : "Начать рейс"}
+          {creating ? t("rs_creating") : urgentMode ? t("rs_accept_urgent") : t("rs_start")}
         </Text>
       </Pressable>
     </ScrollView>

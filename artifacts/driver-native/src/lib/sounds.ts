@@ -1,65 +1,96 @@
 import { Vibration, Platform } from "react-native";
 import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from "expo-audio";
 
-// Bundled, offline notification sounds (ship inside the APK).
-// Files live in assets/sounds/ — replace them with custom audio anytime,
-// keeping the same names: new_order.mp3, call.mp3, message.mp3.
-let newOrderPlayer: AudioPlayer | null = null;
-let callPlayer: AudioPlayer | null = null;
-let messagePlayer: AudioPlayer | null = null;
+// Bundled, offline notification sounds (ship inside the APK), in assets/sounds/.
+// Replace with custom audio anytime, keeping the same names.
+const players: Record<string, AudioPlayer | null> = {};
 let ready = false;
 
 function ensure() {
   if (ready) return;
   ready = true;
   try {
-    setAudioModeAsync({ playsInSilentMode: true, shouldPlayInBackground: false } as any).catch(() => {});
-  } catch {}
+    // Play even when the ringer is on silent (mostly relevant on iOS).
+    setAudioModeAsync({ playsInSilentMode: true, shouldPlayInBackground: false } as any).catch((e) =>
+      console.log("[SOUND] setAudioMode error", String(e)),
+    );
+  } catch (e) {
+    console.log("[SOUND] setAudioMode threw", String(e));
+  }
+  // createAudioPlayer is synchronous — players exist immediately after this.
   try {
-    newOrderPlayer = createAudioPlayer(require("../../assets/sounds/new_order.mp3"));
-    callPlayer = createAudioPlayer(require("../../assets/sounds/call.mp3"));
-    messagePlayer = createAudioPlayer(require("../../assets/sounds/message.mp3"));
-  } catch {}
+    players.new_order = createAudioPlayer(require("../../assets/sounds/new_order.wav"));
+    players.call = createAudioPlayer(require("../../assets/sounds/call.wav"));
+    players.message = createAudioPlayer(require("../../assets/sounds/message.wav"));
+    players.market = createAudioPlayer(require("../../assets/sounds/market_new.wav"));
+    console.log("[SOUND] players created:", Object.keys(players).join(","));
+  } catch (e) {
+    console.log("[SOUND] createAudioPlayer error", String(e));
+  }
 }
 
-function fire(p: AudioPlayer | null) {
-  if (!p) return;
+// Preload at app start so the first event plays instantly.
+export function preloadSounds() {
+  ensure();
+}
+
+function fire(key: string) {
+  ensure();
+  const p = players[key];
+  if (!p) {
+    console.log("[SOUND] no player for", key);
+    return;
+  }
   try {
     p.seekTo(0);
     p.play();
+    console.log("[SOUND] play", key);
+  } catch (e) {
+    console.log("[SOUND] play error", key, String(e));
+  }
+}
+
+// New incoming order — sound + a strong vibration pattern.
+export function playNewOrder() {
+  fire("new_order");
+  try {
+    Vibration.vibrate(Platform.OS === "android" ? [0, 400, 150, 400] : 400);
   } catch {}
 }
 
-// New incoming order — the most important: sound + a strong vibration pattern.
-export function playNewOrder() {
-  ensure();
-  fire(newOrderPlayer);
+// New sellable order appeared on the Маркет (efir) matching this driver.
+export function playMarket() {
+  fire("market");
   try {
-    Vibration.vibrate(Platform.OS === "android" ? [0, 400, 150, 400] : 400);
+    Vibration.vibrate(200);
   } catch {}
 }
 
 // Incoming voice call — loop the ringtone until stopCall() is called.
 export function playCall() {
   ensure();
-  if (!callPlayer) return;
+  const p = players.call;
+  if (!p) return;
   try {
-    callPlayer.loop = true;
-    callPlayer.seekTo(0);
-    callPlayer.play();
-  } catch {}
+    p.loop = true;
+    p.seekTo(0);
+    p.play();
+    console.log("[SOUND] play call (loop)");
+  } catch (e) {
+    console.log("[SOUND] call play error", String(e));
+  }
 }
 
 export function stopCall() {
-  if (!callPlayer) return;
+  const p = players.call;
+  if (!p) return;
   try {
-    callPlayer.pause();
-    callPlayer.seekTo(0);
+    p.pause();
+    p.seekTo(0);
   } catch {}
 }
 
 // New chat message — short blip.
 export function playMessage() {
-  ensure();
-  fire(messagePlayer);
+  fire("message");
 }

@@ -15,6 +15,7 @@ import { useRouter } from "expo-router";
 import { useAuth } from "@/hooks/use-auth";
 import { API_BASE_URL } from "@/config";
 import { colors } from "@/lib/theme";
+import { useT } from "@/lib/i18n";
 
 const CODE_LENGTH = 6;
 
@@ -22,6 +23,7 @@ const CODE_LENGTH = 6;
 // POST /api/auth/driver-code/verify-code-only { code } -> { token, user }.
 // Polished segmented 6-cell OTP input (hidden field drives the cells).
 export default function DriverLogin() {
+  const { t } = useT();
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,7 +37,7 @@ export default function DriverLogin() {
     async (value: string) => {
       const codeVal = value.trim();
       if (codeVal.length < CODE_LENGTH) {
-        setError(`Введите ${CODE_LENGTH}-значный код`);
+        setError(t("login_wrong"));
         return;
       }
       setLoading(true);
@@ -60,16 +62,16 @@ export default function DriverLogin() {
           await login(data.token, data.user);
           router.replace("/(driver)");
         } else {
-          setError(data?.message || data?.error || `Неверный код (HTTP ${res.status})`);
+          setError(data?.message || data?.error || `${t("login_wrong")} (HTTP ${res.status})`);
         }
       } catch (e) {
         console.log("[LOGIN] network error:", (e as Error)?.message);
-        setError("Ошибка сети");
+        setError(t("err_network"));
       } finally {
         setLoading(false);
       }
     },
-    [login, router],
+    [login, router, t],
   );
 
   const onChange = (v: string) => {
@@ -95,14 +97,14 @@ export default function DriverLogin() {
             resizeMode="contain"
           />
           <Text className="font-display text-foreground text-2xl mt-4">Taxi 1313</Text>
-          <Text className="font-sans text-muted-foreground text-sm mt-1">Вход для водителя</Text>
+          <Text className="font-sans text-muted-foreground text-sm mt-1">{t("login_title")}</Text>
         </View>
 
         <Text
           className="font-sans-semibold text-muted-foreground text-[12px] uppercase mb-3 text-center"
           style={{ letterSpacing: 1 }}
         >
-          Код водителя
+          {t("login_code")}
         </Text>
 
         {/* Segmented OTP cells (tap to focus the hidden input) */}
@@ -160,7 +162,7 @@ export default function DriverLogin() {
           {loading ? (
             <ActivityIndicator color={colors.primaryForeground} />
           ) : (
-            <Text className="font-sans-bold text-primary-foreground text-base">Войти</Text>
+            <Text className="font-sans-bold text-primary-foreground text-base">{t("login_btn")}</Text>
           )}
         </Pressable>
       </View>

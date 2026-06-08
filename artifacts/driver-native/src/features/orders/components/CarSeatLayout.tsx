@@ -2,17 +2,18 @@ import { View, Text, Pressable } from "react-native";
 import { CheckCircle, User } from "lucide-react-native";
 
 import { colors } from "@/lib/theme";
+import { useT, type TKey } from "@/lib/i18n";
 import type { SeatPassenger } from "../types";
 
 // RN adaptation of web CarSeatLayout: card-based seat map (front row = seat 1,
 // back row = 2..N), colored by passenger status, tappable, with a legend.
 function seatColors(p?: SeatPassenger) {
-  if (!p) return { bg: colors.secondary, border: colors.border, fg: colors.mutedForeground, label: "Свободно", labelColor: colors.mutedForeground };
-  if (p.status === "dropped_off") return { bg: "#3f3f46", border: "#52525b", fg: "#a1a1aa", label: "Высажен", labelColor: "#a1a1aa" };
+  if (!p) return { bg: colors.secondary, border: colors.border, fg: colors.mutedForeground, labelKey: "st_free" as TKey, labelColor: colors.mutedForeground };
+  if (p.status === "dropped_off") return { bg: "#3f3f46", border: "#52525b", fg: "#a1a1aa", labelKey: "st_dropped" as TKey, labelColor: "#a1a1aa" };
   const female = p.gender === "female";
   if (p.status === "picked_up")
-    return { bg: female ? "#ec4899" : "#3b82f6", border: female ? "#db2777" : "#2563eb", fg: "#fff", label: "В машине", labelColor: "#34d399" };
-  return { bg: female ? "#9d2463" : "#1e40af", border: female ? "#db2777" : "#2563eb", fg: "#fff", label: "Ожидает", labelColor: "#fbbf24" };
+    return { bg: female ? "#ec4899" : "#3b82f6", border: female ? "#db2777" : "#2563eb", fg: "#fff", labelKey: "st_in_car" as TKey, labelColor: "#34d399" };
+  return { bg: female ? "#9d2463" : "#1e40af", border: female ? "#db2777" : "#2563eb", fg: "#fff", labelKey: "st_waiting" as TKey, labelColor: "#fbbf24" };
 }
 
 function SeatCard({
@@ -28,6 +29,7 @@ function SeatCard({
   onPress: () => void;
   width: string | number;
 }) {
+  const { t } = useT();
   const c = seatColors(p);
   return (
     <Pressable
@@ -48,7 +50,7 @@ function SeatCard({
         {p ? (p.name || "").split(" ")[0] : "—"}
       </Text>
       <Text className="font-sans-bold text-[8px] uppercase mt-0.5" style={{ color: c.labelColor, letterSpacing: 0.5 }}>
-        {c.label}
+        {t(c.labelKey)}
       </Text>
       {p?.status === "picked_up" && (
         <View className="absolute top-1.5 right-1.5">
@@ -87,17 +89,18 @@ export function CarSeatLayout({
   selectedSeat: number | null;
   totalSeats?: number;
 }) {
+  const { t } = useT();
   const get = (n: number) => passengers.find((p) => p.seatNumber === n);
   const backSeats = Array.from({ length: Math.max(0, totalSeats - 1) }, (_, i) => i + 2);
 
   return (
     <View className="bg-card rounded-2xl border border-border px-3 py-2">
-      <Divider label="Передний ряд" />
+      <Divider label={t("front_row")} />
       <View className="items-center">
         <SeatCard n={1} p={get(1)} selected={selectedSeat === 1} onPress={() => onSeatClick(1)} width="46%" />
       </View>
 
-      <Divider label="Задний ряд" />
+      <Divider label={t("back_row")} />
       <View className="flex-row justify-between">
         {backSeats.map((n) => (
           <SeatCard
@@ -113,13 +116,13 @@ export function CarSeatLayout({
 
       <View className="flex-row items-center justify-center mt-2 pt-1.5 border-t border-border" style={{ gap: 14 }}>
         {[
-          { c: "#1e40af", t: "Ожидает" },
-          { c: "#3b82f6", t: "В машине" },
-          { c: "#52525b", t: "Высажен" },
+          { c: "#1e40af", key: "st_waiting" as TKey },
+          { c: "#3b82f6", key: "st_in_car" as TKey },
+          { c: "#52525b", key: "st_dropped" as TKey },
         ].map((l) => (
-          <View key={l.t} className="flex-row items-center" style={{ gap: 5 }}>
+          <View key={l.key} className="flex-row items-center" style={{ gap: 5 }}>
             <View className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: l.c }} />
-            <Text className="font-sans-bold text-[9px] uppercase text-muted-foreground">{l.t}</Text>
+            <Text className="font-sans-bold text-[9px] uppercase text-muted-foreground">{t(l.key)}</Text>
           </View>
         ))}
       </View>

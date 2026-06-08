@@ -3,6 +3,7 @@ import { View, Text, Pressable, ScrollView, ActivityIndicator } from "react-nati
 import { CheckCircle, MapPin, XCircle, Navigation } from "lucide-react-native";
 
 import { colors } from "@/lib/theme";
+import { useT } from "@/lib/i18n";
 import { formatCurrency, formatRoutePoint } from "../utils";
 import type { Ride, SeatPassenger, City } from "../types";
 import { PassengerRow } from "./SeatViewScreen";
@@ -32,6 +33,7 @@ export function ActiveRideScreen({
   onComplete: () => void;
   onCancel: () => void;
 }) {
+  const { t } = useT();
   const [showNav, setShowNav] = useState(false);
   const filledSeats = passengers.length;
   const totalEarnings = passengers.reduce((s, p) => s + (p.price || 0), 0);
@@ -44,7 +46,7 @@ export function ActiveRideScreen({
 
   const fromName = formatRoutePoint(ride.fromDistrictName, cities.find((c) => c.id === ride.fromCity)?.nameRu || ride.fromCity);
   const toName = formatRoutePoint(ride.toDistrictName, cities.find((c) => c.id === ride.toCity)?.nameRu || ride.toCity);
-  const statusLabel = filledSeats === 0 ? "Принят" : allDroppedOff ? "Все доставлены" : pickedCount < filledSeats ? "Собирает клиентов" : "В пути";
+  const statusLabel = filledSeats === 0 ? t("st_accepted") : allDroppedOff ? t("all_delivered") : pickedCount < filledSeats ? t("st_collecting") : t("st_in_progress");
   const progressPct = filledSeats > 0 ? (droppedOff / filledSeats) * 100 : 0;
 
   return (
@@ -70,7 +72,7 @@ export function ActiveRideScreen({
           {filledSeats > 0 && (
             <View className="mt-3">
               <Text className="font-sans-bold text-zinc-400 text-[10px] uppercase mb-1" style={{ letterSpacing: 0.5 }}>
-                {allDroppedOff ? "Все доставлены" : `${droppedOff} из ${filledSeats} доставлены`}
+                {allDroppedOff ? t("all_delivered") : `${droppedOff} ${t("q_of")} ${filledSeats}`}
               </Text>
               <View className="h-2 bg-white/15 rounded-full overflow-hidden">
                 <View className="h-full bg-emerald-400 rounded-full" style={{ width: `${progressPct}%` }} />
@@ -84,7 +86,7 @@ export function ActiveRideScreen({
           {!allDroppedOff && waiting.length > 0 && (
             <View style={{ gap: 8 }}>
               <Text className="font-sans-bold text-emerald-500 text-xs uppercase" style={{ letterSpacing: 0.5 }}>
-                Заберите пассажиров
+                {t("pickup_pax")}
               </Text>
               {waiting.map((wp, idx) => {
                 const isNext = idx === 0;
@@ -105,8 +107,8 @@ export function ActiveRideScreen({
                     )}
                     <Text className={`font-sans-bold text-base ${isNext ? "text-white" : "text-muted-foreground"}`}>
                       {isNext
-                        ? `Забрал — ${wp.name.split(" ")[0]} (${pickedCount + 1}/${filledSeats})`
-                        : `${wp.name.split(" ")[0]} — место ${wp.seatNumber}`}
+                        ? `${t("pickup_btn")} — ${wp.name.split(" ")[0]} (${pickedCount + 1}/${filledSeats})`
+                        : `${wp.name.split(" ")[0]} — ${t("seat")} ${wp.seatNumber}`}
                     </Text>
                   </Pressable>
                 );
@@ -117,7 +119,7 @@ export function ActiveRideScreen({
           {!allDroppedOff && waiting.length === 0 && pickedUp.length > 0 && (
             <View style={{ gap: 8 }}>
               <Text className="font-sans-bold text-blue-400 text-xs uppercase" style={{ letterSpacing: 0.5 }}>
-                Высадите пассажиров
+                {t("dropoff_pax")}
               </Text>
               {pickedUp.map((pp, idx) => {
                 const isNext = idx === 0;
@@ -138,8 +140,8 @@ export function ActiveRideScreen({
                     )}
                     <Text className={`font-sans-bold text-base ${isNext ? "text-white" : "text-muted-foreground"}`}>
                       {isNext
-                        ? `Высадить — ${pp.name.split(" ")[0]} (${droppedOff + 1}/${filledSeats})`
-                        : `${pp.name.split(" ")[0]} — место ${pp.seatNumber}`}
+                        ? `${t("dropoff_btn")} — ${pp.name.split(" ")[0]} (${droppedOff + 1}/${filledSeats})`
+                        : `${pp.name.split(" ")[0]} — ${t("seat")} ${pp.seatNumber}`}
                     </Text>
                   </Pressable>
                 );
@@ -152,8 +154,8 @@ export function ActiveRideScreen({
               <View className="w-14 h-14 rounded-full bg-emerald-500/15 items-center justify-center mb-2">
                 <CheckCircle size={28} color={colors.emerald} />
               </View>
-              <Text className="font-sans-bold text-foreground text-base">Все клиенты доставлены</Text>
-              <Text className="font-sans text-muted-foreground text-xs mt-1">Нажмите «Завершить рейс»</Text>
+              <Text className="font-sans-bold text-foreground text-base">{t("all_delivered")}</Text>
+              <Text className="font-sans text-muted-foreground text-xs mt-1">{t("press_finish")}</Text>
             </View>
           )}
 
@@ -173,7 +175,7 @@ export function ActiveRideScreen({
               style={{ gap: 8 }}
             >
               <Navigation size={18} color={colors.foreground} />
-              <Text className="font-sans-bold text-foreground text-sm">Навигатор</Text>
+              <Text className="font-sans-bold text-foreground text-sm">{t("navigator")}</Text>
             </Pressable>
           ) : null}
         </View>
@@ -196,7 +198,7 @@ export function ActiveRideScreen({
             style={{ gap: 8 }}
           >
             {loading ? <ActivityIndicator color="#fff" /> : <CheckCircle size={20} color="#fff" />}
-            <Text className="font-sans-bold text-white text-base">{loading ? "Завершаю…" : "Завершить рейс"}</Text>
+            <Text className="font-sans-bold text-white text-base">{loading ? t("finishing") : t("finish_ride")}</Text>
           </Pressable>
         )}
       </View>

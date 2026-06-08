@@ -2,6 +2,7 @@ import { Modal, View, Text, Pressable, Linking } from "react-native";
 import { Navigation, X } from "lucide-react-native";
 
 import { colors } from "@/lib/theme";
+import { useT } from "@/lib/i18n";
 import { navDeepLinks } from "../utils";
 
 async function openApp(primary: string, fallback: string) {
@@ -28,11 +29,12 @@ export function NavSheet({
   toLng?: number;
   onClose: () => void;
 }) {
+  const { t } = useT();
   if (toLat == null || toLng == null) return null;
   const links = navDeepLinks(toLat, toLng);
 
   const apps: { key: string; label: string; color: string; onPress: () => void }[] = [
-    { key: "yandex", label: "Яндекс Навигатор", color: "#ffcc00", onPress: () => openApp(links.yandex, `https://yandex.ru/maps/?rtext=~${toLat},${toLng}`) },
+    { key: "yandex", label: t("nav_yandex"), color: "#ffcc00", onPress: () => openApp(links.yandex, `https://yandex.ru/maps/?rtext=~${toLat},${toLng}`) },
     { key: "google", label: "Google Maps", color: "#34a853", onPress: () => openApp(links.google, links.web) },
     { key: "dgis", label: "2GIS", color: "#41ad49", onPress: () => openApp(links.dgis, `https://2gis.ru/routeSearch/rsType/car/to/${toLng},${toLat}`) },
   ];
@@ -44,7 +46,7 @@ export function NavSheet({
           <View className="flex-row items-center justify-between mb-4">
             <View className="flex-row items-center" style={{ gap: 8 }}>
               <Navigation size={18} color={colors.primary} />
-              <Text className="font-display text-foreground text-base">Открыть в навигаторе</Text>
+              <Text className="font-display text-foreground text-base">{t("nav_open")}</Text>
             </View>
             <Pressable onPress={onClose} className="w-8 h-8 rounded-full bg-secondary items-center justify-center">
               <X size={16} color={colors.mutedForeground} />

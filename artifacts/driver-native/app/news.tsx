@@ -7,6 +7,7 @@ import { ChevronLeft, Bell, Check } from "lucide-react-native";
 import { useAuth } from "@/hooks/use-auth";
 import { API_BASE_URL } from "@/config";
 import { colors } from "@/lib/theme";
+import { useT } from "@/lib/i18n";
 
 interface NewsItem {
   id: number;
@@ -26,6 +27,7 @@ const dateOf = (iso: string) => {
 };
 
 export default function NewsScreen() {
+  const { t } = useT();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { token } = useAuth();
@@ -81,7 +83,7 @@ export default function NewsScreen() {
           <Pressable onPress={() => setSelected(null)} className="w-10 h-10 items-center justify-center active:opacity-70">
             <ChevronLeft size={24} color={colors.foreground} />
           </Pressable>
-          <Text className="font-display text-foreground text-lg">Новость</Text>
+          <Text className="font-display text-foreground text-lg">{t("news_one")}</Text>
         </View>
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 16 }}>
           <Text className="font-display text-foreground text-xl mb-1">{selected.title}</Text>
@@ -91,7 +93,7 @@ export default function NewsScreen() {
           </Text>
           <View className="flex-row items-center justify-center mt-6" style={{ gap: 6 }}>
             <Check size={16} color={colors.emerald} />
-            <Text className="font-sans-semibold text-emerald-400 text-sm">Прочитано</Text>
+            <Text className="font-sans-semibold text-emerald-400 text-sm">{t("news_read")}</Text>
           </View>
         </ScrollView>
       </View>
@@ -105,7 +107,7 @@ export default function NewsScreen() {
         <Pressable onPress={() => router.back()} className="w-10 h-10 items-center justify-center active:opacity-70">
           <ChevronLeft size={24} color={colors.foreground} />
         </Pressable>
-        <Text className="font-display text-foreground text-lg">Новости</Text>
+        <Text className="font-display text-foreground text-lg">{t("news_title")}</Text>
       </View>
 
       {loading ? (
@@ -113,7 +115,7 @@ export default function NewsScreen() {
       ) : news.length === 0 ? (
         <View className="items-center justify-center mt-24">
           <Bell size={36} color={colors.mutedForeground} />
-          <Text className="font-sans text-muted-foreground text-sm mt-2">Нет новостей</Text>
+          <Text className="font-sans text-muted-foreground text-sm mt-2">{t("news_empty")}</Text>
         </View>
       ) : (
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 16, gap: 10 }}>

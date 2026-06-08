@@ -5,15 +5,16 @@ import { Store, X, Check } from "lucide-react-native";
 import { useAuth } from "@/hooks/use-auth";
 import { API_BASE_URL } from "@/config";
 import { colors } from "@/lib/theme";
+import { useT, type TKey } from "@/lib/i18n";
 import { formatCurrency } from "../utils";
 import type { Ride, SeatPassenger, RouteOption, City } from "../types";
 
 // Tariff tiers — labels per owner (Стандарт / Comfort / Бизнес) mapped to the
 // backend carClass + the route price columns (for the offline fallback).
 const TARIFFS = [
-  { key: "economy", carClass: "economy", label: "Стандарт", back: "priceEconomy", front: "priceFrontEconomy" },
-  { key: "comfort", carClass: "comfort", label: "Comfort", back: "priceComfort", front: "priceFrontComfort" },
-  { key: "business", carClass: "business", label: "Бизнес", back: "priceBusiness", front: "priceFrontBusiness" },
+  { key: "economy", carClass: "economy", labelKey: "tariff_standard" as TKey | null, label: "Стандарт", back: "priceEconomy", front: "priceFrontEconomy" },
+  { key: "comfort", carClass: "comfort", labelKey: null, label: "Comfort", back: "priceComfort", front: "priceFrontComfort" },
+  { key: "business", carClass: "business", labelKey: "tariff_business" as TKey | null, label: "Бизнес", back: "priceBusiness", front: "priceFrontBusiness" },
 ] as const;
 
 // Driver sells the order to the operator. Price is NOT typed — driver picks a
@@ -29,6 +30,7 @@ export function SellOrderModal({
   routes,
   cities,
   loading,
+  error,
   onClose,
   onConfirm,
 }: {
@@ -38,9 +40,11 @@ export function SellOrderModal({
   routes: RouteOption[];
   cities: City[];
   loading?: boolean;
+  error?: string | null;
   onClose: () => void;
-  onConfirm: (price: number, comment: string) => void;
+  onConfirm: (price: number, comment: string) => Promise<boolean>;
 }) {
+  const { t } = useT();
   const { token } = useAuth();
   const [prices, setPrices] = useState<Record<string, number | null>>({});
   const [fetching, setFetching] = useState(false);
@@ -76,11 +80,11 @@ export function SellOrderModal({
   const estTo = matchedRoute?.toCity || ride.toCity;
 
   const columnFallback = useCallback(
-    (t: (typeof TARIFFS)[number]): number | null => {
+    (tier: (typeof TARIFFS)[number]): number | null => {
       const r: any = matchedRoute;
       if (!r) return null;
-      const back = Number(r[t.back] || 0);
-      const front = Number(r[t.front] || back);
+      const back = Number(r[tier.back] || 0);
+      const front = Number(r[tier.front] || back);
       const total = backSeats * back + frontSeats * front;
       return total > 0 ? Math.round(total) : null;
     },
@@ -92,12 +96,12 @@ export function SellOrderModal({
     console.log("[SELL] estimate route:", { estFrom, estTo, frontSeats, backSeats, matched: !!matchedRoute });
     try {
       const results = await Promise.all(
-        TARIFFS.map(async (t) => {
+        TARIFFS.map(async (tier) => {
           try {
             const res = await fetch(`${API_BASE_URL}/api/rides/price-estimate`, {
               method: "POST",
               headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-              body: JSON.stringify({ fromCity: estFrom, toCity: estTo, carClass: t.carClass, roundTrip: false, frontSeats, backSeats }),
+              body: JSON.stringify({ fromCity: estFrom, toCity: estTo, carClass: tier.carClass, roundTrip: false, frontSeats, backSeats }),
             });
             const text = await res.text();
             let price: number | null = null;
@@ -107,12 +111,12 @@ export function SellOrderModal({
                 price = typeof d.price === "number" && d.price > 0 ? d.price : null;
               } catch {}
             }
-            console.log(`[SELL] ${t.carClass} -> ${res.status}`, res.ok ? price : text.slice(0, 120));
-            if (price == null) price = columnFallback(t); // offline / mismatch fallback
-            return [t.key, price] as const;
+            console.log(`[SELL] ${tier.carClass} -> ${res.status}`, res.ok ? price : text.slice(0, 120));
+            if (price == null) price = columnFallback(tier); // offline / mismatch fallback
+            return [tier.key, price] as const;
           } catch (e) {
-            console.log(`[SELL] ${t.carClass} error`, String(e));
-            return [t.key, columnFallback(t)] as const;
+            console.log(`[SELL] ${tier.carClass} error`, String(e));
+            return [tier.key, columnFallback(tier)] as const;
           }
         }),
       );
@@ -129,6 +133,13 @@ export function SellOrderModal({
   const selectedPrice = prices[selected] ?? null;
   const canSell = typeof selectedPrice === "number" && selectedPrice > 0 && !loading;
 
+  const submit = async () => {
+    if (!canSell) return;
+    console.log("[SELL] modal submit", { selected, price: selectedPrice });
+    const ok = await onConfirm(selectedPrice as number, comment.trim());
+    if (ok) onClose();
+  };
+
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View className="flex-1 bg-black/60 justify-end">
@@ -136,7 +147,7 @@ export function SellOrderModal({
           <View className="flex-row items-center justify-between">
             <View className="flex-row items-center" style={{ gap: 8 }}>
               <Store size={20} color={colors.primary} />
-              <Text className="font-display text-foreground text-lg">Продать заказ оператору</Text>
+              <Text className="font-display text-foreground text-lg">{t("sell_to_operator")}</Text>
             </View>
             <Pressable onPress={onClose} className="w-8 h-8 rounded-full bg-secondary items-center justify-center active:opacity-80">
               <X size={16} color={colors.foreground} />
@@ -144,18 +155,18 @@ export function SellOrderModal({
           </View>
 
           <Text className="font-sans text-muted-foreground text-[13px]" style={{ lineHeight: 19 }}>
-            Выберите тариф — цена берётся из текущего тарифа маршрута. Оплату получите после того, как покупатель завершит заказ.
+            {t("sell_hint")}
           </Text>
 
           <View style={{ gap: 8 }}>
-            {TARIFFS.map((t) => {
-              const price = prices[t.key];
-              const isSel = selected === t.key;
+            {TARIFFS.map((tier) => {
+              const price = prices[tier.key];
+              const isSel = selected === tier.key;
               const unavailable = !fetching && price == null;
               return (
                 <Pressable
-                  key={t.key}
-                  onPress={() => !unavailable && setSelected(t.key)}
+                  key={tier.key}
+                  onPress={() => !unavailable && setSelected(tier.key)}
                   disabled={unavailable}
                   className={`flex-row items-center rounded-2xl border px-3 py-3 active:opacity-90 ${
                     isSel ? "bg-emerald-500/15 border-emerald-500" : "bg-secondary border-border"
@@ -166,9 +177,9 @@ export function SellOrderModal({
                     <Store size={16} color={isSel ? "#fff" : colors.mutedForeground} />
                   </View>
                   <View className="flex-1">
-                    <Text className={`font-sans-bold text-sm ${isSel ? "text-emerald-400" : "text-foreground"}`}>{t.label}</Text>
+                    <Text className={`font-sans-bold text-sm ${isSel ? "text-emerald-400" : "text-foreground"}`}>{tier.labelKey ? t(tier.labelKey) : tier.label}</Text>
                     <Text className="font-sans text-muted-foreground text-[12px]">
-                      {fetching && price == null ? "Загрузка…" : price == null ? "Тариф не настроен" : formatCurrency(price)}
+                      {fetching && price == null ? t("loading") : price == null ? t("tariff_missing") : formatCurrency(price)}
                     </Text>
                   </View>
                   {isSel ? (
@@ -184,21 +195,23 @@ export function SellOrderModal({
           <TextInput
             value={comment}
             onChangeText={setComment}
-            placeholder="Комментарий (необязательно)"
+            placeholder={t("sell_comment")}
             placeholderTextColor={colors.mutedForeground}
             className="px-3 py-3 rounded-xl bg-muted border border-border text-foreground text-sm"
             style={{ color: colors.foreground }}
           />
 
+          {error ? <Text className="font-sans text-red-400 text-[13px] text-center">{error}</Text> : null}
+
           <Pressable
-            onPress={() => canSell && onConfirm(selectedPrice as number, comment.trim())}
+            onPress={submit}
             disabled={!canSell}
             className="py-3.5 rounded-2xl bg-primary flex-row items-center justify-center active:opacity-90"
             style={{ gap: 8, opacity: !canSell ? 0.5 : 1 }}
           >
             {loading ? <ActivityIndicator color={colors.primaryForeground} /> : <Store size={18} color={colors.primaryForeground} />}
             <Text className="font-sans-bold text-primary-foreground text-sm">
-              {selectedPrice ? `Выставить за ${formatCurrency(selectedPrice)}` : "Выставить на продажу"}
+              {selectedPrice ? `${t("sell_list_for")} ${formatCurrency(selectedPrice)}` : t("sell_list")}
             </Text>
           </Pressable>
         </View>

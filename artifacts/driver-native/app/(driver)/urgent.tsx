@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { View, Text, Pressable, ScrollView, ActivityIndicator, RefreshControl, Alert } from "react-native";
 import { Zap, MapPin, Check, ShoppingBag, User, Clock } from "lucide-react-native";
 
@@ -7,6 +7,8 @@ import { API_BASE_URL } from "@/config";
 import { colors } from "@/lib/theme";
 import { formatCurrency } from "@/features/orders/utils";
 import { wsEvents } from "@/lib/ws-events";
+import { playMarket, playNewOrder } from "@/lib/sounds";
+import { useT } from "@/lib/i18n";
 
 type Offer = { offerId: number; ride: any };
 type Listing = {
@@ -25,11 +27,15 @@ type Listing = {
 
 // Срочные tab — urgent offers (accept) + marketplace listings (buy).
 export default function UrgentScreen() {
+  const { t } = useT();
   const { token } = useAuth();
   const [offers, setOffers] = useState<Offer[]>([]);
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<number | null>(null);
+  const seenListings = useRef<Set<number>>(new Set());
+  const seenOffers = useRef<Set<number>>(new Set());
+  const firstLoad = useRef(true);
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -39,8 +45,19 @@ export default function UrgentScreen() {
         fetch(`${API_BASE_URL}/api/drivers/pending-offers`, { headers }),
         fetch(`${API_BASE_URL}/api/marketplace/listings`, { headers }),
       ]);
-      if (oRes.ok) setOffers((await oRes.json()).offers || []);
-      if (lRes.ok) setListings((await lRes.json()).listings || []);
+      const newOffers: Offer[] = oRes.ok ? (await oRes.json()).offers || [] : [];
+      const newListings: Listing[] = lRes.ok ? (await lRes.json()).listings || [] : [];
+      if (oRes.ok) setOffers(newOffers);
+      if (lRes.ok) setListings(newListings);
+
+      // Play a sound when a NEW item appears (skip the very first load).
+      if (!firstLoad.current) {
+        if (newOffers.some((o) => !seenOffers.current.has(o.offerId))) playNewOrder();
+        if (newListings.some((l) => !seenListings.current.has(l.id))) playMarket();
+      }
+      seenOffers.current = new Set(newOffers.map((o) => o.offerId));
+      seenListings.current = new Set(newListings.map((l) => l.id));
+      firstLoad.current = false;
     } catch {
     } finally {
       setLoading(false);
@@ -87,12 +104,12 @@ export default function UrgentScreen() {
       const d = await res.json().catch(() => ({}) as any);
       if (res.ok) {
         setListings((p) => p.filter((l) => l.id !== listing.id));
-        Alert.alert("Куплено", "Заказ добавлен в ваши рейсы");
+        Alert.alert(t("bought"), t("bought_sub"));
       } else {
-        Alert.alert("Ошибка", d.message || "Не удалось купить");
+        Alert.alert(t("err"), d.message || t("buy_failed"));
       }
     } catch {
-      Alert.alert("Ошибка сети", "Проверьте подключение");
+      Alert.alert(t("err_network"), t("err_network_sub"));
     } finally {
       setBusyId(null);
     }
@@ -119,15 +136,15 @@ export default function UrgentScreen() {
           <View className="w-20 h-20 rounded-2xl bg-primary/[0.12] items-center justify-center mb-4">
             <Zap size={36} color={colors.primary} />
           </View>
-          <Text className="font-display text-foreground text-xl mb-1">Срочные заказы</Text>
-          <Text className="font-sans text-muted-foreground text-sm">Пока нет доступных заказов</Text>
+          <Text className="font-display text-foreground text-xl mb-1">{t("urgent_empty_title")}</Text>
+          <Text className="font-sans text-muted-foreground text-sm">{t("urgent_empty_sub")}</Text>
         </View>
       ) : (
         <>
           {offers.length > 0 && (
             <>
               <Text className="font-sans-bold text-muted-foreground text-[11px] uppercase mb-2" style={{ letterSpacing: 0.5 }}>
-                Срочные заказы
+                {t("urgent_section")}
               </Text>
               <View style={{ gap: 10 }}>
                 {offers.map((offer) => {
@@ -142,7 +159,7 @@ export default function UrgentScreen() {
                         style={{ gap: 6 }}
                       >
                         {busyId === offer.offerId ? <ActivityIndicator color="#fff" /> : <Check size={18} color="#fff" />}
-                        <Text className="font-sans-bold text-white text-sm">Принять заказ</Text>
+                        <Text className="font-sans-bold text-white text-sm">{t("accept_order")}</Text>
                       </Pressable>
                     </View>
                   );
@@ -156,7 +173,7 @@ export default function UrgentScreen() {
               <View className="flex-row items-center mt-5 mb-2" style={{ gap: 6 }}>
                 <ShoppingBag size={14} color={colors.primary} />
                 <Text className="font-sans-bold text-muted-foreground text-[11px] uppercase" style={{ letterSpacing: 0.5 }}>
-                  Маркет
+                  {t("market")}
                 </Text>
               </View>
               <View style={{ gap: 10 }}>
@@ -189,7 +206,7 @@ export default function UrgentScreen() {
                       style={{ gap: 6 }}
                     >
                       {busyId === l.id ? <ActivityIndicator color={colors.primaryForeground} /> : <ShoppingBag size={18} color={colors.primaryForeground} />}
-                      <Text className="font-sans-bold text-primary-foreground text-sm">Купить · {formatCurrency(l.price)}</Text>
+                      <Text className="font-sans-bold text-primary-foreground text-sm">{t("buy")} · {formatCurrency(l.price)}</Text>
                     </Pressable>
                   </View>
                 ))}
@@ -203,6 +220,7 @@ export default function UrgentScreen() {
 }
 
 function Route({ from, to, price, distance }: { from?: string; to?: string; price?: number; distance?: number | string }) {
+  const { t } = useT();
   return (
     <View className="flex-row items-center" style={{ gap: 10 }}>
       <View className="items-center" style={{ gap: 2 }}>
@@ -224,7 +242,7 @@ function Route({ from, to, price, distance }: { from?: string; to?: string; pric
         {distance != null ? (
           <View className="flex-row items-center" style={{ gap: 3 }}>
             <MapPin size={12} color={colors.mutedForeground} />
-            <Text className="font-sans text-muted-foreground text-[12px]">{distance} км</Text>
+            <Text className="font-sans text-muted-foreground text-[12px]">{distance} {t("unit_km")}</Text>
           </View>
         ) : null}
       </View>

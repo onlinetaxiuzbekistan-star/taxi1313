@@ -7,6 +7,7 @@ import { API_BASE_URL } from "@/config";
 import { wsEvents } from "@/lib/ws-events";
 import { playNewOrder } from "@/lib/sounds";
 import { colors } from "@/lib/theme";
+import { useT } from "@/lib/i18n";
 import { formatCurrency } from "../utils";
 
 type Offer = { offerId: number; expiresAt?: string; ride: any };
@@ -15,6 +16,7 @@ type Offer = { offerId: number; expiresAt?: string; ride: any };
 // /api/drivers/pending-offers (+ reacts to the new_order WS push), shows the
 // first live offer with a countdown, and accepts via POST /api/drivers/accept.
 export function IncomingOfferModal({ onAccepted }: { onAccepted?: () => void }) {
+  const { t } = useT();
   const { token } = useAuth();
   const [offer, setOffer] = useState<Offer | null>(null);
   const [accepting, setAccepting] = useState(false);
@@ -113,7 +115,7 @@ export function IncomingOfferModal({ onAccepted }: { onAccepted?: () => void }) 
           <View className="bg-primary px-5 py-4 flex-row items-center justify-between">
             <View className="flex-row items-center" style={{ gap: 8 }}>
               <Zap size={20} color={colors.primaryForeground} />
-              <Text className="font-display text-primary-foreground text-base">Новый заказ</Text>
+              <Text className="font-display text-primary-foreground text-base">{t("offer_new")}</Text>
             </View>
             {remaining != null && (
               <View className="w-9 h-9 rounded-full bg-white/20 items-center justify-center">
@@ -139,7 +141,7 @@ export function IncomingOfferModal({ onAccepted }: { onAccepted?: () => void }) 
             <View className="flex-row items-center justify-between bg-secondary rounded-2xl px-4 py-3">
               <View className="flex-row items-center" style={{ gap: 6 }}>
                 <MapPin size={16} color={colors.mutedForeground} />
-                <Text className="font-sans text-muted-foreground text-sm">{r.distance ?? "—"} км</Text>
+                <Text className="font-sans text-muted-foreground text-sm">{r.distance ?? "—"} {t("unit_km")}</Text>
               </View>
               <Text className="font-display text-foreground text-xl">{formatCurrency(r.price)}</Text>
             </View>
@@ -158,7 +160,7 @@ export function IncomingOfferModal({ onAccepted }: { onAccepted?: () => void }) 
                 style={{ gap: 6 }}
               >
                 <X size={18} color={colors.mutedForeground} />
-                <Text className="font-sans-bold text-muted-foreground text-sm">Позже</Text>
+                <Text className="font-sans-bold text-muted-foreground text-sm">{t("offer_later")}</Text>
               </Pressable>
               <Pressable
                 onPress={accept}
@@ -167,7 +169,7 @@ export function IncomingOfferModal({ onAccepted }: { onAccepted?: () => void }) 
                 style={{ gap: 8 }}
               >
                 {accepting ? <ActivityIndicator color="#fff" /> : <Check size={18} color="#fff" />}
-                <Text className="font-sans-bold text-white text-base">Принять</Text>
+                <Text className="font-sans-bold text-white text-base">{t("offer_accept")}</Text>
               </Pressable>
             </View>
           </View>

@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { API_BASE_URL } from "@/config";
 import { colors } from "@/lib/theme";
 import { formatCurrency, formatRoutePoint } from "@/features/orders/utils";
+import { useT, type TKey } from "@/lib/i18n";
 
 interface EarningsData {
   today: number;
@@ -27,16 +28,17 @@ interface RideRow {
   price: number;
 }
 
-const STATUS: Record<string, { label: string; cls: string }> = {
-  completed: { label: "Завершён", cls: "bg-emerald-500/15 text-emerald-400" },
-  cancelled: { label: "Отменён", cls: "bg-red-500/10 text-red-400" },
-  in_progress: { label: "В пути", cls: "bg-blue-500/15 text-blue-400" },
-  accepted: { label: "Принят", cls: "bg-primary/15 text-primary" },
-  pending: { label: "Ожидание", cls: "bg-secondary text-muted-foreground" },
+const STATUS: Record<string, { labelKey: TKey; cls: string }> = {
+  completed: { labelKey: "st_completed", cls: "bg-emerald-500/15 text-emerald-400" },
+  cancelled: { labelKey: "st_cancelled", cls: "bg-red-500/10 text-red-400" },
+  in_progress: { labelKey: "st_in_progress", cls: "bg-blue-500/15 text-blue-400" },
+  accepted: { labelKey: "st_accepted", cls: "bg-primary/15 text-primary" },
+  pending: { labelKey: "st_waiting", cls: "bg-secondary text-muted-foreground" },
 };
 const WD = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
 
 export default function EarningsScreen() {
+  const { t } = useT();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { token } = useAuth();
@@ -83,9 +85,9 @@ export default function EarningsScreen() {
     start.setHours(0, 0, 0, 0);
     for (const r of rides) {
       if (r.status !== "completed") continue;
-      const t = new Date(r.createdAt);
-      if (t < start) continue;
-      const idx = 6 - Math.floor((now.getTime() - t.getTime()) / (24 * 3600 * 1000));
+      const created = new Date(r.createdAt);
+      if (created < start) continue;
+      const idx = 6 - Math.floor((now.getTime() - created.getTime()) / (24 * 3600 * 1000));
       if (idx >= 0 && idx < 7) days[idx].total += Math.round((r.price || 0) * 0.9);
     }
     const max = Math.max(1, ...days.map((d) => d.total));
@@ -106,7 +108,7 @@ export default function EarningsScreen() {
         <Pressable onPress={() => router.back()} className="w-10 h-10 items-center justify-center active:opacity-70">
           <ChevronLeft size={24} color={colors.foreground} />
         </Pressable>
-        <Text className="font-display text-foreground text-lg">Заработок</Text>
+        <Text className="font-display text-foreground text-lg">{t("earnings_menu")}</Text>
       </View>
 
       {loading ? (
@@ -116,10 +118,10 @@ export default function EarningsScreen() {
           {/* stat cards */}
           <View className="flex-row flex-wrap px-4" style={{ gap: 10 }}>
             {[
-              { label: "Сегодня", value: formatCurrency(earnings?.today || 0), primary: true },
-              { label: "Неделя", value: formatCurrency(earnings?.thisWeek || 0) },
-              { label: "Месяц", value: formatCurrency(earnings?.thisMonth || 0) },
-              { label: "Поездок", value: String(earnings?.completedRides ?? 0) },
+              { label: t("earn_today"), value: formatCurrency(earnings?.today || 0), primary: true },
+              { label: t("earn_week"), value: formatCurrency(earnings?.thisWeek || 0) },
+              { label: t("earn_month"), value: formatCurrency(earnings?.thisMonth || 0) },
+              { label: t("earn_rides"), value: String(earnings?.completedRides ?? 0) },
             ].map((s) => (
               <View
                 key={s.label}
@@ -136,7 +138,7 @@ export default function EarningsScreen() {
           <View className="mx-4 mt-4 bg-card border border-border rounded-2xl p-4">
             <View className="flex-row items-center mb-3" style={{ gap: 6 }}>
               <TrendingUp size={16} color={colors.primary} />
-              <Text className="font-sans-bold text-foreground text-sm">За 7 дней</Text>
+              <Text className="font-sans-bold text-foreground text-sm">{t("earn_7days")}</Text>
             </View>
             <View className="flex-row items-end justify-between" style={{ height: 120, gap: 6 }}>
               {chart.days.map((d, i) => (
@@ -157,7 +159,7 @@ export default function EarningsScreen() {
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="px-4 py-3" style={{ flexGrow: 0 }}>
             <View className="flex-row" style={{ gap: 8 }}>
               {(["all", "today", "week", "month"] as const).map((f) => {
-                const label = { all: "Все", today: "Сегодня", week: "Неделя", month: "Месяц" }[f];
+                const label = { all: t("filter_all"), today: t("filter_today"), week: t("filter_week"), month: t("filter_month") }[f];
                 const active = filter === f;
                 return (
                   <Pressable
@@ -174,7 +176,7 @@ export default function EarningsScreen() {
 
           {/* rides */}
           {filteredRides.length === 0 ? (
-            <Text className="font-sans text-muted-foreground text-sm text-center mt-6">Нет поездок</Text>
+            <Text className="font-sans text-muted-foreground text-sm text-center mt-6">{t("no_rides")}</Text>
           ) : (
             <View className="px-4" style={{ gap: 8 }}>
               {filteredRides.map((r) => {
@@ -189,7 +191,7 @@ export default function EarningsScreen() {
                         </Text>
                       </View>
                       <View className={`rounded-full px-2 py-0.5 ${st.cls.split(" ")[0]}`}>
-                        <Text className={`font-sans-bold text-[10px] ${st.cls.split(" ")[1]}`}>{st.label}</Text>
+                        <Text className={`font-sans-bold text-[10px] ${st.cls.split(" ")[1]}`}>{t(st.labelKey)}</Text>
                       </View>
                     </View>
                     <View className="flex-row items-center justify-between">

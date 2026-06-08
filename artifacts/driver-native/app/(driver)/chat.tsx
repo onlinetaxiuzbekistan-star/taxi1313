@@ -11,6 +11,7 @@ import { useGroupList, useGroupChat } from "@/features/chat/use-group-chat";
 import { useUnread } from "@/features/chat/unread";
 import { useVoiceCall } from "@/features/voice/VoiceCallProvider";
 import { ChatThread } from "@/features/chat/ChatThread";
+import { useT } from "@/lib/i18n";
 
 type Open = null | { kind: "dm"; id: number; name: string } | { kind: "group"; id: number; name: string };
 
@@ -25,6 +26,7 @@ function timeShort(iso: string | null) {
 }
 
 export default function ChatScreen() {
+  const { t } = useT();
   const { token, user } = useAuth();
   const { reset } = useUnread();
   const { startCall } = useVoiceCall();
@@ -44,10 +46,10 @@ export default function ChatScreen() {
     fetch(`${API_BASE_URL}/api/chat/dispatcher-info`, { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => r.json())
       .then((d) => {
-        if (d?.id) setDispatcher({ id: d.id, name: d.name || "Диспетчер" });
+        if (d?.id) setDispatcher({ id: d.id, name: d.name || t("dispatcher") });
       })
       .catch(() => {});
-  }, [token]);
+  }, [token, t]);
 
   // Reset the unread badge whenever the chat tab is focused.
   useFocusEffect(
@@ -95,7 +97,7 @@ export default function ChatScreen() {
     return (
       <ChatThread
         title={open.name}
-        subtitle={dm.peerTyping ? "печатает…" : dm.peerOnline ? "в сети" : "не в сети"}
+        subtitle={dm.peerTyping ? t("typing") : dm.peerOnline ? t("online_low") : t("offline_low")}
         subtitleColor={dm.peerOnline && !dm.peerTyping ? "online" : "muted"}
         messages={dm.messages}
         myUserId={user?.id}
@@ -141,7 +143,7 @@ export default function ChatScreen() {
           </View>
           <View className="flex-1">
             <Text className="font-sans-bold text-foreground text-[15px]">{dispatcher.name}</Text>
-            <Text className="font-sans text-muted-foreground text-[13px]">Диспетчерская</Text>
+            <Text className="font-sans text-muted-foreground text-[13px]">{t("dispatch_center")}</Text>
           </View>
           <ChevronRight size={18} color={colors.mutedForeground} />
         </Pressable>
@@ -149,13 +151,13 @@ export default function ChatScreen() {
 
       <View className="h-px bg-border mx-4 my-1" />
       <Text className="font-sans-semibold text-muted-foreground text-[11px] uppercase px-4 py-2" style={{ letterSpacing: 0.5 }}>
-        Группы
+        {t("groups")}
       </Text>
 
       {groupsLoading ? (
         <ActivityIndicator color={colors.primary} className="mt-4" />
       ) : groups.length === 0 ? (
-        <Text className="font-sans text-muted-foreground text-sm px-4 py-3">Нет групповых чатов</Text>
+        <Text className="font-sans text-muted-foreground text-sm px-4 py-3">{t("no_groups")}</Text>
       ) : (
         groups.map((g) => (
           <Pressable
@@ -176,7 +178,7 @@ export default function ChatScreen() {
               </View>
               <Text className="font-sans text-muted-foreground text-[13px]" numberOfLines={1}>
                 {g.lastSenderName ? `${g.lastSenderName}: ` : ""}
-                {g.lastMessage || `${g.memberCount} участников`}
+                {g.lastMessage || `${g.memberCount} ${t("members")}`}
               </Text>
             </View>
           </Pressable>

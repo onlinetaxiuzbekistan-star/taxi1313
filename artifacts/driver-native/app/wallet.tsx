@@ -17,6 +17,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { API_BASE_URL } from "@/config";
 import { colors } from "@/lib/theme";
 import { formatCurrency } from "@/features/orders/utils";
+import { useT, type TKey } from "@/lib/i18n";
 
 type TxType = "income" | "commission" | "bonus" | "penalty" | "withdraw" | "refund";
 interface Transaction {
@@ -28,21 +29,21 @@ interface Transaction {
   status: string;
 }
 
-const TYPE: Record<TxType, { icon: LucideIcon; label: string; positive: boolean }> = {
-  income: { icon: ArrowDownLeft, label: "Доход", positive: true },
-  commission: { icon: ArrowUpRight, label: "Комиссия", positive: false },
-  bonus: { icon: Gift, label: "Бонус", positive: true },
-  penalty: { icon: AlertTriangle, label: "Штраф", positive: false },
-  withdraw: { icon: ArrowUpRight, label: "Вывод", positive: false },
-  refund: { icon: ArrowDownLeft, label: "Возврат", positive: true },
+const TYPE: Record<TxType, { icon: LucideIcon; labelKey: TKey; positive: boolean }> = {
+  income: { icon: ArrowDownLeft, labelKey: "tx_income", positive: true },
+  commission: { icon: ArrowUpRight, labelKey: "tx_commission", positive: false },
+  bonus: { icon: Gift, labelKey: "tx_bonus", positive: true },
+  penalty: { icon: AlertTriangle, labelKey: "tx_penalty", positive: false },
+  withdraw: { icon: ArrowUpRight, labelKey: "tx_withdraw", positive: false },
+  refund: { icon: ArrowDownLeft, labelKey: "tx_refund", positive: true },
 };
 
-const FILTERS: { key: string; label: string }[] = [
-  { key: "", label: "Все" },
-  { key: "income", label: "Доход" },
-  { key: "commission", label: "Комиссия" },
-  { key: "penalty", label: "Штрафы" },
-  { key: "bonus", label: "Бонусы" },
+const FILTERS: { key: string; labelKey: TKey }[] = [
+  { key: "", labelKey: "filter_all" },
+  { key: "income", labelKey: "tx_income" },
+  { key: "commission", labelKey: "tx_commission" },
+  { key: "penalty", labelKey: "tx_penalties" },
+  { key: "bonus", labelKey: "tx_bonuses" },
 ];
 
 function dateOf(iso: string) {
@@ -54,6 +55,7 @@ function dateOf(iso: string) {
 }
 
 export default function WalletScreen() {
+  const { t } = useT();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { token, user, refreshUser } = useAuth();
@@ -91,14 +93,14 @@ export default function WalletScreen() {
         <Pressable onPress={() => router.back()} className="w-10 h-10 items-center justify-center active:opacity-70">
           <ChevronLeft size={24} color={colors.foreground} />
         </Pressable>
-        <Text className="font-display text-foreground text-lg">Кошелёк</Text>
+        <Text className="font-display text-foreground text-lg">{t("wallet_title")}</Text>
       </View>
 
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 16 }}>
         {/* balance card */}
         <View className="mx-4 mt-1 rounded-3xl bg-zinc-900 p-5">
           <Text className="font-sans text-zinc-400 text-[12px] uppercase" style={{ letterSpacing: 0.5 }}>
-            Баланс
+            {t("balance_title")}
           </Text>
           <Text className={`font-display text-3xl mt-1 ${balance < 0 ? "text-red-400" : "text-white"}`}>
             {formatCurrency(balance)}
@@ -109,7 +111,7 @@ export default function WalletScreen() {
             style={{ gap: 8 }}
           >
             <Plus size={18} color={colors.primaryForeground} />
-            <Text className="font-sans-bold text-primary-foreground text-sm">Пополнить</Text>
+            <Text className="font-sans-bold text-primary-foreground text-sm">{t("topup")}</Text>
           </Pressable>
         </View>
 
@@ -125,7 +127,7 @@ export default function WalletScreen() {
                   className={`px-3.5 py-1.5 rounded-full border ${active ? "bg-primary border-primary" : "bg-card border-border"}`}
                 >
                   <Text className={`font-sans-semibold text-[13px] ${active ? "text-primary-foreground" : "text-foreground"}`}>
-                    {f.label}
+                    {t(f.labelKey)}
                   </Text>
                 </Pressable>
               );
@@ -137,7 +139,7 @@ export default function WalletScreen() {
         {loading ? (
           <ActivityIndicator color={colors.primary} className="mt-6" />
         ) : transactions.length === 0 ? (
-          <Text className="font-sans text-muted-foreground text-sm text-center mt-8">Нет операций</Text>
+          <Text className="font-sans text-muted-foreground text-sm text-center mt-8">{t("no_tx")}</Text>
         ) : (
           <View className="px-4" style={{ gap: 8 }}>
             {transactions.map((tx) => {
@@ -156,7 +158,7 @@ export default function WalletScreen() {
                       {tx.description}
                     </Text>
                     <Text className="font-sans text-muted-foreground text-[11px] mt-0.5">
-                      {cfg.label} · {dateOf(tx.createdAt)}
+                      {t(cfg.labelKey)} · {dateOf(tx.createdAt)}
                     </Text>
                   </View>
                   <Text className={`font-sans-bold text-sm ${cfg.positive ? "text-emerald-400" : "text-red-400"}`}>
@@ -176,6 +178,7 @@ export default function WalletScreen() {
 }
 
 function DepositModal({ visible, onClose, onDone }: { visible: boolean; onClose: () => void; onDone: () => void }) {
+  const { t } = useT();
   const { token } = useAuth();
   const [cards, setCards] = useState<{ id: number; maskedPan?: string }[]>([]);
   const [cardId, setCardId] = useState<number | null>(null);
@@ -203,7 +206,7 @@ function DepositModal({ visible, onClose, onDone }: { visible: boolean; onClose:
   const init = async () => {
     const amt = parseInt(amount, 10);
     if (!amt || amt < 1000 || !cardId) {
-      Alert.alert("Ошибка", "Минимум 1000 сум и выберите карту");
+      Alert.alert(t("err"), t("topup_min"));
       return;
     }
     setBusy(true);
@@ -218,10 +221,10 @@ function DepositModal({ visible, onClose, onDone }: { visible: boolean; onClose:
         setPaymentId(d.paymentId || d.id);
         setStep("otp");
       } else {
-        Alert.alert("Ошибка", d.message || "Не удалось начать пополнение");
+        Alert.alert(t("err"), d.message || t("topup_failed"));
       }
     } catch {
-      Alert.alert("Ошибка сети", "Проверьте подключение");
+      Alert.alert(t("err_network"), t("err_network_sub"));
     } finally {
       setBusy(false);
     }
@@ -238,14 +241,14 @@ function DepositModal({ visible, onClose, onDone }: { visible: boolean; onClose:
       });
       const d = await res.json().catch(() => ({}) as any);
       if (res.ok) {
-        Alert.alert("Готово", "Баланс пополнен");
+        Alert.alert(t("done"), t("topup_done"));
         onDone();
         onClose();
       } else {
-        Alert.alert("Ошибка", d.message || "Неверный код");
+        Alert.alert(t("err"), d.message || t("wrong_code"));
       }
     } catch {
-      Alert.alert("Ошибка сети", "Проверьте подключение");
+      Alert.alert(t("err_network"), t("err_network_sub"));
     } finally {
       setBusy(false);
     }
@@ -255,13 +258,13 @@ function DepositModal({ visible, onClose, onDone }: { visible: boolean; onClose:
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable className="flex-1 bg-black/60 justify-end" onPress={onClose}>
         <Pressable className="bg-card rounded-t-3xl border-t border-border px-5 pt-4 pb-8" onPress={() => {}}>
-          <Text className="font-display text-foreground text-base mb-4">Пополнение баланса</Text>
+          <Text className="font-display text-foreground text-base mb-4">{t("topup_title")}</Text>
 
           {cards.length === 0 ? (
             <View className="items-center py-6">
               <WalletIcon size={32} color={colors.mutedForeground} />
               <Text className="font-sans text-muted-foreground text-sm mt-2 text-center">
-                Нет привязанных карт. Привяжите карту в приложении.
+                {t("no_cards")}
               </Text>
             </View>
           ) : step === "amount" ? (
@@ -285,17 +288,17 @@ function DepositModal({ visible, onClose, onDone }: { visible: boolean; onClose:
                 value={amount}
                 onChangeText={(v) => setAmount(v.replace(/[^0-9]/g, ""))}
                 keyboardType="number-pad"
-                placeholder="Сумма (сум)"
+                placeholder={t("amount_sum")}
                 placeholderTextColor={colors.mutedForeground}
                 className="bg-secondary border border-border rounded-2xl px-4 py-3.5 text-foreground font-sans-bold text-base text-center mb-3"
               />
               <Pressable onPress={init} disabled={busy} className="rounded-2xl bg-primary py-4 items-center active:opacity-90">
-                {busy ? <ActivityIndicator color={colors.primaryForeground} /> : <Text className="font-sans-bold text-primary-foreground text-base">Получить код</Text>}
+                {busy ? <ActivityIndicator color={colors.primaryForeground} /> : <Text className="font-sans-bold text-primary-foreground text-base">{t("get_code")}</Text>}
               </Pressable>
             </>
           ) : (
             <>
-              <Text className="font-sans text-muted-foreground text-sm mb-2 text-center">Введите код из SMS</Text>
+              <Text className="font-sans text-muted-foreground text-sm mb-2 text-center">{t("enter_sms")}</Text>
               <TextInput
                 value={otp}
                 onChangeText={(v) => setOtp(v.replace(/[^0-9]/g, ""))}
@@ -306,7 +309,7 @@ function DepositModal({ visible, onClose, onDone }: { visible: boolean; onClose:
                 style={{ letterSpacing: 6 }}
               />
               <Pressable onPress={confirm} disabled={busy} className="rounded-2xl bg-emerald-500 py-4 items-center active:opacity-90">
-                {busy ? <ActivityIndicator color="#fff" /> : <Text className="font-sans-bold text-white text-base">Подтвердить</Text>}
+                {busy ? <ActivityIndicator color="#fff" /> : <Text className="font-sans-bold text-white text-base">{t("confirm")}</Text>}
               </Pressable>
             </>
           )}

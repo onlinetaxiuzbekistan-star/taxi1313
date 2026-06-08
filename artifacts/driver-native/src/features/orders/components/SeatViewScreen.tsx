@@ -5,6 +5,7 @@ import { Navigation, XCircle, Phone, User, Users, Store } from "lucide-react-nat
 import { useAuth } from "@/hooks/use-auth";
 import { API_BASE_URL } from "@/config";
 import { colors } from "@/lib/theme";
+import { useT, type TKey } from "@/lib/i18n";
 import { formatCurrency, formatRoutePoint } from "../utils";
 import type { Ride, SeatPassenger, City, RouteOption, QueueInfoData } from "../types";
 import { QueueWidget } from "./QueueWidget";
@@ -16,12 +17,13 @@ import { SellOrderModal } from "./SellOrderModal";
 import { ExpiredRideModal } from "./ExpiredRideModal";
 
 function statusBadge(status: string) {
-  if (status === "picked_up") return { label: "В машине", cls: "bg-emerald-500/15", txt: "text-emerald-400" };
-  if (status === "dropped_off") return { label: "Высажен", cls: "bg-zinc-700/40", txt: "text-zinc-400" };
-  return { label: "Ожидает", cls: "bg-amber-500/15", txt: "text-amber-400" };
+  if (status === "picked_up") return { labelKey: "st_in_car" as TKey, cls: "bg-emerald-500/15", txt: "text-emerald-400" };
+  if (status === "dropped_off") return { labelKey: "st_dropped" as TKey, cls: "bg-zinc-700/40", txt: "text-zinc-400" };
+  return { labelKey: "st_waiting" as TKey, cls: "bg-amber-500/15", txt: "text-amber-400" };
 }
 
 export function PassengerRow({ p }: { p: SeatPassenger }) {
+  const { t } = useT();
   const female = p.gender === "female";
   const badge = statusBadge(p.status);
   return (
@@ -34,11 +36,11 @@ export function PassengerRow({ p }: { p: SeatPassenger }) {
           {p.name}
         </Text>
         <Text className="font-sans text-muted-foreground text-[12px]">
-          Место {p.seatNumber} • {formatCurrency(p.price)}
+          {t("seat")} {p.seatNumber} • {formatCurrency(p.price)}
         </Text>
       </View>
       <View className={`rounded-full px-2 py-0.5 ${badge.cls}`}>
-        <Text className={`font-sans-semibold text-[11px] ${badge.txt}`}>{badge.label}</Text>
+        <Text className={`font-sans-semibold text-[11px] ${badge.txt}`}>{t(badge.labelKey)}</Text>
       </View>
       {p.phone ? (
         <Pressable
@@ -69,6 +71,8 @@ export function SeatViewScreen({
   passengerActionLoading,
   onSellOrder,
   sellLoading,
+  sellError,
+  onClearSellError,
 }: {
   ride: Ride;
   passengers: SeatPassenger[];
@@ -81,15 +85,19 @@ export function SeatViewScreen({
   onRejectClient?: (id: number) => void;
   clientActionLoading?: boolean;
   passengerActionLoading?: number | null;
-  onSellOrder?: (price: number, comment: string) => void;
+  onSellOrder?: (price: number, comment: string) => Promise<boolean>;
   sellLoading?: boolean;
+  sellError?: string | null;
+  onClearSellError?: () => void;
 }) {
+  const { t } = useT();
   const { token } = useAuth();
   const [queueInfo, setQueueInfo] = useState<QueueInfoData | null>(null);
   const [showNav, setShowNav] = useState(false);
   const [selectedSeat, setSelectedSeat] = useState<number | null>(null);
   const [showManual, setShowManual] = useState<number | null>(null);
   const [showSell, setShowSell] = useState(false);
+  const [soldBanner, setSoldBanner] = useState(false);
   const [showExpired, setShowExpired] = useState(false);
   const [extending, setExtending] = useState(false);
 
@@ -146,7 +154,7 @@ export function SeatViewScreen({
         {/* header card */}
         <View className="rounded-2xl bg-zinc-900 px-3 py-3">
           <Text className="font-sans-bold text-zinc-400 text-[10px] uppercase" style={{ letterSpacing: 0.5 }}>
-            {filledSeats >= totalSeats ? "Машина заполнена" : "Ваш рейс"}
+            {filledSeats >= totalSeats ? t("car_full") : t("your_ride")}
           </Text>
           <Text className="font-display text-white text-base mt-0.5" numberOfLines={1}>
             {fromName} → {toName}
@@ -157,15 +165,15 @@ export function SeatViewScreen({
                 {filledSeats}
                 <Text className="text-zinc-400 text-sm">/{totalSeats}</Text>
               </Text>
-              <Text className="font-sans text-zinc-400 text-[8px] uppercase">Мест</Text>
+              <Text className="font-sans text-zinc-400 text-[8px] uppercase">{t("seats")}</Text>
             </View>
             <View className="flex-1 bg-white/10 rounded-lg py-1.5 items-center">
               <Text className="font-sans-bold text-white text-base">{formatCurrency(totalEarnings)}</Text>
-              <Text className="font-sans text-zinc-400 text-[8px] uppercase">Заработок</Text>
+              <Text className="font-sans text-zinc-400 text-[8px] uppercase">{t("earnings_label")}</Text>
             </View>
             <View className="flex-1 bg-white/10 rounded-lg py-1.5 items-center">
               <Text className="font-sans-bold text-white text-lg">{ride.distance ?? "—"}</Text>
-              <Text className="font-sans text-zinc-400 text-[8px] uppercase">км</Text>
+              <Text className="font-sans text-zinc-400 text-[8px] uppercase">{t("unit_km")}</Text>
             </View>
           </View>
         </View>
@@ -215,7 +223,7 @@ export function SeatViewScreen({
           {passengers.length === 0 ? (
             <View className="items-center py-8">
               <Users size={32} color={colors.mutedForeground} />
-              <Text className="font-sans text-muted-foreground text-sm mt-2">Ожидание пассажиров…</Text>
+              <Text className="font-sans text-muted-foreground text-sm mt-2">{t("waiting_pax")}</Text>
             </View>
           ) : (
             passengers.map((p) => <PassengerRow key={p.id} p={p} />)
@@ -239,7 +247,7 @@ export function SeatViewScreen({
               style={{ gap: 6 }}
             >
               <Navigation size={16} color={colors.foreground} />
-              <Text className="font-sans-bold text-foreground text-sm">Навигатор</Text>
+              <Text className="font-sans-bold text-foreground text-sm">{t("navigator")}</Text>
             </Pressable>
           ) : null}
           <Pressable
@@ -249,18 +257,26 @@ export function SeatViewScreen({
             style={{ gap: 6 }}
           >
             <XCircle size={16} color={colors.red} />
-            <Text className="font-sans-bold text-red-500 text-sm">Отменить</Text>
+            <Text className="font-sans-bold text-red-500 text-sm">{t("cancel_ride")}</Text>
           </Pressable>
         </View>
-        {onSellOrder && (ride.status === "accepted" || ride.status === "pending") ? (
+        {soldBanner ? (
+          <View className="py-2.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex-row items-center justify-center" style={{ gap: 6 }}>
+            <Store size={15} color={colors.emerald} />
+            <Text className="font-sans-bold text-emerald-400 text-sm">{t("sold_listed")}</Text>
+          </View>
+        ) : onSellOrder && (ride.status === "accepted" || ride.status === "pending") ? (
           <Pressable
-            onPress={() => setShowSell(true)}
+            onPress={() => {
+              onClearSellError?.();
+              setShowSell(true);
+            }}
             disabled={loading || sellLoading}
             className="py-3 rounded-xl bg-primary/10 border border-primary/30 flex-row items-center justify-center active:opacity-80"
             style={{ gap: 6, opacity: loading || sellLoading ? 0.6 : 1 }}
           >
             <Store size={16} color={colors.primary} />
-            <Text className="font-sans-bold text-primary text-sm">Продать заказ оператору</Text>
+            <Text className="font-sans-bold text-primary text-sm">{t("sell_to_operator")}</Text>
           </Pressable>
         ) : null}
         {ride.status === "accepted" && filledSeats > 0 ? (
@@ -271,7 +287,7 @@ export function SeatViewScreen({
             style={{ gap: 8 }}
           >
             {loading ? <ActivityIndicator color="#fff" /> : <Navigation size={16} color="#fff" />}
-            <Text className="font-sans-bold text-white text-sm">{loading ? "Начинаю…" : "Начать поездку"}</Text>
+            <Text className="font-sans-bold text-white text-sm">{loading ? t("starting") : t("start_ride")}</Text>
           </Pressable>
         ) : null}
       </View>
@@ -285,10 +301,15 @@ export function SeatViewScreen({
           routes={routes || []}
           cities={cities}
           loading={sellLoading}
-          onClose={() => setShowSell(false)}
-          onConfirm={(price, comment) => {
+          error={sellError}
+          onClose={() => {
             setShowSell(false);
-            onSellOrder(price, comment);
+            onClearSellError?.();
+          }}
+          onConfirm={async (price, comment) => {
+            const ok = await onSellOrder(price, comment);
+            if (ok) setSoldBanner(true);
+            return ok;
           }}
         />
       ) : null}

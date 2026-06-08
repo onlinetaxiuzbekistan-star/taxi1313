@@ -172,9 +172,11 @@ class LocationForegroundService : Service() {
         }
 
         val priority = if (highAccuracy) Priority.PRIORITY_HIGH_ACCURACY else Priority.PRIORITY_BALANCED_POWER_ACCURACY
-        val interval = if (highAccuracy) 10_000L else 30_000L
-        val fastest = if (highAccuracy) 5_000L else 15_000L
-        val minDist = if (highAccuracy) 10f else 50f
+        // Steadier fixes so the GPS indicator stays green and the dispatcher map
+        // stays fresh (20s balanced / 10s on a ride).
+        val interval = if (highAccuracy) 10_000L else 20_000L
+        val fastest = if (highAccuracy) 5_000L else 10_000L
+        val minDist = if (highAccuracy) 10f else 30f
 
         val request = LocationRequest.Builder(priority, interval)
             .setMinUpdateIntervalMillis(fastest)

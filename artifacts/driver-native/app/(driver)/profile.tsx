@@ -35,14 +35,14 @@ export default function ProfileScreen() {
   if (!driver) return null;
 
   const langs: { code: Language; label: string }[] = [
-    { code: "ru", label: "Русский" },
+    { code: "ru", label: t("lang_ru") },
     { code: "uz", label: "Oʻzbekcha" },
   ];
 
   const menu = [
-    { icon: Wallet, label: "Кошелёк", sub: formatCurrency(Number((driver as any).balance || 0)), to: "/wallet" as const },
-    { icon: TrendingUp, label: "Заработок", sub: "Статистика и поездки", to: "/earnings" as const },
-    { icon: Bell, label: "Новости", sub: "Объявления диспетчерской", to: "/news" as const },
+    { icon: Wallet, label: t("wallet_menu"), sub: formatCurrency(Number((driver as any).balance || 0)), to: "/wallet" as const },
+    { icon: TrendingUp, label: t("earnings_menu"), sub: t("earnings_sub"), to: "/earnings" as const },
+    { icon: Bell, label: t("news_menu"), sub: t("news_sub"), to: "/news" as const },
   ];
 
   return (
@@ -71,20 +71,20 @@ export default function ProfileScreen() {
           <Star size={18} color={colors.amber} fill={colors.amber} />
           <Text className="font-display text-foreground text-lg mt-1">{driver.rating ?? "—"}</Text>
           <Text className="font-sans text-muted-foreground text-[11px]">
-            {ratingCount != null ? `${ratingCount} оценок` : "рейтинг"}
+            {ratingCount != null ? `${ratingCount} ${t("ratings_count")}` : t("rating_label")}
           </Text>
         </View>
         <View className="flex-1 bg-card border border-border rounded-2xl p-3 items-center">
           <Car size={18} color={colors.primary} />
           <Text className="font-display text-foreground text-lg mt-1">{(driver as any).totalRides ?? 0}</Text>
-          <Text className="font-sans text-muted-foreground text-[11px]">поездок</Text>
+          <Text className="font-sans text-muted-foreground text-[11px]">{t("rides_label")}</Text>
         </View>
         <View className="flex-1 bg-card border border-border rounded-2xl p-3 items-center">
           <Wallet size={18} color={colors.emerald} />
           <Text className="font-display text-foreground text-base mt-1" numberOfLines={1}>
             {formatCurrency(Number((driver as any).balance || 0))}
           </Text>
-          <Text className="font-sans text-muted-foreground text-[11px]">баланс</Text>
+          <Text className="font-sans text-muted-foreground text-[11px]">{t("balance_label_low")}</Text>
         </View>
       </View>
 
@@ -141,7 +141,7 @@ export default function ProfileScreen() {
         style={{ gap: 8 }}
       >
         <LogOut size={18} color={colors.red} />
-        <Text className="font-sans-bold text-red-500 text-sm">Выйти из аккаунта</Text>
+        <Text className="font-sans-bold text-red-500 text-sm">{t("logout")}</Text>
       </Pressable>
     </ScrollView>
   );

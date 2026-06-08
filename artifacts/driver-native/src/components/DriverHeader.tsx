@@ -33,7 +33,13 @@ export function DriverHeader({
   const photo = getPhotoUrl(user.driverPhoto);
   const isOnline = user.status === "online" || user.status === "busy";
   const isBusy = user.status === "busy";
-  const gpsActive = useGpsActive(isOnline);
+  const gps = useGpsActive(isOnline);
+  const gpsStyle =
+    gps === "active"
+      ? { box: "bg-emerald-500/15 border-emerald-500/40", dot: "bg-emerald-400", txt: "text-emerald-400", icon: colors.emerald }
+      : gps === "acquiring"
+        ? { box: "bg-amber-500/15 border-amber-500/40", dot: "bg-amber-400", txt: "text-amber-400", icon: colors.amber }
+        : { box: "bg-red-500/10 border-red-500/30", dot: "bg-red-500", txt: "text-red-400", icon: colors.red };
 
   const statusBg = isBusy ? "bg-amber-500" : isOnline ? "bg-emerald-500" : "bg-red-500";
   const statusBorder = isBusy
@@ -70,19 +76,12 @@ export function DriverHeader({
             </Text>
           </Pressable>
 
-          {/* GPS status indicator — green when the foreground service is
-              producing fixes, red otherwise (balance moved to the home card). */}
-          <View
-            className={`flex-row items-center px-2 py-1 rounded-lg border ${
-              gpsActive ? "bg-emerald-500/15 border-emerald-500/40" : "bg-red-500/10 border-red-500/30"
-            }`}
-            style={{ gap: 5 }}
-          >
-            <View className={`w-2 h-2 rounded-full ${gpsActive ? "bg-emerald-400" : "bg-red-500"}`} />
-            <Satellite size={13} color={gpsActive ? colors.emerald : colors.red} />
-            <Text className={`text-[11px] font-sans-bold ${gpsActive ? "text-emerald-400" : "text-red-400"}`}>
-              GPS
-            </Text>
+          {/* GPS status indicator — green=tracking, yellow=acquiring, red=off
+              (balance moved to the home card). Hysteresis avoids flicker. */}
+          <View className={`flex-row items-center px-2 py-1 rounded-lg border ${gpsStyle.box}`} style={{ gap: 5 }}>
+            <View className={`w-2 h-2 rounded-full ${gpsStyle.dot}`} />
+            <Satellite size={13} color={gpsStyle.icon} />
+            <Text className={`text-[11px] font-sans-bold ${gpsStyle.txt}`}>GPS</Text>
           </View>
         </View>
 

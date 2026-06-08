@@ -2,6 +2,7 @@ import { View, Text, Pressable, ScrollView } from "react-native";
 import { CheckCircle } from "lucide-react-native";
 
 import { colors } from "@/lib/theme";
+import { useT } from "@/lib/i18n";
 import { formatCurrency, formatRoutePoint } from "../utils";
 import type { Ride } from "../types";
 import { ConfettiOverlay } from "./ConfettiOverlay";
@@ -16,6 +17,7 @@ export function CompletionScreen({
   onClose: () => void;
   commissionRate?: number;
 }) {
+  const { t } = useT();
   const seatPassengers = ride.seatPassengers || [];
   const seatSum = seatPassengers.reduce((s, p) => s + (p.price || 0), 0);
   const totalEarnings = ride.price && ride.price > 0 ? ride.price : seatSum;
@@ -29,7 +31,7 @@ export function CompletionScreen({
         <View className="w-20 h-20 rounded-full bg-white/20 items-center justify-center mb-4">
           <CheckCircle size={40} color="#fff" />
         </View>
-        <Text className="font-display text-white text-xl">Рейс завершён!</Text>
+        <Text className="font-display text-white text-xl">{t("ride_done")}</Text>
         <Text className="font-sans text-zinc-300 text-sm mt-1">
           {formatRoutePoint(ride.fromDistrictName, ride.fromCity)} → {formatRoutePoint(ride.toDistrictName, ride.toCity)}
         </Text>
@@ -37,30 +39,30 @@ export function CompletionScreen({
 
       <ScrollView className="flex-1" contentContainerClassName="px-5 pt-3 pb-4">
         <View className="bg-card rounded-2xl border border-border p-5 mb-4" style={{ gap: 12 }}>
-          <Row label="Стоимость рейса" value={formatCurrency(totalEarnings)} />
-          <Row label={`Комиссия (${Math.round(commissionRate * 100)}%)`} value={`−${formatCurrency(commission)}`} valueClass="text-red-500" />
+          <Row label={t("ride_cost")} value={formatCurrency(totalEarnings)} />
+          <Row label={`${t("commission")} (${Math.round(commissionRate * 100)}%)`} value={`−${formatCurrency(commission)}`} valueClass="text-red-500" />
           <View className="h-px bg-border" />
           <View className="flex-row items-center justify-between">
-            <Text className="font-sans-bold text-foreground text-base">Ваш доход</Text>
+            <Text className="font-sans-bold text-foreground text-base">{t("your_income")}</Text>
             <Text className="font-display text-foreground text-xl">{formatCurrency(driverIncome)}</Text>
           </View>
         </View>
 
         <View className="bg-card rounded-2xl border border-border p-4 mb-4">
           <Text className="font-sans-bold text-muted-foreground text-[12px] uppercase mb-3" style={{ letterSpacing: 0.5 }}>
-            Детали рейса
+            {t("ride_details")}
           </Text>
           <View className="flex-row">
-            <Stat value={String(ride.distance ?? "—")} label="км" />
-            <Stat value={String(ride.duration ?? "—")} label="минут" />
-            <Stat value={String(seatPassengers.length)} label="пассажиров" />
+            <Stat value={String(ride.distance ?? "—")} label={t("unit_km")} />
+            <Stat value={String(ride.duration ?? "—")} label={t("unit_minutes")} />
+            <Stat value={String(seatPassengers.length)} label={t("unit_pax")} />
           </View>
         </View>
 
         {seatPassengers.length > 0 && (
           <View className="bg-card rounded-2xl border border-border p-4">
             <Text className="font-sans-bold text-muted-foreground text-[12px] uppercase mb-3" style={{ letterSpacing: 0.5 }}>
-              Пассажиры
+              {t("passengers_label")}
             </Text>
             <View style={{ gap: 8 }}>
               {seatPassengers.map((p) => (
@@ -81,7 +83,7 @@ export function CompletionScreen({
 
       <View className="px-5 pb-6 pt-2">
         <Pressable onPress={onClose} className="h-14 rounded-2xl bg-primary items-center justify-center active:opacity-90">
-          <Text className="font-sans-bold text-primary-foreground text-base">Готово</Text>
+          <Text className="font-sans-bold text-primary-foreground text-base">{t("done")}</Text>
         </Pressable>
       </View>
     </View>

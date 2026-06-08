@@ -3,9 +3,11 @@ import { View, Text } from "react-native";
 import { Clock } from "lucide-react-native";
 
 import { colors } from "@/lib/theme";
+import { useT } from "@/lib/i18n";
 
 // Ported from web orders/components/ElapsedTimer.tsx.
 export function ElapsedTimer({ since }: { since?: string }) {
+  const { t } = useT();
   const [elapsed, setElapsed] = useState("");
   useEffect(() => {
     if (!since) return;
@@ -26,7 +28,7 @@ export function ElapsedTimer({ since }: { since?: string }) {
     <View className="flex-row items-center" style={{ gap: 6 }}>
       <Clock size={14} color={colors.mutedForeground} />
       <Text className="font-sans text-muted-foreground text-xs">
-        В пути: <Text className="font-sans-bold text-foreground">{elapsed}</Text>
+        {t("elapsed")} <Text className="font-sans-bold text-foreground">{elapsed}</Text>
       </Text>
     </View>
   );

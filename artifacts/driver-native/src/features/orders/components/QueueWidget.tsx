@@ -2,10 +2,12 @@ import { View, Text } from "react-native";
 import { Users, Zap, TrendingUp } from "lucide-react-native";
 
 import { colors } from "@/lib/theme";
+import { useT } from "@/lib/i18n";
 import type { QueueInfoData } from "../types";
 
 // Ported from web orders/components/QueueWidget.tsx (without the audio cue).
 export function QueueWidget({ queueInfo }: { queueInfo: QueueInfoData | null }) {
+  const { t } = useT();
   if (!queueInfo) return null;
   const pos = queueInfo.position ?? 0;
   const total = queueInfo.total ?? queueInfo.totalInQueue ?? 0;
@@ -20,12 +22,12 @@ export function QueueWidget({ queueInfo }: { queueInfo: QueueInfoData | null }) 
         <View className="flex-row items-center" style={{ gap: 8 }}>
           {isFirst ? <Zap size={16} color={colors.primary} /> : <Users size={16} color={colors.primary} />}
           <Text className="font-sans-bold text-foreground text-sm">
-            {isFirst ? "Вы первый в очереди!" : `Очередь: ${pos} из ${total}`}
+            {isFirst ? t("q_first") : `${t("q_position")}: ${pos} ${t("q_of")} ${total}`}
           </Text>
         </View>
         {!isFirst && avgMin > 0 && (
           <View className="rounded-full bg-muted px-2 py-0.5">
-            <Text className="font-sans-semibold text-muted-foreground text-[13px]">~{avgMin} мин</Text>
+            <Text className="font-sans-semibold text-muted-foreground text-[13px]">~{avgMin} {t("unit_min")}</Text>
           </View>
         )}
       </View>
@@ -33,7 +35,7 @@ export function QueueWidget({ queueInfo }: { queueInfo: QueueInfoData | null }) 
       {!isFirst && (
         <View className="mt-3" style={{ gap: 6 }}>
           <View className="flex-row items-center justify-between">
-            <Text className="font-sans text-muted-foreground text-[13px]">Прогресс очереди</Text>
+            <Text className="font-sans text-muted-foreground text-[13px]">{t("q_progress")}</Text>
             <Text className="font-sans-bold text-foreground text-[13px]">{progressPct}%</Text>
           </View>
           <View className="w-full h-2 bg-muted rounded-full overflow-hidden">
@@ -46,7 +48,7 @@ export function QueueWidget({ queueInfo }: { queueInfo: QueueInfoData | null }) 
         <View className="flex-row items-center mt-2" style={{ gap: 8 }}>
           <TrendingUp size={14} color={colors.primary} />
           <Text className="font-sans-medium text-primary text-xs flex-1">
-            Следующий заказ — ваш. Диспетчер видит вас первым.
+            {t("q_first_sub")}
           </Text>
         </View>
       )}

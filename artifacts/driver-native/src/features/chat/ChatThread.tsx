@@ -12,6 +12,7 @@ import {
 import { Send, Check, CheckCheck, ChevronLeft, Phone } from "lucide-react-native";
 
 import { colors } from "@/lib/theme";
+import { useT } from "@/lib/i18n";
 
 export interface ThreadMessage {
   id: number;
@@ -63,6 +64,7 @@ export function ChatThread({
   onBack: () => void;
   onCall?: () => void;
 }) {
+  const { t } = useT();
   const listRef = useRef<FlatList<ThreadMessage>>(null);
 
   const renderItem = useCallback(
@@ -138,7 +140,7 @@ export function ChatThread({
           onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
           ListEmptyComponent={
             <View className="items-center py-16">
-              <Text className="font-sans text-muted-foreground text-sm">Нет сообщений</Text>
+              <Text className="font-sans text-muted-foreground text-sm">{t("no_messages")}</Text>
             </View>
           }
         />
@@ -148,7 +150,7 @@ export function ChatThread({
         <TextInput
           value={text}
           onChangeText={onChangeText}
-          placeholder="Сообщение…"
+          placeholder={t("message_ph")}
           placeholderTextColor={colors.mutedForeground}
           multiline
           className="flex-1 bg-secondary rounded-2xl px-4 py-2.5 text-foreground font-sans text-[15px] max-h-28"

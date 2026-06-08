@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Alert, BackHandler } from "react-native";
 import { Tabs, Redirect } from "expo-router";
+
+import { preloadSounds } from "@/lib/sounds";
 
 import { useAuth } from "@/hooks/use-auth";
 import { useRideWebSocket } from "@/hooks/use-ride-websocket";
@@ -14,6 +16,7 @@ import { VoiceCallProvider } from "@/features/voice/VoiceCallProvider";
 import { DEMO_DRIVER } from "@/lib/driver";
 import { PREVIEW_MODE, API_BASE_URL } from "@/config";
 import { colors } from "@/lib/theme";
+import { useT } from "@/lib/i18n";
 import type { DriverUser } from "@/types";
 
 // The driver tab shell — equivalent of web DriverLayout. A shared dark header
@@ -21,6 +24,7 @@ import type { DriverUser } from "@/types";
 // 4-tab bar (Заказы/Срочные/Чат/Профиль) sits below. expo-router <Tabs> drives
 // real navigation while DriverHeader/DriverTabBar control the look.
 export default function DriverShellLayout() {
+  const { t } = useT();
   const { user, token, hydrated, logout, refreshUser } = useAuth();
 
   // Establish the driver WebSocket whenever we have a session (no-op in preview).
@@ -29,6 +33,11 @@ export default function DriverShellLayout() {
   // Native background capabilities: foreground GPS service, offer-poll
   // notifications, battery exemption, GPS->WS, FCM token. (Android; no-op on web.)
   useOnlineService();
+
+  // Preload bundled notification sounds so the first event plays instantly.
+  useEffect(() => {
+    preloadSounds();
+  }, []);
 
   const [toggling, setToggling] = useState(false);
   // Preview-only: lets the online/offline toggle visibly flip without a backend.
@@ -46,9 +55,9 @@ export default function DriverShellLayout() {
   // Red top-right button = EXIT the app (like the WebView app's exitApp), NOT
   // logout. Logout (clearing the session) lives only in Profile. Confirm first.
   const handleExit = () => {
-    Alert.alert("Выйти из приложения?", "Приложение закроется. Вы останетесь в аккаунте.", [
-      { text: "Отмена", style: "cancel" },
-      { text: "Выйти", style: "destructive", onPress: () => BackHandler.exitApp() },
+    Alert.alert(t("exit_q"), t("exit_sub"), [
+      { text: t("cancel"), style: "cancel" },
+      { text: t("go_offline_btn"), style: "destructive", onPress: () => BackHandler.exitApp() },
     ]);
   };
 
@@ -77,16 +86,16 @@ export default function DriverShellLayout() {
       } else {
         const err = await res.json().catch(() => ({}) as any);
         if (err?.error === "driver_banned") {
-          Alert.alert("Вы заблокированы", err?.message || "");
+          Alert.alert(t("banned_title"), err?.message || "");
           refreshUser();
         } else if (err?.error === "photo_required") {
-          Alert.alert("Фотоконтроль", err?.message || "");
+          Alert.alert(t("photo_control"), err?.message || "");
         } else {
-          Alert.alert("Ошибка", err?.message || err?.error || "Не удалось изменить статус");
+          Alert.alert(t("err"), err?.message || err?.error || t("status_failed"));
         }
       }
     } catch {
-      Alert.alert("Ошибка сети", "Проверьте подключение к интернету");
+      Alert.alert(t("err_network"), t("err_network_sub"));
     } finally {
       setToggling(false);
     }

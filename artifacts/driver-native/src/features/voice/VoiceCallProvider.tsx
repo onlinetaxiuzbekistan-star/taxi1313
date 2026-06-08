@@ -22,6 +22,7 @@ import { wsEvents } from "@/lib/ws-events";
 import { sendWsMessage } from "@/hooks/use-ride-websocket";
 import { playCall, stopCall } from "@/lib/sounds";
 import { colors } from "@/lib/theme";
+import { useT } from "@/lib/i18n";
 
 // App-WS-signaled WebRTC voice — ported from web DriverIncomingCall.tsx, using
 // react-native-webrtc and the shared driver socket (wsEvents in / sendWsMessage
@@ -63,8 +64,9 @@ const VoiceCallContext = createContext<{ startCall: (peerId: number, peerName: s
 export const useVoiceCall = () => useContext(VoiceCallContext);
 
 export function VoiceCallProvider({ children }: { children: ReactNode }) {
+  const { t } = useT();
   const { user } = useAuth();
-  const myName = user?.name || "Водитель";
+  const myName = user?.name || t("driver_role");
   const [call, setCall] = useState<CallState | null>(null);
   const [muted, setMuted] = useState(false);
   const [duration, setDuration] = useState(0);
@@ -230,7 +232,7 @@ export function VoiceCallProvider({ children }: { children: ReactNode }) {
         const sdp = msg.sdp;
         const offerDesc = typeof sdp === "string" ? { type: "offer", sdp } : sdp?.sdp ? { type: "offer", sdp: sdp.sdp } : sdp;
         activePeerIdRef.current = fromId;
-        setCall({ peerId: fromId, peerName: msg.fromUserName || "Диспетчер", direction: "incoming", state: "ringing", offer: offerDesc });
+        setCall({ peerId: fromId, peerName: msg.fromUserName || t("dispatcher"), direction: "incoming", state: "ringing", offer: offerDesc });
         Vibration.vibrate([0, 800, 600, 800, 600], true);
         playCall(); // bundled call.mp3 ringtone (loops until answered/ended)
       } else if (msg.type === "call_answer" && pcRef.current && msg.sdp && fromId === activePeerIdRef.current) {
@@ -243,7 +245,7 @@ export function VoiceCallProvider({ children }: { children: ReactNode }) {
         endLocal();
       }
     });
-  }, [drainIce, endLocal]);
+  }, [drainIce, endLocal, t]);
 
   useEffect(() => () => cleanup(), [cleanup]);
 
@@ -267,13 +269,13 @@ export function VoiceCallProvider({ children }: { children: ReactNode }) {
               <Text className="font-sans text-muted-foreground text-sm">
                 {call.state === "ringing"
                   ? call.direction === "incoming"
-                    ? "Входящий звонок"
-                    : "Звоним…"
+                    ? t("call_incoming")
+                    : t("call_dialing")
                   : call.state === "connecting"
-                    ? "Соединение…"
+                    ? t("call_connecting")
                     : call.state === "active"
                       ? fmt(duration)
-                      : "Звонок завершён"}
+                      : t("call_ended")}
               </Text>
               <Text className="font-display text-foreground text-xl mt-1 mb-7">{call.peerName}</Text>
 

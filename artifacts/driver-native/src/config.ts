@@ -35,4 +35,4 @@ export const PREVIEW_MODE = process.env.EXPO_PUBLIC_PREVIEW === "1";
 // Visible build marker — lets us instantly confirm a device is running the
 // latest bundle (vs. a stale install that didn't replace the old APK). Bump
 // this string with each meaningful build.
-export const BUILD_TAG = "v1.0.4 · dropdowns/home-card/gps";
+export const BUILD_TAG = "v1.0.5 · sounds/i18n/sell/gps";

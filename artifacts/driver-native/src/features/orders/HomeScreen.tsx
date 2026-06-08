@@ -7,6 +7,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { DriverUser } from "@/types";
 import { getCallsign } from "@/lib/driver";
 import { colors } from "@/lib/theme";
+import { useT } from "@/lib/i18n";
 import { formatCurrency } from "./utils";
 
 // Main Заказы tab when there is NO active ride: identity + tappable car photo +
@@ -24,6 +25,7 @@ export function HomeScreen({
   onCreate: () => void;
   onGoOnline: () => void;
 }) {
+  const { t } = useT();
   const [photo, setPhoto] = useState<string | null>(null);
   const storeKey = `car_photo_${user.id ?? "me"}`;
 
@@ -83,14 +85,14 @@ export function HomeScreen({
               <Car size={48} color={colors.mutedForeground} />
               <View className="flex-row items-center" style={{ gap: 6 }}>
                 <Camera size={15} color={colors.primary} />
-                <Text className="font-sans text-muted-foreground text-[13px]">Тап чтобы добавить фото</Text>
+                <Text className="font-sans text-muted-foreground text-[13px]">{t("home_add_photo")}</Text>
               </View>
             </View>
           )}
         </Pressable>
         {photo ? (
           <Pressable onPress={pickPhoto} className="mt-2 active:opacity-70">
-            <Text className="font-sans text-primary text-[12px]">Изменить фото</Text>
+            <Text className="font-sans text-primary text-[12px]">{t("home_change_photo")}</Text>
           </Pressable>
         ) : null}
 
@@ -99,7 +101,7 @@ export function HomeScreen({
           <View className="flex-row items-center" style={{ gap: 6 }}>
             <Wallet size={16} color={neg ? colors.red : colors.emerald} />
             <Text className="font-sans-bold text-muted-foreground text-[11px] uppercase" style={{ letterSpacing: 0.5 }}>
-              Баланс
+              {t("balance_title")}
             </Text>
           </View>
           <Text className={`font-display text-3xl mt-1 ${neg ? "text-red-400" : "text-foreground"}`}>
@@ -117,7 +119,7 @@ export function HomeScreen({
           style={{ gap: 8 }}
         >
           {creating ? <ActivityIndicator color="#18181b" /> : <Power size={20} color="#18181b" />}
-          <Text className="font-sans-bold text-zinc-900 text-base">Выйти на линию</Text>
+          <Text className="font-sans-bold text-zinc-900 text-base">{t("go_online")}</Text>
         </Pressable>
       ) : (
         <Pressable
@@ -126,7 +128,7 @@ export function HomeScreen({
           style={{ gap: 8 }}
         >
           <Plus size={22} color={colors.primaryForeground} />
-          <Text className="font-sans-bold text-primary-foreground text-base">Создать рейс</Text>
+          <Text className="font-sans-bold text-primary-foreground text-base">{t("create_ride")}</Text>
         </Pressable>
       )}
     </ScrollView>

@@ -4,6 +4,7 @@ import { Alert } from "react-native";
 import { useAuth } from "@/hooks/use-auth";
 import { API_BASE_URL } from "@/config";
 import { wsEvents } from "@/lib/ws-events";
+import { useT } from "@/lib/i18n";
 import type { City, RouteOption, Ride, SeatPassenger, DriverScreen } from "./types";
 
 // A route is ENABLED unless explicitly disabled. Tolerant of API shape variance
@@ -18,6 +19,7 @@ function isRouteEnabled(r: any): boolean {
 // routes, create-ride, load-active-ride, go-online + screen derivation. The full
 // passenger/start/complete action set lands in CP3.
 export function useOrders() {
+  const { t } = useT();
   const { token, user, refreshUser } = useAuth();
 
   const [cities, setCities] = useState<City[]>([]);
@@ -31,6 +33,7 @@ export function useOrders() {
   const [passengerActionLoading, setPassengerActionLoading] = useState<number | null>(null);
   const [clientActionLoading, setClientActionLoading] = useState(false);
   const [sellLoading, setSellLoading] = useState(false);
+  const [sellError, setSellError] = useState<string | null>(null);
   const [completedRide, setCompletedRide] = useState<Ride | null>(null);
   const [commissionRate, setCommissionRate] = useState(0.15);
 
@@ -121,7 +124,7 @@ export function useOrders() {
       if (d.type === "ride_unassigned_by_dispatcher") {
         if (eventRideId == null || activeId == null || isCurrent) {
           clearActive();
-          Alert.alert("Заказ снят", (d as any).message || "Диспетчер снял с вас заказ");
+          Alert.alert(t("order_removed"), (d as any).message || t("order_removed_sub"));
         }
         loadActiveRide();
         return;
@@ -134,7 +137,7 @@ export function useOrders() {
       if (d.type === "ride_updated" || d.type === "trip_updated" || d.type === "new_ride") {
         if (isCurrent && ride?.status === "cancelled") {
           clearActive();
-          Alert.alert("Заказ отменён", "Заказ отменён диспетчером");
+          Alert.alert(t("order_cancelled"), t("order_cancelled_sub"));
           return;
         }
         loadActiveRide();
@@ -172,14 +175,14 @@ export function useOrders() {
       if (res.ok) refreshUser();
       else {
         const e = await res.json().catch(() => ({}) as any);
-        Alert.alert("Ошибка", e?.message || e?.error || "Не удалось выйти на линию");
+        Alert.alert(t("err"), e?.message || e?.error || t("err"));
       }
     } catch {
-      Alert.alert("Ошибка сети", "Проверьте подключение");
+      Alert.alert(t("err_network"), t("err_network_sub"));
     } finally {
       setActionLoading(false);
     }
-  }, [token, headers, refreshUser]);
+  }, [token, headers, refreshUser, t]);
 
   const createRide = useCallback(
     async (fromCity: string, toCity: string, departureTime: string, urgent = false, timeSlot?: string) => {
@@ -198,15 +201,15 @@ export function useOrders() {
           setScreen("seat_view");
           refreshUser();
         } else {
-          Alert.alert("Ошибка", data?.message || "Не удалось создать рейс");
+          Alert.alert(t("err"), data?.message || t("rs_create_failed"));
         }
       } catch {
-        Alert.alert("Ошибка сети", "Проверьте подключение");
+        Alert.alert(t("err_network"), t("err_network_sub"));
       } finally {
         setActionLoading(false);
       }
     },
-    [token, headers, refreshUser],
+    [token, headers, refreshUser, t],
   );
 
   // ---- ride lifecycle actions ----
@@ -244,10 +247,10 @@ export function useOrders() {
         setScreen("active");
         refreshUser();
       } else {
-        Alert.alert("Ошибка", data?.message || "Не удалось начать поездку");
+        Alert.alert(t("err"), data?.message || t("err"));
       }
     } catch {
-      Alert.alert("Ошибка сети", "Проверьте подключение");
+      Alert.alert(t("err_network"), t("err_network_sub"));
     } finally {
       setActionLoading(false);
     }
@@ -265,10 +268,10 @@ export function useOrders() {
         setScreen("completed");
         refreshUser();
       } else {
-        Alert.alert("Ошибка", data?.message || "Не удалось завершить рейс");
+        Alert.alert(t("err"), data?.message || t("err"));
       }
     } catch {
-      Alert.alert("Ошибка сети", "Проверьте подключение");
+      Alert.alert(t("err_network"), t("err_network_sub"));
     } finally {
       setActionLoading(false);
     }
@@ -285,10 +288,10 @@ export function useOrders() {
         setScreen("route_select");
         refreshUser();
       } else {
-        Alert.alert("Ошибка", data?.message || "Не удалось отменить рейс");
+        Alert.alert(t("err"), data?.message || t("err"));
       }
     } catch {
-      Alert.alert("Ошибка сети", "Проверьте подключение");
+      Alert.alert(t("err_network"), t("err_network_sub"));
     } finally {
       setActionLoading(false);
     }
@@ -303,10 +306,10 @@ export function useOrders() {
         if (ok) {
           setPassengers((prev) => prev.map((p) => (p.id === id ? { ...p, status: "picked_up" } : p)));
         } else {
-          Alert.alert("Ошибка", data?.message || "Не удалось подобрать пассажира");
+          Alert.alert(t("err"), data?.message || t("err"));
         }
       } catch {
-        Alert.alert("Ошибка сети", "Проверьте подключение");
+        Alert.alert(t("err_network"), t("err_network_sub"));
       } finally {
         setPassengerActionLoading(null);
         loadActiveRide();
@@ -332,10 +335,10 @@ export function useOrders() {
             refreshUser();
           }
         } else {
-          Alert.alert("Ошибка", data?.message || "Не удалось высадить пассажира");
+          Alert.alert(t("err"), data?.message || t("err"));
         }
       } catch {
-        Alert.alert("Ошибка сети", "Проверьте подключение");
+        Alert.alert(t("err_network"), t("err_network_sub"));
       } finally {
         setPassengerActionLoading(null);
         loadActiveRide();
@@ -357,9 +360,9 @@ export function useOrders() {
           phone: phone || undefined,
         });
         if (ok) await loadActiveRide();
-        else Alert.alert("Ошибка", data?.message || "Не удалось добавить пассажира");
+        else Alert.alert(t("err"), data?.message || t("err"));
       } catch {
-        Alert.alert("Ошибка сети", "Проверьте подключение");
+        Alert.alert(t("err_network"), t("err_network_sub"));
       } finally {
         setClientActionLoading(false);
       }
@@ -378,10 +381,10 @@ export function useOrders() {
           setPassengers((prev) => prev.filter((p) => p.id !== id));
           loadActiveRide();
         } else {
-          Alert.alert("Ошибка", data?.message || "Не удалось снять клиента");
+          Alert.alert(t("err"), data?.message || t("err"));
         }
       } catch {
-        Alert.alert("Ошибка сети", "Проверьте подключение");
+        Alert.alert(t("err_network"), t("err_network_sub"));
       } finally {
         setPassengerActionLoading(null);
       }
@@ -393,29 +396,36 @@ export function useOrders() {
   // POST /api/marketplace/sell — only for not-yet-started rides (accepted/pending).
   const sellOrder = useCallback(
     async (price: number, comment?: string): Promise<boolean> => {
-      if (!activeRide || sellLoading) return false;
+      if (!activeRide || sellLoading) {
+        console.log("[SELL] blocked", { hasRide: !!activeRide, sellLoading });
+        return false;
+      }
       setSellLoading(true);
+      console.log("[SELL] POST /api/marketplace/sell", { rideId: activeRide.id, price, comment });
       try {
         const { ok, data } = await post("/api/marketplace/sell", {
           rideId: activeRide.id,
           price,
           comment: comment || undefined,
         });
+        console.log("[SELL] result", { ok, data });
         if (ok) {
-          Alert.alert("Готово", "Заказ выставлен на продажу оператору");
           loadActiveRide();
           return true;
         }
-        Alert.alert("Ошибка", data?.message || "Не удалось продать заказ");
+        // Surface the server message via the modal (no Alert — it races with the
+        // modal dismiss and gets swallowed on Android).
+        setSellError(data?.message || t("sell_failed"));
         return false;
-      } catch {
-        Alert.alert("Ошибка сети", "Проверьте подключение");
+      } catch (e) {
+        console.log("[SELL] network error", String(e));
+        setSellError(`${t("err_network")}. ${t("err_network_sub")}`);
         return false;
       } finally {
         setSellLoading(false);
       }
     },
-    [activeRide, sellLoading, post, loadActiveRide],
+    [activeRide, sellLoading, post, loadActiveRide, t],
   );
 
   const handleCompletionClose = useCallback(() => {
@@ -453,6 +463,8 @@ export function useOrders() {
     manualClient,
     rejectPassenger,
     sellLoading,
+    sellError,
+    clearSellError: () => setSellError(null),
     sellOrder,
     goOnline,
     createRide,

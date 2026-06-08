@@ -2,6 +2,7 @@ import { View, Text, Pressable, Linking, ActivityIndicator } from "react-native"
 import { User, X, Phone, UserX } from "lucide-react-native";
 
 import { colors } from "@/lib/theme";
+import { useT } from "@/lib/i18n";
 import { formatCurrency } from "../utils";
 import type { SeatPassenger } from "../types";
 
@@ -18,14 +19,15 @@ export function SeatPassengerCard({
   onReject?: (id: number) => void;
   loading?: boolean;
 }) {
+  const { t } = useT();
   const female = passenger.gender === "female";
   const statusLabel =
-    passenger.status === "picked_up" ? "В машине" : passenger.status === "dropped_off" ? "Высажен" : "Ожидает";
+    passenger.status === "picked_up" ? t("st_in_car") : passenger.status === "dropped_off" ? t("st_dropped") : t("st_waiting");
 
   return (
     <View className="bg-card rounded-2xl border border-border overflow-hidden">
       <View className="bg-zinc-900 px-3 py-2.5 flex-row items-center justify-between">
-        <Text className="font-sans-bold text-white text-sm">Место {passenger.seatNumber}</Text>
+        <Text className="font-sans-bold text-white text-sm">{t("seat")} {passenger.seatNumber}</Text>
         <Pressable onPress={onClose} className="w-7 h-7 rounded-lg bg-white/15 items-center justify-center active:opacity-80">
           <X size={14} color="#fff" />
         </Pressable>
@@ -37,7 +39,7 @@ export function SeatPassengerCard({
           </View>
           <View className="flex-1">
             <Text className="font-sans-bold text-foreground text-sm" numberOfLines={1}>
-              {passenger.name || "Пассажир"}
+              {passenger.name || t("passenger")}
             </Text>
             <Text className="font-sans text-muted-foreground text-[12px]">
               {statusLabel} • {formatCurrency(passenger.price)}
@@ -61,7 +63,7 @@ export function SeatPassengerCard({
             style={{ gap: 6, opacity: loading ? 0.5 : 1 }}
           >
             {loading ? <ActivityIndicator size="small" color={colors.red} /> : <UserX size={16} color={colors.red} />}
-            <Text className="font-sans-bold text-red-500 text-sm">Снять клиента</Text>
+            <Text className="font-sans-bold text-red-500 text-sm">{t("remove_client")}</Text>
           </Pressable>
         ) : null}
       </View>
