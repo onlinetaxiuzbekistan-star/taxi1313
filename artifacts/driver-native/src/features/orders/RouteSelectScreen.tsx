@@ -3,6 +3,7 @@ import { View, Text, Pressable, ScrollView, ActivityIndicator } from "react-nati
 import { Car, Clock, ArrowRight, Zap, Check } from "lucide-react-native";
 
 import { colors } from "@/lib/theme";
+import { BUILD_TAG } from "@/config";
 import type { City, RouteOption } from "./types";
 
 // Ported from web orders/components/RouteSelectScreen.tsx — From/To selection +
@@ -130,6 +131,7 @@ export function RouteSelectScreen({
         <Text className="font-sans text-muted-foreground text-sm mt-1">
           Выберите маршрут и время отправления
         </Text>
+        <Text className="font-sans text-primary/50 text-[10px] mt-1">{BUILD_TAG}</Text>
       </View>
 
       {/* From */}

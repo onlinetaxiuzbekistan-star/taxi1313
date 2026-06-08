@@ -6,6 +6,14 @@ import { API_BASE_URL } from "@/config";
 import { wsEvents } from "@/lib/ws-events";
 import type { City, RouteOption, Ride, SeatPassenger, DriverScreen } from "./types";
 
+// A route is ENABLED unless explicitly disabled. Tolerant of API shape variance
+// (isActive / is_active / active / enabled as bool, 0/1, or "true"/"false").
+function isRouteEnabled(r: any): boolean {
+  const flag = r?.isActive ?? r?.is_active ?? r?.active ?? r?.enabled;
+  if (flag === undefined || flag === null) return true; // absent → treat as active
+  return flag !== false && flag !== 0 && flag !== "false" && flag !== "0" && flag !== "f";
+}
+
 // Ported/condensed from web useOrderActions + OrdersMain. CP1 scope: cities,
 // routes, create-ride, load-active-ride, go-online + screen derivation. The full
 // passenger/start/complete action set lands in CP3.
@@ -47,7 +55,7 @@ export function useOrders() {
     // per-origin in RouteSelectScreen, so disabled routes never appear at all.
     fetch(`${API_BASE_URL}/api/routes`)
       .then((r) => r.json())
-      .then((d) => setRoutes((d.routes || []).filter((r: any) => r.isActive !== false)))
+      .then((d) => setRoutes((d.routes || []).filter(isRouteEnabled)))
       .catch(() => {});
     fetch(`${API_BASE_URL}/api/rides/pricing-info`)
       .then((r) => (r.ok ? r.json() : null))
