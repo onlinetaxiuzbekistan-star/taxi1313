@@ -284,7 +284,8 @@ export function SeatViewScreen({
       {onSellOrder ? (
         <SellOrderModal
           visible={showSell}
-          defaultPrice={Number(ride.price || 0)}
+          ride={ride}
+          passengers={passengers}
           loading={sellLoading}
           onClose={() => setShowSell(false)}
           onConfirm={(price, comment) => {
