@@ -1,13 +1,14 @@
 import { View, Text, Pressable, Image } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { User, Wallet, Power, LogOut, Loader2, Bell } from "lucide-react-native";
+import { User, Power, LogOut, Loader2, Bell, Satellite } from "lucide-react-native";
 
 import type { DriverUser } from "@/types";
 import { getCallsign, getPhotoUrl } from "@/lib/driver";
 import { useT } from "@/lib/i18n";
 import { colors } from "@/lib/theme";
 import { useNewsBadge } from "@/features/notifications/use-news-badge";
+import { useGpsActive } from "@/hooks/use-gps-active";
 
 // Faithful native port of the header in web DriverLayout.tsx (lines ~437-497):
 //   [callsign pill] [balance pill]            [online/offline toggle] [exit]
@@ -30,10 +31,9 @@ export function DriverHeader({
 
   const callsign = getCallsign(user);
   const photo = getPhotoUrl(user.driverPhoto);
-  const bal = Number(user.balance || 0);
-  const neg = bal < 0;
   const isOnline = user.status === "online" || user.status === "busy";
   const isBusy = user.status === "busy";
+  const gpsActive = useGpsActive(isOnline);
 
   const statusBg = isBusy ? "bg-amber-500" : isOnline ? "bg-emerald-500" : "bg-red-500";
   const statusBorder = isBusy
@@ -70,26 +70,20 @@ export function DriverHeader({
             </Text>
           </Pressable>
 
-          <Pressable
-            onPress={() => router.push("/wallet")}
-            className={`flex-row items-center px-2 py-1 rounded-lg border active:opacity-80 ${
-              neg ? "bg-red-500/10 border-red-500/30" : "bg-zinc-900 border-zinc-700"
+          {/* GPS status indicator — green when the foreground service is
+              producing fixes, red otherwise (balance moved to the home card). */}
+          <View
+            className={`flex-row items-center px-2 py-1 rounded-lg border ${
+              gpsActive ? "bg-emerald-500/15 border-emerald-500/40" : "bg-red-500/10 border-red-500/30"
             }`}
-            style={{ gap: 4 }}
+            style={{ gap: 5 }}
           >
-            <Wallet size={14} color={neg ? colors.red400 : colors.white} />
-            <Text
-              className={`text-[13px] font-sans-bold ${neg ? "text-red-400" : "text-white"}`}
-            >
-              {bal.toLocaleString("ru-RU")}
+            <View className={`w-2 h-2 rounded-full ${gpsActive ? "bg-emerald-400" : "bg-red-500"}`} />
+            <Satellite size={13} color={gpsActive ? colors.emerald : colors.red} />
+            <Text className={`text-[11px] font-sans-bold ${gpsActive ? "text-emerald-400" : "text-red-400"}`}>
+              GPS
             </Text>
-            <Text
-              className={`text-[9px] font-sans-bold ${neg ? "text-red-400" : "text-white"}`}
-              style={{ opacity: 0.7 }}
-            >
-              {t("balance_unit")}
-            </Text>
-          </Pressable>
+          </View>
         </View>
 
         {/* right: status toggle + exit */}

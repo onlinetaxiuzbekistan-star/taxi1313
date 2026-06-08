@@ -1,33 +1,37 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, type ReactNode } from "react";
 import { View, Text, Pressable, ScrollView, ActivityIndicator } from "react-native";
-import { Car, Clock, ArrowRight, Zap, Check } from "lucide-react-native";
+import { Car, Clock, Zap, Check, MapPin, ChevronDown, ChevronUp, ChevronLeft } from "lucide-react-native";
 
 import { colors } from "@/lib/theme";
 import { BUILD_TAG } from "@/config";
 import type { City, RouteOption } from "./types";
 
-// Ported from web orders/components/RouteSelectScreen.tsx — From/To selection +
-// the 2-hour time-slot picker + urgent mode. (GPS auto-detect of the origin city
-// arrives with maps in CP2; here From is chosen manually.)
+// Create-ride screen — origin auto-detected; КУДА and ВАКТ are collapsible
+// dropdowns (closed by default, expand on tap, collapse on selection). Route
+// filtering keeps only ENABLED routes.
 export function RouteSelectScreen({
   cities,
   routes,
   creating,
   onCreateRide,
   userCity,
+  onBack,
 }: {
   cities: City[];
   routes: RouteOption[];
   creating: boolean;
   onCreateRide: (fromCity: string, toCity: string, departureTime: string, urgent?: boolean, timeSlot?: string) => void;
   userCity?: string | null;
+  onBack?: () => void;
 }) {
   const [fromCity, setFromCity] = useState("");
   const [toCity, setToCity] = useState("");
   const [timeSlot, setTimeSlot] = useState("");
   const [urgentMode, setUrgentMode] = useState(false);
+  const [openDD, setOpenDD] = useState<"from" | "to" | "time" | null>(null);
 
   const fromCityObj = cities.find((c) => c.id === fromCity);
+  const toCityObj = cities.find((c) => c.id === toCity);
   const fromNameRu = fromCityObj?.nameRu || "";
 
   const matchesFrom = (rf: string) =>
@@ -35,7 +39,7 @@ export function RouteSelectScreen({
   const matchesTo = (rt: string, c: City) =>
     rt === c.nameRu || rt === c.id || rt.toLowerCase() === c.nameRu.toLowerCase();
 
-  // Auto-detect the driver's current city as the origin (matches web GPS flow).
+  // Auto-detect the driver's current city as the origin.
   useEffect(() => {
     if (fromCity || !userCity || cities.length === 0) return;
     const uc = String(userCity).toLowerCase();
@@ -45,23 +49,19 @@ export function RouteSelectScreen({
     if (match) setFromCity(match.id);
   }, [userCity, cities, fromCity]);
 
-  // Origin list = ONLY cities that have at least one ENABLED outgoing route
-  // (`routes` is already isActive-filtered upstream). So a city whose routes are
-  // all disabled (e.g. Жиззах/Карши) never appears as an origin either.
+  // Origin list = cities with >=1 enabled outgoing route.
   const originCities = useMemo(() => {
-    if (routes.length === 0) return cities; // no route data (offline) → don't hide everything
+    if (routes.length === 0) return cities;
     return cities.filter((c) => routes.some((r) => matchesTo(r.fromCity, c)));
   }, [routes, cities]);
 
-  // Destination list = ONLY cities reachable via an ENABLED route from the
-  // origin. Disabled routes are completely absent (no greyed-out / "недоступно").
+  // Destination list = cities reachable via an enabled route from the origin.
   const destinationCities = useMemo(() => {
     if (!fromCity) return [];
     const matching = routes.filter((r) => matchesFrom(r.fromCity));
     return cities.filter((c) => c.id !== fromCity && matching.some((r) => matchesTo(r.toCity, c)));
   }, [fromCity, routes, cities]);
 
-  // Auto-select the single destination if there's only one.
   useEffect(() => {
     if (destinationCities.length === 1) setToCity(destinationCities[0].id);
   }, [destinationCities]);
@@ -93,103 +93,72 @@ export function RouteSelectScreen({
     onCreateRide(fromCity, toCity, dep, false, timeSlot.replace("–", "-"));
   };
 
-  const Chip = ({
-    label,
-    selected,
-    tint,
-    onPress,
-  }: {
-    label: string;
-    selected: boolean;
-    tint: "primary" | "red";
-    onPress: () => void;
-  }) => {
-    const dot = selected ? "bg-white" : tint === "red" ? "bg-red-500" : "bg-primary";
-    const box = selected
-      ? tint === "red"
-        ? "bg-red-500 border-red-500"
-        : "bg-primary border-primary"
-      : "bg-card border-border";
-    return (
-      <Pressable
-        onPress={onPress}
-        className={`flex-row items-center rounded-xl border-2 px-3 py-3 active:opacity-90 ${box}`}
-        style={{ gap: 8 }}
-      >
-        <View className={`w-2.5 h-2.5 rounded-full ${dot}`} />
-        <Text
-          className={`font-sans-bold text-sm flex-1 ${selected ? "text-white" : "text-foreground"}`}
-          numberOfLines={1}
-        >
-          {label}
-        </Text>
-      </Pressable>
-    );
-  };
+  const toggle = (dd: "from" | "to" | "time") => setOpenDD((cur) => (cur === dd ? null : dd));
 
   return (
-    <ScrollView className="flex-1 bg-background" contentContainerClassName="px-4 pt-4 pb-10">
-      {/* header */}
-      <View className="items-center py-3 mb-2">
-        <View className="w-16 h-16 rounded-full bg-primary/10 items-center justify-center mb-3">
-          <Car size={32} color={colors.primary} />
-        </View>
+    <ScrollView className="flex-1 bg-background" contentContainerClassName="px-4 pt-3 pb-10">
+      {/* header with back */}
+      <View className="flex-row items-center mb-1" style={{ gap: 4 }}>
+        {onBack ? (
+          <Pressable onPress={onBack} className="w-10 h-10 -ml-2 items-center justify-center active:opacity-70">
+            <ChevronLeft size={24} color={colors.foreground} />
+          </Pressable>
+        ) : null}
         <Text className="font-display text-foreground text-lg">Создать рейс</Text>
-        <Text className="font-sans text-muted-foreground text-sm mt-1">
-          Выберите маршрут и время отправления
-        </Text>
-        <Text className="font-sans text-primary/50 text-[10px] mt-1">{BUILD_TAG}</Text>
       </View>
+      <Text className="font-sans text-primary/50 text-[10px] mb-4">{BUILD_TAG}</Text>
 
-      {/* From */}
-      <Text className="font-sans-bold text-muted-foreground text-[11px] uppercase mb-2" style={{ letterSpacing: 0.5 }}>
-        Откуда
-      </Text>
-      <View style={{ gap: 8 }}>
+      {/* ОТКУДА — auto-detected origin, shown as a compact field (tap to change) */}
+      <Label text="Откуда" />
+      <Dropdown
+        open={openDD === "from"}
+        onToggle={() => toggle("from")}
+        placeholder="Танланг"
+        valueLabel={fromCityObj?.nameRu}
+        leftIcon={<MapPin size={16} color={colors.primary} />}
+      >
         {originCities.map((c) => (
-          <Chip
+          <Option
             key={c.id}
             label={c.nameRu}
-            tint="primary"
             selected={fromCity === c.id}
             onPress={() => {
-              setFromCity(fromCity === c.id ? "" : c.id);
+              setFromCity(c.id);
               setToCity("");
+              setOpenDD(null);
             }}
           />
         ))}
-      </View>
+      </Dropdown>
 
-      <View className="items-center my-3">
-        <ArrowRight size={20} color={colors.mutedForeground} />
-      </View>
-
-      {/* To */}
-      <Text className="font-sans-bold text-muted-foreground text-[11px] uppercase mb-2" style={{ letterSpacing: 0.5 }}>
-        Куда{" "}
-        {fromCity && routes.length > 0 ? (
-          <Text className="text-primary/60">
-            ({destinationCities.length}{" "}
-            {destinationCities.length === 1 ? "направление" : "направлений"})
-          </Text>
-        ) : null}
-      </Text>
-      {fromCity && destinationCities.length === 0 ? (
-        <Text className="font-sans text-muted-foreground text-[13px] py-2">
-          Нет доступных направлений из этого города
-        </Text>
-      ) : null}
-      <View style={{ gap: 8 }}>
-        {destinationCities.map((c) => (
-          <Chip
-            key={c.id}
-            label={c.nameRu}
-            tint="red"
-            selected={toCity === c.id}
-            onPress={() => setToCity(toCity === c.id ? "" : c.id)}
-          />
-        ))}
-      </View>
+      {/* КУДА — dropdown of enabled destinations */}
+      <Label text="Куда" className="mt-4" />
+      <Dropdown
+        open={openDD === "to"}
+        onToggle={() => toggle("to")}
+        placeholder="Танланг"
+        valueLabel={toCityObj?.nameRu}
+        leftIcon={<MapPin size={16} color={colors.red} />}
+        disabled={!fromCity}
+      >
+        {destinationCities.length === 0 ? (
+          <View className="px-3 py-3">
+            <Text className="font-sans text-muted-foreground text-[13px]">Нет доступных направлений</Text>
+          </View>
+        ) : (
+          destinationCities.map((c) => (
+            <Option
+              key={c.id}
+              label={c.nameRu}
+              selected={toCity === c.id}
+              onPress={() => {
+                setToCity(c.id);
+                setOpenDD(null);
+              }}
+            />
+          ))
+        )}
+      </Dropdown>
 
       {/* Type toggle */}
       <View className="flex-row mt-5" style={{ gap: 8 }}>
@@ -199,14 +168,13 @@ export function RouteSelectScreen({
             !urgentMode ? "bg-primary border-primary" : "bg-card border-border"
           }`}
         >
-          <Text className={`font-sans-bold text-xs ${!urgentMode ? "text-white" : "text-foreground"}`}>
-            По времени
-          </Text>
+          <Text className={`font-sans-bold text-xs ${!urgentMode ? "text-white" : "text-foreground"}`}>По времени</Text>
         </Pressable>
         <Pressable
           onPress={() => {
             setUrgentMode(true);
             setTimeSlot("");
+            setOpenDD(null);
           }}
           className={`flex-1 py-2.5 rounded-xl border-2 flex-row items-center justify-center active:opacity-90 ${
             urgentMode ? "bg-amber-500 border-amber-500" : "bg-card border-border"
@@ -214,71 +182,38 @@ export function RouteSelectScreen({
           style={{ gap: 4 }}
         >
           <Zap size={14} color={urgentMode ? "#fff" : colors.foreground} />
-          <Text className={`font-sans-bold text-xs ${urgentMode ? "text-white" : "text-foreground"}`}>
-            Только срочные
-          </Text>
+          <Text className={`font-sans-bold text-xs ${urgentMode ? "text-white" : "text-foreground"}`}>Только срочные</Text>
         </Pressable>
       </View>
 
-      {/* Time slots */}
+      {/* ВАКТ — time dropdown */}
       {!urgentMode ? (
-        <View className="mt-4">
-          <View className="flex-row items-center mb-2.5" style={{ gap: 8 }}>
-            <Clock size={16} color={colors.primary} />
-            <Text className="font-sans-bold text-foreground text-sm">Время отправления</Text>
-          </View>
-          <View style={{ gap: 8 }}>
-            {timeSlotsData.map(({ label }) => {
-              const selected = timeSlot === label;
-              const [start, end] = label.split("–");
-              return (
-                <Pressable
-                  key={label}
-                  onPress={() => setTimeSlot(selected ? "" : label)}
-                  className={`flex-row items-center rounded-2xl border px-3 py-3 active:opacity-90 ${
-                    selected ? "bg-emerald-500/15 border-emerald-500" : "bg-card border-border"
-                  }`}
-                  style={{ gap: 12 }}
-                >
-                  <View
-                    className={`w-10 h-10 rounded-xl items-center justify-center ${
-                      selected ? "bg-emerald-500" : "bg-secondary"
-                    }`}
-                  >
-                    <Clock size={18} color={selected ? "#fff" : colors.mutedForeground} />
-                  </View>
-                  <View className="flex-row items-center flex-1" style={{ gap: 4 }}>
-                    <Text className={`font-sans-bold text-base ${selected ? "text-emerald-400" : "text-foreground"}`}>
-                      {start}
-                    </Text>
-                    <Text className={`font-sans-bold text-sm ${selected ? "text-emerald-400/50" : "text-muted-foreground"}`}>
-                      –
-                    </Text>
-                    <Text className={`font-sans-bold text-base ${selected ? "text-emerald-400" : "text-foreground"}`}>
-                      {end}
-                    </Text>
-                  </View>
-                  {selected ? (
-                    <View className="w-5 h-5 rounded-full bg-emerald-500 items-center justify-center">
-                      <Check size={12} color="#fff" strokeWidth={3} />
-                    </View>
-                  ) : null}
-                </Pressable>
-              );
-            })}
-          </View>
-          {!timeSlot && (
-            <View className="flex-row items-center justify-center mt-2.5" style={{ gap: 4 }}>
-              <Clock size={12} color={colors.amber} />
-              <Text className="font-sans-medium text-[12px] text-amber-500">Выберите время отправления</Text>
-            </View>
-          )}
-        </View>
+        <>
+          <Label text="Время отправления" className="mt-4" />
+          <Dropdown
+            open={openDD === "time"}
+            onToggle={() => toggle("time")}
+            placeholder="Выберите время"
+            valueLabel={timeSlot ? timeSlot.replace("–", " – ") : undefined}
+            leftIcon={<Clock size={16} color={colors.primary} />}
+          >
+            {timeSlotsData.map(({ label }) => (
+              <Option
+                key={label}
+                label={label.replace("–", " – ")}
+                selected={timeSlot === label}
+                onPress={() => {
+                  setTimeSlot(label);
+                  setOpenDD(null);
+                }}
+              />
+            ))}
+          </Dropdown>
+        </>
       ) : (
         <View className="mt-4 rounded-xl bg-amber-500/10 border border-amber-500/30 p-3">
           <Text className="font-sans text-xs text-amber-400" style={{ lineHeight: 18 }}>
-            Получаете только срочные заказы (без интервала времени) на выбранный маршрут. Время
-            отправления — сейчас.
+            Получаете только срочные заказы (без интервала времени) на выбранный маршрут. Время отправления — сейчас.
           </Text>
         </View>
       )}
@@ -304,5 +239,64 @@ export function RouteSelectScreen({
         </Text>
       </Pressable>
     </ScrollView>
+  );
+}
+
+function Label({ text, className = "" }: { text: string; className?: string }) {
+  return (
+    <Text className={`font-sans-bold text-muted-foreground text-[11px] uppercase mb-2 ${className}`} style={{ letterSpacing: 0.5 }}>
+      {text}
+    </Text>
+  );
+}
+
+function Dropdown({
+  open,
+  onToggle,
+  placeholder,
+  valueLabel,
+  leftIcon,
+  disabled,
+  children,
+}: {
+  open: boolean;
+  onToggle: () => void;
+  placeholder: string;
+  valueLabel?: string;
+  leftIcon?: ReactNode;
+  disabled?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <View>
+      <Pressable
+        onPress={() => !disabled && onToggle()}
+        disabled={disabled}
+        className={`flex-row items-center bg-card border rounded-xl px-3 py-3.5 active:opacity-90 ${
+          open ? "border-primary" : "border-border"
+        }`}
+        style={{ gap: 10, opacity: disabled ? 0.5 : 1 }}
+      >
+        {leftIcon}
+        <Text className={`flex-1 font-sans-bold text-sm ${valueLabel ? "text-foreground" : "text-muted-foreground"}`}>
+          {valueLabel || placeholder}
+        </Text>
+        {open ? <ChevronUp size={18} color={colors.mutedForeground} /> : <ChevronDown size={18} color={colors.mutedForeground} />}
+      </Pressable>
+      {open ? <View className="mt-1.5 bg-card border border-border rounded-xl overflow-hidden">{children}</View> : null}
+    </View>
+  );
+}
+
+function Option({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      className={`flex-row items-center px-3 py-3 border-b border-border active:opacity-80 ${selected ? "bg-emerald-500/10" : ""}`}
+      style={{ gap: 8 }}
+    >
+      <Text className={`flex-1 font-sans-bold text-sm ${selected ? "text-emerald-400" : "text-foreground"}`}>{label}</Text>
+      {selected ? <Check size={16} color={colors.emerald} strokeWidth={3} /> : null}
+    </Pressable>
   );
 }

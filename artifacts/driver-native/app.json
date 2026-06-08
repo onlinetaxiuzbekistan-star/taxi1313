@@ -2,7 +2,7 @@
   "expo": {
     "name": "Taxi 1313 — Водитель",
     "slug": "driver-native",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "scheme": "taxi1313driver",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -20,7 +20,7 @@
     },
     "android": {
       "package": "ru.taxi1313.drivernative",
-      "versionCode": 4,
+      "versionCode": 5,
       "adaptiveIcon": {
         "backgroundColor": "#0A0A1A",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -46,7 +46,13 @@
       ],
       "@maplibre/maplibre-react-native",
       "@config-plugins/react-native-webrtc",
-      "expo-audio"
+      "expo-audio",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Разрешите доступ к фото, чтобы добавить фото автомобиля."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
