@@ -1,12 +1,13 @@
 import { View, Text, Pressable, Image } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { User, Wallet, Power, LogOut, Loader2 } from "lucide-react-native";
+import { User, Wallet, Power, LogOut, Loader2, Bell } from "lucide-react-native";
 
 import type { DriverUser } from "@/types";
 import { getCallsign, getPhotoUrl } from "@/lib/driver";
 import { useT } from "@/lib/i18n";
 import { colors } from "@/lib/theme";
+import { useNewsBadge } from "@/features/notifications/use-news-badge";
 
 // Faithful native port of the header in web DriverLayout.tsx (lines ~437-497):
 //   [callsign pill] [balance pill]            [online/offline toggle] [exit]
@@ -25,6 +26,7 @@ export function DriverHeader({
   const insets = useSafeAreaInsets();
   const { t } = useT();
   const router = useRouter();
+  const newsCount = useNewsBadge();
 
   const callsign = getCallsign(user);
   const photo = getPhotoUrl(user.driverPhoto);
@@ -108,6 +110,21 @@ export function DriverHeader({
               <Loader2 size={14} color={colors.white} />
             ) : (
               <Power size={14} color={colors.white} />
+            )}
+          </Pressable>
+
+          <Pressable
+            onPress={() => router.push("/news")}
+            className="relative w-8 h-8 rounded-full bg-white/[0.06] items-center justify-center active:opacity-80"
+          >
+            <Bell size={15} color={colors.foreground} />
+            {newsCount > 0 && (
+              <View
+                className="absolute bg-red-500 rounded-full items-center justify-center px-0.5"
+                style={{ top: -3, right: -3, minWidth: 15, height: 15 }}
+              >
+                <Text className="text-white text-[9px] font-sans-bold">{newsCount > 9 ? "9+" : newsCount}</Text>
+              </View>
             )}
           </Pressable>
 
