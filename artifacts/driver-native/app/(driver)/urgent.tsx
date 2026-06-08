@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
-import { View, Text, Pressable, ScrollView, ActivityIndicator, RefreshControl } from "react-native";
-import { Zap, MapPin, Check } from "lucide-react-native";
+import { View, Text, Pressable, ScrollView, ActivityIndicator, RefreshControl, Alert } from "react-native";
+import { Zap, MapPin, Check, ShoppingBag, User, Clock } from "lucide-react-native";
 
 import { useAuth } from "@/hooks/use-auth";
 import { API_BASE_URL } from "@/config";
@@ -9,24 +9,38 @@ import { formatCurrency } from "@/features/orders/utils";
 import { wsEvents } from "@/lib/ws-events";
 
 type Offer = { offerId: number; ride: any };
+type Listing = {
+  id: number;
+  fromCity: string;
+  toCity: string;
+  price: number;
+  sellerName?: string;
+  seatsCount?: number;
+  passengers?: number;
+  carClass?: string;
+  comment?: string;
+  scheduledAt?: string;
+  timeSlot?: string;
+};
 
-// Срочные tab — list of pending offers the driver can accept.
+// Срочные tab — urgent offers (accept) + marketplace listings (buy).
 export default function UrgentScreen() {
   const { token } = useAuth();
   const [offers, setOffers] = useState<Offer[]>([]);
+  const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
-  const [acceptingId, setAcceptingId] = useState<number | null>(null);
+  const [busyId, setBusyId] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     if (!token) return;
+    const headers = { Authorization: `Bearer ${token}` };
     try {
-      const res = await fetch(`${API_BASE_URL}/api/drivers/pending-offers`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const d = await res.json();
-        setOffers(d.offers || []);
-      }
+      const [oRes, lRes] = await Promise.all([
+        fetch(`${API_BASE_URL}/api/drivers/pending-offers`, { headers }),
+        fetch(`${API_BASE_URL}/api/marketplace/listings`, { headers }),
+      ]);
+      if (oRes.ok) setOffers((await oRes.json()).offers || []);
+      if (lRes.ok) setListings((await lRes.json()).listings || []);
     } catch {
     } finally {
       setLoading(false);
@@ -35,9 +49,9 @@ export default function UrgentScreen() {
 
   useEffect(() => {
     load();
-    const iv = setInterval(load, 8000);
-    const off = wsEvents.on((d) => {
-      if (d.type === "new_order" || d.type === "new_ride") load();
+    const iv = setInterval(load, 10000);
+    const off = wsEvents.on((d: any) => {
+      if (["new_order", "new_ride", "ride_updated"].includes(d.type)) load();
     });
     return () => {
       clearInterval(iv);
@@ -46,18 +60,41 @@ export default function UrgentScreen() {
   }, [load]);
 
   const accept = async (offer: Offer) => {
-    if (acceptingId) return;
-    setAcceptingId(offer.offerId);
+    if (busyId) return;
+    setBusyId(offer.offerId);
     try {
       const res = await fetch(`${API_BASE_URL}/api/drivers/accept`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ rideId: offer.ride?.id }),
       });
-      if (res.ok) setOffers((prev) => prev.filter((o) => o.offerId !== offer.offerId));
+      if (res.ok) setOffers((p) => p.filter((o) => o.offerId !== offer.offerId));
     } catch {
     } finally {
-      setAcceptingId(null);
+      setBusyId(null);
+    }
+  };
+
+  const buy = async (listing: Listing) => {
+    if (busyId) return;
+    setBusyId(listing.id);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/marketplace/buy`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ listingId: listing.id }),
+      });
+      const d = await res.json().catch(() => ({}) as any);
+      if (res.ok) {
+        setListings((p) => p.filter((l) => l.id !== listing.id));
+        Alert.alert("Куплено", "Заказ добавлен в ваши рейсы");
+      } else {
+        Alert.alert("Ошибка", d.message || "Не удалось купить");
+      }
+    } catch {
+      Alert.alert("Ошибка сети", "Проверьте подключение");
+    } finally {
+      setBusyId(null);
     }
   };
 
@@ -69,13 +106,15 @@ export default function UrgentScreen() {
     );
   }
 
+  const empty = offers.length === 0 && listings.length === 0;
+
   return (
     <ScrollView
       className="flex-1 bg-background"
       contentContainerClassName="p-4"
       refreshControl={<RefreshControl refreshing={false} onRefresh={load} tintColor={colors.primary} />}
     >
-      {offers.length === 0 ? (
+      {empty ? (
         <View className="items-center justify-center py-24">
           <View className="w-20 h-20 rounded-2xl bg-primary/[0.12] items-center justify-center mb-4">
             <Zap size={36} color={colors.primary} />
@@ -84,52 +123,111 @@ export default function UrgentScreen() {
           <Text className="font-sans text-muted-foreground text-sm">Пока нет доступных заказов</Text>
         </View>
       ) : (
-        <View style={{ gap: 10 }}>
-          {offers.map((offer) => {
-            const r = offer.ride || {};
-            return (
-              <View key={offer.offerId} className="bg-card border border-border rounded-2xl p-4">
-                <View className="flex-row items-center" style={{ gap: 10 }}>
-                  <View className="items-center" style={{ gap: 2 }}>
-                    <View className="w-3 h-3 rounded-full bg-emerald-500" />
-                    <View style={{ width: 1, height: 16, backgroundColor: colors.border }} />
-                    <View className="w-3 h-3 rounded-full bg-red-500" />
-                  </View>
-                  <View className="flex-1">
-                    <Text className="font-sans-bold text-foreground text-sm" numberOfLines={1}>
-                      {r.fromDistrictName || r.fromCity || "—"}
-                    </Text>
-                    <View className="h-2" />
-                    <Text className="font-sans-bold text-foreground text-sm" numberOfLines={1}>
-                      {r.toDistrictName || r.toCity || "—"}
-                    </Text>
-                  </View>
-                  <View className="items-end">
-                    <Text className="font-display text-foreground text-lg">{formatCurrency(r.price)}</Text>
-                    <View className="flex-row items-center" style={{ gap: 3 }}>
-                      <MapPin size={12} color={colors.mutedForeground} />
-                      <Text className="font-sans text-muted-foreground text-[12px]">{r.distance ?? "—"} км</Text>
+        <>
+          {offers.length > 0 && (
+            <>
+              <Text className="font-sans-bold text-muted-foreground text-[11px] uppercase mb-2" style={{ letterSpacing: 0.5 }}>
+                Срочные заказы
+              </Text>
+              <View style={{ gap: 10 }}>
+                {offers.map((offer) => {
+                  const r = offer.ride || {};
+                  return (
+                    <View key={offer.offerId} className="bg-card border border-border rounded-2xl p-4">
+                      <Route from={r.fromDistrictName || r.fromCity} to={r.toDistrictName || r.toCity} price={r.price} distance={r.distance} />
+                      <Pressable
+                        onPress={() => accept(offer)}
+                        disabled={busyId === offer.offerId}
+                        className="mt-3 py-3 rounded-xl bg-emerald-500 flex-row items-center justify-center active:opacity-90"
+                        style={{ gap: 6 }}
+                      >
+                        {busyId === offer.offerId ? <ActivityIndicator color="#fff" /> : <Check size={18} color="#fff" />}
+                        <Text className="font-sans-bold text-white text-sm">Принять заказ</Text>
+                      </Pressable>
                     </View>
-                  </View>
-                </View>
-                <Pressable
-                  onPress={() => accept(offer)}
-                  disabled={acceptingId === offer.offerId}
-                  className="mt-3 py-3 rounded-xl bg-emerald-500 flex-row items-center justify-center active:opacity-90"
-                  style={{ gap: 6 }}
-                >
-                  {acceptingId === offer.offerId ? (
-                    <ActivityIndicator color="#fff" />
-                  ) : (
-                    <Check size={18} color="#fff" />
-                  )}
-                  <Text className="font-sans-bold text-white text-sm">Принять заказ</Text>
-                </Pressable>
+                  );
+                })}
               </View>
-            );
-          })}
-        </View>
+            </>
+          )}
+
+          {listings.length > 0 && (
+            <>
+              <View className="flex-row items-center mt-5 mb-2" style={{ gap: 6 }}>
+                <ShoppingBag size={14} color={colors.primary} />
+                <Text className="font-sans-bold text-muted-foreground text-[11px] uppercase" style={{ letterSpacing: 0.5 }}>
+                  Маркет
+                </Text>
+              </View>
+              <View style={{ gap: 10 }}>
+                {listings.map((l) => (
+                  <View key={l.id} className="bg-card border border-border rounded-2xl p-4">
+                    <Route from={l.fromCity} to={l.toCity} price={l.price} />
+                    <View className="flex-row items-center mt-2" style={{ gap: 12 }}>
+                      {l.sellerName ? (
+                        <View className="flex-row items-center" style={{ gap: 4 }}>
+                          <User size={12} color={colors.mutedForeground} />
+                          <Text className="font-sans text-muted-foreground text-[12px]">{l.sellerName}</Text>
+                        </View>
+                      ) : null}
+                      {l.timeSlot ? (
+                        <View className="flex-row items-center" style={{ gap: 4 }}>
+                          <Clock size={12} color={colors.mutedForeground} />
+                          <Text className="font-sans text-muted-foreground text-[12px]">{l.timeSlot}</Text>
+                        </View>
+                      ) : null}
+                    </View>
+                    {l.comment ? (
+                      <Text className="font-sans text-muted-foreground text-[12px] mt-1" numberOfLines={2}>
+                        {l.comment}
+                      </Text>
+                    ) : null}
+                    <Pressable
+                      onPress={() => buy(l)}
+                      disabled={busyId === l.id}
+                      className="mt-3 py-3 rounded-xl bg-primary flex-row items-center justify-center active:opacity-90"
+                      style={{ gap: 6 }}
+                    >
+                      {busyId === l.id ? <ActivityIndicator color={colors.primaryForeground} /> : <ShoppingBag size={18} color={colors.primaryForeground} />}
+                      <Text className="font-sans-bold text-primary-foreground text-sm">Купить · {formatCurrency(l.price)}</Text>
+                    </Pressable>
+                  </View>
+                ))}
+              </View>
+            </>
+          )}
+        </>
       )}
     </ScrollView>
+  );
+}
+
+function Route({ from, to, price, distance }: { from?: string; to?: string; price?: number; distance?: number | string }) {
+  return (
+    <View className="flex-row items-center" style={{ gap: 10 }}>
+      <View className="items-center" style={{ gap: 2 }}>
+        <View className="w-3 h-3 rounded-full bg-emerald-500" />
+        <View style={{ width: 1, height: 16, backgroundColor: colors.border }} />
+        <View className="w-3 h-3 rounded-full bg-red-500" />
+      </View>
+      <View className="flex-1">
+        <Text className="font-sans-bold text-foreground text-sm" numberOfLines={1}>
+          {from || "—"}
+        </Text>
+        <View className="h-2" />
+        <Text className="font-sans-bold text-foreground text-sm" numberOfLines={1}>
+          {to || "—"}
+        </Text>
+      </View>
+      <View className="items-end">
+        <Text className="font-display text-foreground text-lg">{formatCurrency(price)}</Text>
+        {distance != null ? (
+          <View className="flex-row items-center" style={{ gap: 3 }}>
+            <MapPin size={12} color={colors.mutedForeground} />
+            <Text className="font-sans text-muted-foreground text-[12px]">{distance} км</Text>
+          </View>
+        ) : null}
+      </View>
+    </View>
   );
 }
