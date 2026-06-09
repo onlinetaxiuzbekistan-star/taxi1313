@@ -517,6 +517,20 @@ export async function clearUnassignCooldown(rideId: number): Promise<void> {
   }
 }
 
+// Per-driver clear. The cooldown only exists to stop AUTO-dispatch from instantly
+// re-offering a just-unassigned ride to the same driver. When a dispatcher
+// EXPLICITLY re-offers the ride to that driver, that's a deliberate override —
+// clear this one driver's cooldown so the driver can accept immediately (the
+// /accept guard would otherwise reject for up to 2 min). Other unassigned
+// drivers for this ride keep their cooldown.
+export async function clearUnassignCooldownFor(rideId: number, driverId: number): Promise<void> {
+  try {
+    await redis.del(cooldownKey(rideId, driverId));
+  } catch {
+    /* */
+  }
+}
+
 export function stopDispatchLoop(rideId: number) {
   const controller = activeLoops.get(rideId);
   if (controller) {

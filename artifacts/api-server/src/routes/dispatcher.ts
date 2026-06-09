@@ -10,7 +10,7 @@ import { notifyOrderAssigned, notifyNewOrder } from "../lib/notifications.js";
 import { applyCancelPenalty } from "../lib/bonuses.js";
 import { authMiddleware, requireRole } from "../middlewares/auth.js";
 import { getSettingNum } from "../lib/settingsCache.js";
-import { resendOfferIfStillPending, scheduleAckTimeout } from "../lib/autodispatch.js";
+import { resendOfferIfStillPending, scheduleAckTimeout, clearUnassignCooldownFor } from "../lib/autodispatch.js";
 
 const dispatcherOfferBodySchema = z.object({
   rideId: z.union([z.number(), z.string()]),
@@ -72,6 +72,11 @@ async function sendOfferToDriver(
   if (!["pending", "new"].includes(ride.status as string)) {
     return { success: false, error: "Рейс уже назначен или завершён", status: 400 };
   }
+
+  // Dispatcher is explicitly (re-)offering this ride to this driver — override any
+  // unassign cooldown for this pair so the driver can accept right away (otherwise
+  // the /accept guard rejects for up to 2 min after a manual unassign).
+  await clearUnassignCooldownFor(numRideId, numDriverId);
 
   await db.update(orderOffersTable)
     .set({ status: "expired", respondedAt: new Date() })

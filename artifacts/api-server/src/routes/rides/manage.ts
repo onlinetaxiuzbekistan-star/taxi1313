@@ -595,9 +595,17 @@ router.post("/:id/cancel", authMiddleware, requireRole("dispatcher", "admin"), v
       .returning();
 
     if (existing.tripId) {
+      // external_key бывает двух форматов: "merged-ride-<id>" (ручной/маркетплейс)
+      // и "merged-ride-<id>-pax-<n>" / "-seat-<n>" (автодиспетчинг) — ловим оба.
       const externalKey = `merged-ride-${rideId}`;
       const deleted = await db.delete(ridePassengersTable)
-        .where(and(eq(ridePassengersTable.rideId, existing.tripId), eq(ridePassengersTable.externalKey, externalKey)))
+        .where(and(
+          eq(ridePassengersTable.rideId, existing.tripId),
+          or(
+            eq(ridePassengersTable.externalKey, externalKey),
+            like(ridePassengersTable.externalKey, `${externalKey}-%`),
+          ),
+        ))
         .returning({ id: ridePassengersTable.id });
       const removedCount = deleted.length || (existing.passengers || 1);
       req.log.info({ tripId: existing.tripId, childRideId: rideId, removedPassengers: deleted.length }, "Removed merged passengers from parent trip on cancel");
@@ -653,6 +661,23 @@ router.post("/:id/cancel", authMiddleware, requireRole("dispatcher", "admin"), v
       .where(and(eq(orderOffersTable.rideId, rideId), eq(orderOffersTable.status, "pending")));
 
     broadcastToAll({ type: "ride_updated", ride });
+
+    // Targeted clear for the assigned driver — mirrors unassign-driver. Without this
+    // the driver only loses the order via the broadcastToAll(ride_updated) path,
+    // which the app clears ONLY when the cancelled ride's id == its active-ride id.
+    // That misses the merged case (active id = trip id ≠ cancelled child id) and the
+    // moment right after accept (active id not yet set) → the order lingered up to
+    // the ~15s idle poll. ride_unassigned_by_dispatcher is cleared unconditionally
+    // by the driver app, so the order vanishes instantly on cancel too.
+    if (existing.driverId) {
+      broadcastToUser(existing.driverId, {
+        type: "ride_unassigned_by_dispatcher",
+        rideId,
+        tripId: existing.tripId ?? undefined,
+        message: "Заказ отменён диспетчером",
+      });
+    }
+
     notifyRideStatusChange(rideId, "cancelled").catch(() => {});
     res.json(ride);
   } catch (err) {
@@ -708,21 +733,83 @@ router.post("/:id/unassign-driver", authMiddleware, requireRole("dispatcher", "a
       .set({ status: "expired", respondedAt: new Date() })
       .where(and(eq(orderOffersTable.rideId, rideId), eq(orderOffersTable.status, "pending")));
 
-    // 3. освободим водителя (status=online), счётчик отказов НЕ инкрементируем (это диспетчер снял)
-    await db.update(usersTable)
-      .set({ status: "online", updatedAt: new Date() })
-      .where(eq(usersTable.id, previousDriverId));
+    // Был ли заказ ВКЛЕЕН в рейс водителя (merged), а не назначен напрямую?
+    // В этом случае пассажир заказа лежит в ride_passengers РЕЙСА (tripId), и его
+    // надо физически снять оттуда — иначе он остаётся видимым у водителя.
+    const parentTripId = existing.tripId;
+    const wasMerged = !!parentTripId;
 
-    // 4. сбросим заказ в pending без водителя
+    // 3. освободим водителя (status=online), счётчик отказов НЕ инкрементируем (это диспетчер снял).
+    //    Для merged-заказа НЕ трогаем статус водителя: он всё ещё едет по своему рейсу
+    //    (там могут быть другие пассажиры) — освобождать его нельзя.
+    if (!wasMerged) {
+      await db.update(usersTable)
+        .set({ status: "online", updatedAt: new Date() })
+        .where(eq(usersTable.id, previousDriverId));
+    }
+
+    // 4. сбросим заказ в pending без водителя И без привязки к рейсу.
+    //    Чистим ВСЕ денормализованные поля водителя (driver_name/phone/car/...),
+    //    иначе у диспетчера в карточке заказа продолжает отображаться снятый
+    //    водитель (панель читает эти колонки, а не join по driver_id).
     const [ride] = await db.update(ridesTable)
-      .set({ driverId: null, status: "pending", updatedAt: new Date() })
+      .set({
+        driverId: null,
+        driverName: null,
+        driverPhone: null,
+        driverCar: null,
+        driverCarNumber: null,
+        driverRating: null,
+        status: "pending",
+        tripId: null,
+        updatedAt: new Date(),
+      })
       .where(eq(ridesTable.id, rideId))
       .returning();
+
+    // 4a. Если заказ был вклеен в рейс — снять его пассажиров из ride_passengers рейса,
+    //     пересчитать места рейса, почистить waypoints и оповестить водителя (trip_updated),
+    //     чтобы место реально исчезло у него в приложении.
+    //     external_key бывает двух форматов:
+    //       - "merged-ride-<id>"           (ручной merge / маркетплейс)
+    //       - "merged-ride-<id>-pax-<n>" / "merged-ride-<id>-seat-<n>" (автодиспетчинг)
+    if (wasMerged && parentTripId) {
+      const exactKey = `merged-ride-${rideId}`;
+      const deleted = await db.delete(ridePassengersTable)
+        .where(and(
+          eq(ridePassengersTable.rideId, parentTripId),
+          or(
+            eq(ridePassengersTable.externalKey, exactKey),
+            like(ridePassengersTable.externalKey, `${exactKey}-%`),
+          ),
+        ))
+        .returning({ id: ridePassengersTable.id });
+      req.log.info({ tripId: parentTripId, childRideId: rideId, removedPassengers: deleted.length }, "Removed merged passengers from parent trip on unassign");
+
+      const remaining = await db.select({ cnt: sql<number>`count(*)` })
+        .from(ridePassengersTable).where(eq(ridePassengersTable.rideId, parentTripId));
+      const remainingCount = Number(remaining[0]?.cnt || 0);
+
+      const [parentTrip] = await db.select().from(ridesTable).where(eq(ridesTable.id, parentTripId));
+      const tripUpdateFields: Record<string, any> = {
+        seatsTaken: remainingCount,
+        passengers: remainingCount,
+        updatedAt: new Date(),
+      };
+      if (parentTrip?.waypoints && Array.isArray(parentTrip.waypoints)) {
+        tripUpdateFields.waypoints = (parentTrip.waypoints as any[]).filter((wp: any) => wp.rideId !== rideId);
+      }
+      await db.update(ridesTable).set(tripUpdateFields).where(eq(ridesTable.id, parentTripId));
+
+      const [updatedTrip] = await db.select().from(ridesTable).where(eq(ridesTable.id, parentTripId));
+      if (updatedTrip) broadcastToAll({ type: "trip_updated", trip: updatedTrip });
+    }
 
     // 5. точечно уведомим бывшего водителя (у него заказ должен исчезнуть с подсказкой)
     broadcastToUser(previousDriverId, {
       type: "ride_unassigned_by_dispatcher",
       rideId,
+      tripId: parentTripId ?? undefined,
       message: "Диспетчер снял с вас этот заказ",
     });
 

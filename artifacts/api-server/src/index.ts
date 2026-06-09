@@ -14,6 +14,7 @@ import { startMemoryGuardian, stopMemoryGuardian } from "./lib/memory-guardian.j
 import { seedDatabase } from "./lib/seed.js";
 import { startAutoCancelScheduler, stopAutoCancelScheduler } from "./lib/order-auto-cancel.js";
 import { startDispatchSweep, stopDispatchSweep } from "./lib/autodispatch.js";
+import { startPresenceReaper, stopPresenceReaper } from "./lib/presence-reaper.js";
 import { startWorkers, stopWorkers } from "./lib/queues/workers.js";
 import { stopIdempotencyCleanup } from "./lib/idempotency.js";
 import { stopDriverCacheSync } from "./lib/driver-cache.js";
@@ -104,6 +105,7 @@ function startSingletonServices() {
   startAutoCancelScheduler();
   startListingsCleanupScheduler();
   startDispatchSweep();
+  startPresenceReaper();
   startWorkers();
   warmupPhotoWorker().catch(() => {});
 }
@@ -152,6 +154,7 @@ async function shutdown(signal: string) {
     stopListingsCleanupScheduler();
     stopMemoryGuardian();
     stopDispatchSweep(); // also clears the acked-offer prune timer
+    stopPresenceReaper();
 
     // 1a) Stop module-scope interval timers so they don't fire DB/Redis work
     // during the drain window after the pool/redis begin closing.

@@ -17,8 +17,25 @@ const server = http.createServer((req, res) => {
 
 const wss = new WebSocketServer({ server, handleProtocols: () => 'sip' });
 
-let activeWs = null;
+const clients = new Set();
 const udpSocket = dgram.createSocket('udp4');
+
+// Broadcast a raw message to every connected dispatcher socket. Replaces the old
+// single-activeWs model so multiple dispatchers/tabs all see incoming calls and
+// the waiting queue, and a new connection no longer kills the previous one.
+// NOTE: SIP/RTP is still ONE line — whoever answers first takes the audio;
+// simultaneous answering of DIFFERENT calls would need a multi-line PBX redesign.
+function broadcastToClients(data) {
+  for (const ws of clients) {
+    if (ws.readyState === 1) {
+      try { ws.send(data); } catch (e) {}
+    }
+  }
+}
+function hasClients() {
+  for (const ws of clients) { if (ws.readyState === 1) return true; }
+  return false;
+}
 
 const waitingCallers = new Map();
 const activeCallIds = new Set();
@@ -40,14 +57,19 @@ function extractCallId(text) {
   return m ? m[1].trim() : null;
 }
 
-function sendWaitingList() {
-  if (!activeWs || activeWs.readyState !== 1) return;
+// target omitted → broadcast the current waiting list to ALL dispatchers.
+// target set    → send only to that socket (used to seed a newly-connected client).
+function sendWaitingList(target) {
   const list = [];
   for (const [callId, info] of waitingCallers) {
     list.push({ callId, number: info.number, since: info.since });
   }
-  const msg = JSON.stringify({ type: 'waiting_calls', calls: list });
-  activeWs.send('__JSON__' + msg);
+  const payload = '__JSON__' + JSON.stringify({ type: 'waiting_calls', calls: list });
+  if (target) {
+    if (target.readyState === 1) { try { target.send(payload); } catch (e) {} }
+    return;
+  }
+  broadcastToClients(payload);
 }
 
 function extractRtpEndpoint(sdp) {
@@ -210,15 +232,15 @@ udpSocket.on('message', (msg, rinfo) => {
     const caller = extractCallerFromInvite(text);
     console.log('[PROXY] CANCEL for call-id:', callId, 'caller:', caller);
 
-    if (callId && caller && activeWs && activeWs.readyState === 1) {
+    if (callId && caller && hasClients()) {
       waitingCallers.set(callId, { number: caller, since: Date.now() });
       console.log('[PROXY] Added to waiting:', caller, '- total waiting:', waitingCallers.size);
       setTimeout(() => sendWaitingList(), 100);
     }
   }
 
-  if (activeWs && activeWs.readyState === 1) {
-    activeWs.send(text);
+  if (hasClients()) {
+    broadcastToClients(text);
   } else {
     console.log('[PROXY] No active WS');
     if (text.startsWith('OPTIONS')) {
@@ -266,15 +288,11 @@ setInterval(() => {
 }, 10000);
 
 wss.on('connection', (ws, req) => {
-  console.log('[PROXY] New WS connection');
-
-  if (activeWs && activeWs.readyState === 1) {
-    if (activeWs._pingInterval) clearInterval(activeWs._pingInterval);
-    activeWs.close();
-  }
-  activeWs = ws;
-
-  waitingCallers.clear();
+  // Multi-client: keep ALL dispatcher sockets. Do NOT close the previous one and
+  // do NOT wipe the waiting queue — a second dispatcher/tab joining must not knock
+  // the first offline or clear everyone's missed-call list.
+  clients.add(ws);
+  console.log('[PROXY] New WS connection, total clients:', clients.size);
 
   ws._isAlive = true;
   ws.on('pong', () => { ws._isAlive = true; });
@@ -290,7 +308,7 @@ wss.on('connection', (ws, req) => {
     try { ws.ping(); } catch(e) {}
   }, 25000);
 
-  setTimeout(() => sendWaitingList(), 500);
+  setTimeout(() => sendWaitingList(ws), 500);
 
   ws.on('message', (data) => {
     const msg = data.toString();
@@ -359,11 +377,16 @@ wss.on('connection', (ws, req) => {
   });
 
   ws.on('close', () => {
-    console.log('[PROXY] WS closed, clearing waiting callers and active calls');
     if (ws._pingInterval) clearInterval(ws._pingInterval);
-    if (activeWs === ws) activeWs = null;
-    waitingCallers.clear();
-    activeCallIds.clear();
+    clients.delete(ws);
+    console.log('[PROXY] WS closed, remaining clients:', clients.size);
+    // Only reset shared call/queue state when the LAST dispatcher disconnects —
+    // otherwise a single tab closing would wipe the queue for everyone still on.
+    if (clients.size === 0) {
+      waitingCallers.clear();
+      activeCallIds.clear();
+      console.log('[PROXY] No clients left — cleared waiting callers and active calls');
+    }
   });
 
   ws.on('error', (err) => {

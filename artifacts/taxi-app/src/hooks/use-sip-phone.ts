@@ -724,6 +724,15 @@ export function useSipPhone() {
 
         updateStatus("disconnected");
 
+        // The waiting-call queue is authoritative state pushed by the proxy over
+        // THIS socket. Once the socket is closed we no longer receive updates
+        // (the proxy keeps only one active WS and broadcasts the 90s-cleanup /
+        // empty list only to the live one), so a stale "Ожидает в очереди" entry
+        // would otherwise stay frozen on screen forever. Clear it on disconnect —
+        // the proxy also wipes its queue on every (re)connect, so the post-reconnect
+        // truth is "empty until a new call" anyway.
+        setWaitingCalls([]);
+
         if (configRef.current && reconnectAttemptsRef.current < 20) {
           const delay = reconnectDelayRef.current;
           reconnectDelayRef.current = Math.min(delay * 1.5, 30000);
