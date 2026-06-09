@@ -549,6 +549,18 @@ router.delete("/:id/passengers/:passengerId", authMiddleware, requireRole("dispa
       updatedAt: new Date(),
     }).where(eq(ridesTable.id, rideId));
 
+    // Notify clients so the removed seat disappears in real time. Previously this
+    // handler emitted no WS events, so a passenger the operator removed lingered
+    // on the driver's seat map until the next poll. Mirrors the add-passenger
+    // broadcast at POST /:id/passengers, plus a targeted hint to the driver.
+    const [ride] = await db.select().from(ridesTable).where(eq(ridesTable.id, rideId));
+    if (ride) {
+      broadcastToAll({ type: "ride_updated", ride: { ...ride, seatPassengers: enrichPassengersWithRouteInfo(allPassengers, ride) } });
+      if (ride.driverId) {
+        broadcastToUser(ride.driverId, { type: "passenger_removed", rideId, passengerId });
+      }
+    }
+
     res.json({ success: true });
   } catch (err) {
     req.log.error({ err }, "Delete passenger error");
