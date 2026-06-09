@@ -76,6 +76,14 @@
           "photosPermission": "Разрешите доступ к фото, чтобы добавить фото профиля или автомобиля.",
           "cameraPermission": "Разрешите доступ к камере, чтобы сделать фото профиля."
         }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#DC2626"
+        }
       ]
     ],
     "experiments": {

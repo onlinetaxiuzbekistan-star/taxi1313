@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { View } from "react-native";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import * as SplashScreen from "expo-splash-screen";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -32,6 +33,11 @@ import { useSettingsStore, fontScaleOf } from "@/stores/settings";
 import { colors, applyThemeColors } from "@/lib/theme";
 import { themeVars, setFontScale, patchFontScaling } from "@/lib/theme-runtime";
 import { configurePushHandler } from "@/native/push";
+
+// Keep the native splash on screen until we explicitly hide it (below), so the
+// branded splash is visible for ~1.2s instead of vanishing the instant the first
+// frame mounts. Guarded so it can never crash startup.
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 // Point the shared API client at the live backend + token store, once.
 configureApi();
@@ -62,6 +68,17 @@ export default function RootLayout() {
   useEffect(() => {
     hydrate();
   }, [hydrate]);
+
+  // Hide the branded splash once fonts + settings are ready, holding it for a
+  // brief minimum so it's actually seen (~1.2s total on a warm start).
+  useEffect(() => {
+    if (fontsLoaded && hydrated) {
+      const t = setTimeout(() => {
+        SplashScreen.hideAsync().catch(() => {});
+      }, 1200);
+      return () => clearTimeout(t);
+    }
+  }, [fontsLoaded, hydrated]);
 
   // Apply the live theme + font scale before rendering children so colors.* and
   // the className CSS vars are consistent this frame.

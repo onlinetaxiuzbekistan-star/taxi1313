@@ -75,7 +75,10 @@ export function useOrders() {
         if (d?.commission?.percent != null) setCommissionRate(d.commission.percent / 100);
       })
       .catch(() => {});
-  }, [token, user]);
+    // Depend on `token` ONLY. Cities/routes/pricing don't change per-user, and
+    // `user` is a fresh object on every refresh/status tick — keying on it re-ran
+    // these three fetches constantly and helped trip the per-IP rate limit.
+  }, [token]);
 
   // Immediately drop the active ride (dispatcher cancel/unassign/complete). Nulls
   // the ref synchronously too, so the derived screen + exit-guard flip THIS tick.
@@ -104,10 +107,18 @@ export function useOrders() {
   );
 
   // ---- active ride ----
+  // When the server returns 429, hold off until this timestamp (the poll widens
+  // its interval accordingly) so we don't keep hammering a rate-limited endpoint.
+  const rateLimitedUntilRef = useRef(0);
   const loadActiveRide = useCallback(async () => {
     if (!token) return;
     try {
       const res = await fetch(`${API_BASE_URL}/api/drivers/my-active-ride`, { headers: headers() });
+      if (res.status === 429) {
+        const ra = Number(res.headers.get("Retry-After")) || 30;
+        rateLimitedUntilRef.current = Date.now() + Math.min(120, Math.max(15, ra)) * 1000;
+        return; // keep last state; do NOT treat as "no ride"
+      }
       if (!res.ok) return;
       const data = await res.json();
       if (data.ride) {
@@ -134,14 +145,36 @@ export function useOrders() {
       return;
     }
     let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    // Adaptive cadence: poll fast (5s) ONLY while a ride is active, so a
+    // dispatcher cancel/unassign still clears within ~5s. When idle there is
+    // nothing to clear, so poll slowly (15s) — this slashes baseline request
+    // volume and keeps well under the per-IP rate limit. After a 429, wait out
+    // the back-off window before the next call.
+    const nextDelay = () => {
+      const base = activeRideRef.current ? 5000 : 15000;
+      const wait = rateLimitedUntilRef.current - Date.now();
+      return wait > 0 ? Math.max(base, wait) : base;
+    };
+    const schedule = () => {
+      if (cancelled) return;
+      timer = setTimeout(async () => {
+        await loadActiveRide();
+        schedule();
+      }, nextDelay());
+    };
+
     (async () => {
       await loadActiveRide();
-      if (!cancelled) setScreen((s) => (s === "loading" ? "idle" : s));
+      if (cancelled) return;
+      setScreen((s) => (s === "loading" ? "idle" : s));
+      schedule();
     })();
-    const iv = setInterval(loadActiveRide, 5000);
+
     return () => {
       cancelled = true;
-      clearInterval(iv);
+      if (timer) clearTimeout(timer);
     };
   }, [token, loadActiveRide]);
 
