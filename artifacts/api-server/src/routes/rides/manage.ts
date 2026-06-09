@@ -677,10 +677,14 @@ router.post("/:id/unassign-driver", authMiddleware, requireRole("dispatcher", "a
       return;
     }
 
-    if (!["offered", "accepted", "merged"].includes(existing.status as string)) {
+    // Allow unassign while the trip is still in progress too. The driver may have
+    // already started ("В рейсе") but the dispatcher still needs to pull them off
+    // and return the order to the efir. Passengers stay on the ride (not deleted);
+    // steps below reset it to pending + free the driver + re-broadcast.
+    if (!["offered", "accepted", "merged", "in_progress"].includes(existing.status as string)) {
       res.status(400).json({
         error: "invalid_state",
-        message: "Снять водителя можно только пока он не начал поездку. Используйте полную отмену.",
+        message: "Снять водителя можно только до завершения поездки. Используйте полную отмену.",
       });
       return;
     }
