@@ -6,7 +6,6 @@ import * as ImagePicker from "expo-image-picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import type { DriverUser } from "@/types";
-import { getCallsign } from "@/lib/driver";
 import { colors } from "@/lib/theme";
 import { useT } from "@/lib/i18n";
 import { formatCurrency } from "./utils";
@@ -31,13 +30,22 @@ export function HomeScreen({
   const { t } = useT();
   const router = useRouter();
   const [photo, setPhoto] = useState<string | null>(null);
+  const [driverPhoto, setDriverPhoto] = useState<string | null>(null);
   const storeKey = `car_photo_${user.id ?? "me"}`;
+  const driverPhotoKey = `driver_photo_${user.id ?? "me"}`;
 
   useEffect(() => {
     AsyncStorage.getItem(storeKey)
       .then((v) => v && setPhoto(v))
       .catch(() => {});
   }, [storeKey]);
+
+  // Driver profile photo (set in Profile) — reflected here on the home card.
+  useEffect(() => {
+    AsyncStorage.getItem(driverPhotoKey)
+      .then((v) => v && setDriverPhoto(v))
+      .catch(() => {});
+  }, [driverPhotoKey]);
 
   const pickPhoto = async () => {
     try {
@@ -57,7 +65,6 @@ export function HomeScreen({
     } catch {}
   };
 
-  const callsign = getCallsign(user);
   const carNumber = (user as any).carNumber as string | undefined;
   const balance = Number((user as any).balance || 0);
   const neg = balance < 0;
@@ -69,8 +76,12 @@ export function HomeScreen({
       <View className="bg-card border border-border rounded-3xl p-4">
         {/* identity row */}
         <View className="flex-row items-center" style={{ gap: 12 }}>
-          <View className="w-14 h-14 rounded-2xl bg-primary/12 items-center justify-center">
-            <Text className="font-display text-primary text-xl">{(user.name || "?").trim().charAt(0).toUpperCase()}</Text>
+          <View className="w-14 h-14 rounded-2xl bg-primary/12 items-center justify-center overflow-hidden">
+            {driverPhoto ? (
+              <Image source={{ uri: driverPhoto }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
+            ) : (
+              <Text className="font-display text-primary text-xl">{(user.name || "?").trim().charAt(0).toUpperCase()}</Text>
+            )}
           </View>
           <View className="flex-1">
             <Text className="font-display text-foreground text-lg" numberOfLines={1}>
@@ -89,20 +100,16 @@ export function HomeScreen({
               ) : null}
             </View>
           </View>
-          <View className="items-end" style={{ gap: 6 }}>
-            <View className="bg-primary/15 rounded-lg px-2 py-0.5">
-              <Text className="font-mono text-primary text-[11px]" style={{ fontWeight: "800", letterSpacing: 0.5 }}>
-                {callsign}
-              </Text>
-            </View>
-            {carNumber ? (
-              <View className="bg-white rounded-lg px-3 py-1.5 border-2 border-zinc-800">
-                <Text className="font-mono text-zinc-900 text-xl" style={{ fontWeight: "900", letterSpacing: 1.5 }}>
+          {carNumber ? (
+            <View className="items-end">
+              {/* State car number plate — the pozyvnoy now lives only in the header */}
+              <View className="bg-white rounded-xl px-4 py-2 border-2 border-zinc-800">
+                <Text className="font-mono text-zinc-900 text-2xl" style={{ fontWeight: "900", letterSpacing: 2 }}>
                   {carNumber}
                 </Text>
               </View>
-            ) : null}
-          </View>
+            </View>
+          ) : null}
         </View>
 
         {/* car photo */}

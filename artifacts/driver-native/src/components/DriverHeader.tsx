@@ -4,6 +4,7 @@ import { useRouter } from "expo-router";
 import { Power, LogOut, Loader2, Bell, Satellite } from "lucide-react-native";
 
 import type { DriverUser } from "@/types";
+import { getCallsign } from "@/lib/driver";
 import { useT } from "@/lib/i18n";
 import { colors } from "@/lib/theme";
 import { useNewsBadge } from "@/features/notifications/use-news-badge";
@@ -52,8 +53,14 @@ export function DriverHeader({
       style={{ paddingTop: insets.top }}
     >
       <View className="h-14 flex-row items-center justify-between px-3" style={{ gap: 10 }}>
-        {/* left: GPS status (callsign now lives only on the home card) */}
+        {/* left: callsign (pozyvnoy) + GPS status — the ONLY place the callsign shows */}
         <View className="flex-row items-center" style={{ gap: 6 }}>
+          <View className="flex-row items-center bg-primary/15 px-2.5 py-1 rounded-lg" style={{ gap: 5 }}>
+            <View className="w-1.5 h-1.5 rounded-full bg-primary" />
+            <Text className="text-[13px] font-mono text-primary" style={{ fontWeight: "800", letterSpacing: 0.5 }}>
+              {getCallsign(user)}
+            </Text>
+          </View>
           <View className={`flex-row items-center px-2 py-1 rounded-lg border ${gpsStyle.box}`} style={{ gap: 5 }}>
             <View className={`w-2 h-2 rounded-full ${gpsStyle.dot}`} />
             <Satellite size={13} color={gpsStyle.icon} />

@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
-import { View, Text, Pressable, ScrollView, Alert } from "react-native";
+import { View, Text, Pressable, ScrollView, Alert, Image } from "react-native";
 import { useRouter } from "expo-router";
-import { User, Star, Car, Wallet, TrendingUp, Bell, ChevronRight, Settings, Trash2 } from "lucide-react-native";
+import { User, Star, Car, Wallet, TrendingUp, Bell, ChevronRight, Settings, Trash2, Camera } from "lucide-react-native";
+import * as ImagePicker from "expo-image-picker";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { useAuth } from "@/hooks/use-auth";
 import { useT } from "@/lib/i18n";
@@ -15,8 +17,58 @@ export default function ProfileScreen() {
   const { t } = useT();
   const router = useRouter();
   const [ratingCount, setRatingCount] = useState<number | null>(null);
+  const [photo, setPhoto] = useState<string | null>(null);
 
   const driver = user ?? (PREVIEW_MODE ? DEMO_DRIVER : null);
+  const photoKey = `driver_photo_${(driver as any)?.id ?? "me"}`;
+
+  useEffect(() => {
+    AsyncStorage.getItem(photoKey)
+      .then((v) => v && setPhoto(v))
+      .catch(() => {});
+  }, [photoKey]);
+
+  const savePhoto = (uri: string) => {
+    setPhoto(uri);
+    AsyncStorage.setItem(photoKey, uri).catch(() => {});
+  };
+
+  const fromGallery = async () => {
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) return;
+      const res = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.6,
+      });
+      const uri = !res.canceled ? res.assets?.[0]?.uri : null;
+      if (uri) savePhoto(uri);
+    } catch {}
+  };
+
+  const fromCamera = async () => {
+    try {
+      const perm = await ImagePicker.requestCameraPermissionsAsync();
+      if (!perm.granted) return;
+      const res = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.6,
+      });
+      const uri = !res.canceled ? res.assets?.[0]?.uri : null;
+      if (uri) savePhoto(uri);
+    } catch {}
+  };
+
+  const pickPhoto = () => {
+    Alert.alert(t("choose_photo"), undefined, [
+      { text: t("from_camera"), onPress: fromCamera },
+      { text: t("from_gallery"), onPress: fromGallery },
+      { text: t("cancel"), style: "cancel" },
+    ]);
+  };
 
   useEffect(() => {
     if (!token) return;
@@ -49,9 +101,20 @@ export default function ProfileScreen() {
     <ScrollView className="flex-1 bg-background" contentContainerClassName="p-4">
       {/* identity */}
       <View className="bg-card border border-border rounded-2xl p-5 items-center mb-4">
-        <View className="w-20 h-20 rounded-full bg-primary/15 items-center justify-center mb-3">
-          <User size={40} color={colors.primary} />
-        </View>
+        <Pressable
+          onPress={pickPhoto}
+          className="w-20 h-20 rounded-full bg-primary/15 items-center justify-center mb-3 overflow-hidden active:opacity-80"
+        >
+          {photo ? (
+            <Image source={{ uri: photo }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
+          ) : (
+            <User size={40} color={colors.primary} />
+          )}
+          {/* camera badge to signal it's tappable */}
+          <View className="absolute bottom-0 right-0 w-7 h-7 rounded-full bg-primary items-center justify-center border-2 border-card">
+            <Camera size={13} color="#fff" />
+          </View>
+        </Pressable>
         <Text className="font-display text-foreground text-xl mb-0.5">{driver.name}</Text>
         <Text className="font-mono text-primary text-sm" style={{ fontWeight: "700" }}>
           {getCallsign(driver)}

@@ -4,6 +4,7 @@ import { Tabs, Redirect, useRouter } from "expo-router";
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 
 import { preloadSounds } from "@/lib/sounds";
+import { isRideActive } from "@/lib/ride-lock";
 
 import { useAuth } from "@/hooks/use-auth";
 import { useRideWebSocket } from "@/hooks/use-ride-websocket";
@@ -64,6 +65,11 @@ export default function DriverShellLayout() {
   useEffect(() => {
     const onBack = () => {
       if (router.canGoBack()) return false; // let navigation handle in-app back
+      // Active ride → never allow exit (back / swipe). Finish the ride first.
+      if (isRideActive()) {
+        if (Platform.OS === "android") ToastAndroid.show(t("finish_ride_to_exit"), ToastAndroid.SHORT);
+        return true;
+      }
       const now = Date.now();
       if (now - lastBack.current < 2000) {
         BackHandler.exitApp();

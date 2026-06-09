@@ -42,7 +42,7 @@ export function SeatPassengerCard({
               {passenger.name || t("passenger")}
             </Text>
             <Text className="font-sans text-muted-foreground text-[12px]">
-              {statusLabel} • {formatCurrency(passenger.price)}
+              {female ? t("mc_female") : t("mc_male")} • {statusLabel} • {formatCurrency(passenger.price)}
             </Text>
           </View>
           {passenger.phone ? (

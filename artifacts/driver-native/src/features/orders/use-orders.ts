@@ -6,6 +6,7 @@ import { API_BASE_URL } from "@/config";
 import { wsEvents } from "@/lib/ws-events";
 import { playRemoved, playTripStart } from "@/lib/sounds";
 import { markUnassigned } from "@/lib/unassigned-guard";
+import { setRideActive } from "@/lib/ride-lock";
 import { useT } from "@/lib/i18n";
 import type { City, RouteOption, Ride, SeatPassenger, DriverScreen } from "./types";
 
@@ -31,6 +32,8 @@ export function useOrders() {
   activeRideRef.current = activeRide;
   const myIdRef = useRef<number | null>(null);
   myIdRef.current = (user as any)?.id ?? null;
+  // Lock app-exit while a ride is active (read by the layout's back handler).
+  setRideActive(!!activeRide);
   // De-dupes the operator-unassign double event (targeted + broadcastToAll).
   const lastClearedRef = useRef<{ id: number | null; at: number }>({ id: null, at: 0 });
   const [passengers, setPassengers] = useState<SeatPassenger[]>([]);
@@ -126,6 +129,9 @@ export function useOrders() {
       const eventRideId = (d as any).rideId ?? (d as any).ride?.id;
       const isCurrent = eventRideId != null && eventRideId === activeId;
       const ride = (d as any).ride;
+      if (["ride_unassigned_by_dispatcher", "ride_updated", "trip_updated", "new_ride", "trip_completed", "ride_completed"].includes(d.type)) {
+        console.log("[WS]", d.type, { eventRideId, activeId, isCurrent, rideDriverId: ride?.driverId, rideStatus: ride?.status });
+      }
 
       // Clear the active ride + notify ONCE. The backend's operator-unassign
       // sends BOTH a targeted `ride_unassigned_by_dispatcher` AND a

@@ -10,9 +10,9 @@
     "backgroundColor": "#F2F4F7",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0A0A1A"
+      "backgroundColor": "#DC2626"
     },
     "ios": {
       "supportsTablet": false,
@@ -23,8 +23,8 @@
       "package": "ru.taxi1313.drivernative",
       "versionCode": 8,
       "adaptiveIcon": {
-        "backgroundColor": "#0A0A1A",
-        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundColor": "#DC2626",
+        "foregroundImage": "./assets/adaptive-icon.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
@@ -73,7 +73,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Разрешите доступ к фото, чтобы добавить фото автомобиля."
+          "photosPermission": "Разрешите доступ к фото, чтобы добавить фото профиля или автомобиля.",
+          "cameraPermission": "Разрешите доступ к камере, чтобы сделать фото профиля."
         }
       ]
     ],

@@ -206,17 +206,16 @@ export function SeatViewScreen({
           </View>
         ) : null}
 
-        {/* passengers */}
-        <View className="mt-3" style={{ gap: 8 }}>
-          {passengers.length === 0 ? (
-            <View className="items-center py-8">
-              <Users size={32} color={colors.mutedForeground} />
-              <Text className="font-sans text-muted-foreground text-sm mt-2">{t("waiting_pax")}</Text>
-            </View>
-          ) : (
-            passengers.map((p) => <PassengerRow key={p.id} p={p} />)
-          )}
-        </View>
+        {/* No separate passenger list — passenger details live INSIDE each seat
+            card (tap an occupied seat above). Only show a hint when empty and
+            nothing is currently selected. */}
+        {passengers.length === 0 && selectedPassenger == null && showManual === null ? (
+          <View className="items-center py-8">
+            <Users size={32} color={colors.mutedForeground} />
+            <Text className="font-sans text-muted-foreground text-sm mt-2">{t("waiting_pax")}</Text>
+            <Text className="font-sans text-muted-foreground text-[12px] mt-1">{t("tap_seat_hint")}</Text>
+          </View>
+        ) : null}
 
         {queueInfo && filledSeats < totalSeats ? (
           <View className="mt-3">
