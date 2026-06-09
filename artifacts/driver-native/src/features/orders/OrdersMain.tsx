@@ -4,6 +4,7 @@ import { View, ActivityIndicator, Alert } from "react-native";
 import { useAuth } from "@/hooks/use-auth";
 import { colors } from "@/lib/theme";
 import { useT } from "@/lib/i18n";
+import { useDetectedCity } from "@/hooks/use-detected-city";
 import { useOrders } from "./use-orders";
 import { HomeScreen } from "./HomeScreen";
 import { RouteSelectScreen } from "./RouteSelectScreen";
@@ -19,6 +20,8 @@ export function OrdersMain() {
   const { user } = useAuth();
   const [showCreate, setShowCreate] = useState(false);
   const [showSell, setShowSell] = useState(false);
+  // GPS-detected origin (where the phone actually is) — overrides stale profile city.
+  const detectedCity = useDetectedCity(o.cities);
 
   // Leave the create/sell screens automatically once a ride exists.
   useEffect(() => {
@@ -95,7 +98,7 @@ export function OrdersMain() {
         routes={o.routes}
         creating={o.actionLoading}
         onCreateRide={o.createRide}
-        userCity={o.userCity}
+        userCity={detectedCity ?? o.userCity}
         onBack={() => setShowCreate(false)}
       />
     );

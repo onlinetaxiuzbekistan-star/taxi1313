@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { View, Text, Pressable, ScrollView, ActivityIndicator, Linking } from "react-native";
+import { View, Text, Pressable, ScrollView, ActivityIndicator, Linking, Modal } from "react-native";
 import { Navigation, XCircle, Phone, User, Users } from "lucide-react-native";
 
 import { useAuth } from "@/hooks/use-auth";
@@ -185,31 +185,9 @@ export function SeatViewScreen({
           />
         </View>
 
-        {/* tap an occupied seat → passenger card; tap an empty seat → manual add */}
-        {selectedPassenger ? (
-          <View className="mt-3">
-            <SeatPassengerCard
-              passenger={selectedPassenger}
-              onClose={() => setSelectedSeat(null)}
-              onReject={onRejectClient}
-              loading={passengerActionLoading === selectedPassenger.id}
-            />
-          </View>
-        ) : showManual !== null && onManualClient ? (
-          <View className="mt-3">
-            <ManualClientForm
-              seatNumber={showManual}
-              onClose={() => setShowManual(null)}
-              onSubmit={onManualClient}
-              loading={clientActionLoading}
-            />
-          </View>
-        ) : null}
-
-        {/* No separate passenger list — passenger details live INSIDE each seat
-            card (tap an occupied seat above). Only show a hint when empty and
-            nothing is currently selected. */}
-        {passengers.length === 0 && selectedPassenger == null && showManual === null ? (
+        {/* No separate passenger list — tapping a seat opens a popup with the
+            passenger details (or the manual-add form for an empty seat). */}
+        {passengers.length === 0 ? (
           <View className="items-center py-8">
             <Users size={32} color={colors.mutedForeground} />
             <Text className="font-sans text-muted-foreground text-sm mt-2">{t("waiting_pax")}</Text>
@@ -259,6 +237,45 @@ export function SeatViewScreen({
           </Pressable>
         ) : null}
       </View>
+
+      {/* Seat detail popup — opens centered when a seat is tapped. Occupied →
+          passenger details; empty → manual-add form. */}
+      <Modal
+        visible={selectedPassenger != null || (showManual !== null && !!onManualClient)}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          setSelectedSeat(null);
+          setShowManual(null);
+        }}
+      >
+        <Pressable
+          className="flex-1 bg-black/60 justify-center px-4"
+          onPress={() => {
+            setSelectedSeat(null);
+            setShowManual(null);
+          }}
+        >
+          {/* stop propagation so taps inside the card don't dismiss it */}
+          <Pressable onPress={() => {}}>
+            {selectedPassenger ? (
+              <SeatPassengerCard
+                passenger={selectedPassenger}
+                onClose={() => setSelectedSeat(null)}
+                onReject={onRejectClient}
+                loading={passengerActionLoading === selectedPassenger.id}
+              />
+            ) : showManual !== null && onManualClient ? (
+              <ManualClientForm
+                seatNumber={showManual}
+                onClose={() => setShowManual(null)}
+                onSubmit={onManualClient}
+                loading={clientActionLoading}
+              />
+            ) : null}
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       <NavSheet visible={showNav} toLat={ride.fromLat} toLng={ride.fromLng} onClose={() => setShowNav(false)} />
       <ExpiredRideModal

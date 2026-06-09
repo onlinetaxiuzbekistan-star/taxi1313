@@ -106,7 +106,7 @@ export function useOrders() {
       await loadActiveRide();
       if (!cancelled) setScreen((s) => (s === "loading" ? "idle" : s));
     })();
-    const iv = setInterval(loadActiveRide, 8000);
+    const iv = setInterval(loadActiveRide, 5000);
     return () => {
       cancelled = true;
       clearInterval(iv);
@@ -183,8 +183,28 @@ export function useOrders() {
         loadActiveRide();
         return;
       }
+      // Passenger-level changes (operator added/removed/reassigned a seat client,
+      // queue shuffle, route edit). Re-fetch so a passenger the operator pulled
+      // back disappears from the seat map immediately, not just on the next poll.
       if (
-        ["route_updated", "passenger_update", "passenger_seat_changed", "queue_update", "new_order"].includes(d.type)
+        [
+          "route_updated",
+          "passenger_update",
+          "passenger_updated",
+          "passenger_seat_changed",
+          "passenger_removed",
+          "passenger_cancelled",
+          "passenger_deleted",
+          "passenger_unassigned",
+          "seat_cleared",
+          "seat_updated",
+          "ride_passenger_removed",
+          "ride_passengers_updated",
+          "order_updated",
+          "queue_update",
+          "queue_updated",
+          "new_order",
+        ].includes(d.type)
       ) {
         loadActiveRide();
       }

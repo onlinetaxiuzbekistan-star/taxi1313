@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { View, Text, Pressable, ScrollView, ActivityIndicator } from "react-native";
+import { View, Text, Pressable, ScrollView, ActivityIndicator, Alert } from "react-native";
 import { CheckCircle, MapPin, XCircle, Navigation } from "lucide-react-native";
 
 import { colors } from "@/lib/theme";
@@ -35,6 +35,23 @@ export function ActiveRideScreen({
 }) {
   const { t } = useT();
   const [showNav, setShowNav] = useState(false);
+
+  // Two-step confirmation before marking a passenger picked-up / dropped-off, so
+  // an accidental tap can't advance the ride state.
+  const confirmPickup = (p: SeatPassenger) => {
+    const who = p.name ? p.name.split(" ")[0] : `${t("seat")} ${p.seatNumber}`;
+    Alert.alert(t("confirm_pickup_q"), `${who} — ${t("seat")} ${p.seatNumber}`, [
+      { text: t("no"), style: "cancel" },
+      { text: t("confirm_pickup_yes"), onPress: () => onPickup(p.id) },
+    ]);
+  };
+  const confirmDropoff = (p: SeatPassenger) => {
+    const who = p.name ? p.name.split(" ")[0] : `${t("seat")} ${p.seatNumber}`;
+    Alert.alert(t("confirm_dropoff_q"), `${who} — ${t("seat")} ${p.seatNumber}`, [
+      { text: t("no"), style: "cancel" },
+      { text: t("confirm_dropoff_yes"), onPress: () => onDropoff(p.id) },
+    ]);
+  };
   const filledSeats = passengers.length;
   const totalEarnings = passengers.reduce((s, p) => s + (p.price || 0), 0);
   const bySeat = (a: SeatPassenger, b: SeatPassenger) => a.seatNumber - b.seatNumber;
@@ -93,7 +110,7 @@ export function ActiveRideScreen({
                 return (
                   <Pressable
                     key={wp.id}
-                    onPress={() => isNext && onPickup(wp.id)}
+                    onPress={() => isNext && confirmPickup(wp)}
                     disabled={!isNext || passengerActionLoading !== null}
                     className={`py-4 rounded-2xl flex-row items-center justify-center active:opacity-90 ${
                       isNext ? "bg-emerald-500" : "bg-muted/60 border border-border opacity-60"
@@ -126,7 +143,7 @@ export function ActiveRideScreen({
                 return (
                   <Pressable
                     key={pp.id}
-                    onPress={() => isNext && onDropoff(pp.id)}
+                    onPress={() => isNext && confirmDropoff(pp)}
                     disabled={!isNext || passengerActionLoading !== null}
                     className={`py-4 rounded-2xl flex-row items-center justify-center active:opacity-90 ${
                       isNext ? "bg-blue-500" : "bg-muted/60 border border-border opacity-60"

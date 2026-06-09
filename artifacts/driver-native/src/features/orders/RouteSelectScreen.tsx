@@ -31,6 +31,9 @@ export function RouteSelectScreen({
   const [timeSlot, setTimeSlot] = useState("");
   const [urgentMode, setUrgentMode] = useState(false);
   const [openDD, setOpenDD] = useState<"from" | "to" | "time" | null>(null);
+  // Set once the driver manually picks an origin — stops GPS auto-detect from
+  // overriding their explicit choice.
+  const [originTouched, setOriginTouched] = useState(false);
 
   const fromCityObj = cities.find((c) => c.id === fromCity);
   const toCityObj = cities.find((c) => c.id === toCity);
@@ -41,15 +44,21 @@ export function RouteSelectScreen({
   const matchesTo = (rt: string, c: City) =>
     rt === c.nameRu || rt === c.id || rt.toLowerCase() === c.nameRu.toLowerCase();
 
-  // Auto-detect the driver's current city as the origin.
+  // Auto-detect the driver's current city as the origin. `userCity` carries the
+  // GPS-detected city (preferred) or the profile city as fallback. We re-apply it
+  // whenever it changes — so a GPS fix that arrives a few seconds late still
+  // corrects a stale profile origin — UNTIL the driver manually picks one.
   useEffect(() => {
-    if (fromCity || !userCity || cities.length === 0) return;
+    if (originTouched || !userCity || cities.length === 0) return;
     const uc = String(userCity).toLowerCase();
     const match = cities.find(
       (c) => c.id === userCity || c.nameRu === userCity || c.nameRu.toLowerCase() === uc,
     );
-    if (match) setFromCity(match.id);
-  }, [userCity, cities, fromCity]);
+    if (match && match.id !== fromCity) {
+      setFromCity(match.id);
+      setToCity("");
+    }
+  }, [userCity, cities, originTouched]);
 
   // Origin list = cities with >=1 enabled outgoing route.
   const originCities = useMemo(() => {
@@ -125,6 +134,7 @@ export function RouteSelectScreen({
             label={c.nameRu}
             selected={fromCity === c.id}
             onPress={() => {
+              setOriginTouched(true);
               setFromCity(c.id);
               setToCity("");
               setOpenDD(null);
