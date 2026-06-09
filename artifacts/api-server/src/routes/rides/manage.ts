@@ -695,7 +695,9 @@ router.post("/:id/unassign-driver", authMiddleware, requireRole("dispatcher", "a
     //    Read-side (isInUnassignCooldown) уже проверяется при подборе кандидатов
     //    в autodispatch — здесь активируем запись, которая ранее не вызывалась.
     if (previousDriverId != null) {
-      addUnassignCooldown(rideId, previousDriverId);
+      // Await: the write must land in Redis BEFORE startAutoDispatch (below) reads
+      // it, otherwise the just-removed driver could be re-offered the same ride.
+      await addUnassignCooldown(rideId, previousDriverId);
     }
 
     // 1. остановим текущий dispatch loop (если ещё крутится)

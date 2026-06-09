@@ -464,30 +464,57 @@ function abortableSleep(ms: number, signal: AbortSignal): Promise<void> {
 
 // === Unassign cooldown: после диспетчерского "Снять водителя" не предлагать тот же заказ
 // этому же водителю в течение N мс (по умолчанию 2 минуты).
+// Хранится в Redis (а не в памяти процесса), тем же клиентом, что и dispatch-локи
+// и pub/sub — поэтому переживает рестарты/деплои и корректно работает в кластере
+// (in-memory Map жил только в одном воркере и обнулялся при каждом рестарте).
 const UNASSIGN_COOLDOWN_MS = 2 * 60 * 1000;
-const unassignCooldowns = new Map<number, Map<number, number>>(); // rideId -> driverId -> expireAtMs
+const UNASSIGN_COOLDOWN_PREFIX = "unassign_cooldown:";
+const cooldownKey = (rideId: number, driverId: number) => `${UNASSIGN_COOLDOWN_PREFIX}${rideId}:${driverId}`;
 
-export function addUnassignCooldown(rideId: number, driverId: number, ttlMs: number = UNASSIGN_COOLDOWN_MS) {
-  let perRide = unassignCooldowns.get(rideId);
-  if (!perRide) { perRide = new Map(); unassignCooldowns.set(rideId, perRide); }
-  perRide.set(driverId, Date.now() + ttlMs);
-}
-
-export function isInUnassignCooldown(rideId: number, driverId: number): boolean {
-  const perRide = unassignCooldowns.get(rideId);
-  if (!perRide) return false;
-  const exp = perRide.get(driverId);
-  if (!exp) return false;
-  if (Date.now() >= exp) {
-    perRide.delete(driverId);
-    if (perRide.size === 0) unassignCooldowns.delete(rideId);
-    return false;
+export async function addUnassignCooldown(rideId: number, driverId: number, ttlMs: number = UNASSIGN_COOLDOWN_MS): Promise<void> {
+  try {
+    await redis.set(cooldownKey(rideId, driverId), "1", "PX", ttlMs);
+  } catch (err) {
+    clog.log(`[COOLDOWN] failed to set ${rideId}:${driverId}: ${(err as Error)?.message}`);
   }
-  return true;
 }
 
-export function clearUnassignCooldown(rideId: number) {
-  unassignCooldowns.delete(rideId);
+export async function isInUnassignCooldown(rideId: number, driverId: number): Promise<boolean> {
+  try {
+    return (await redis.exists(cooldownKey(rideId, driverId))) === 1;
+  } catch {
+    return false; // fail open — a Redis hiccup must never block dispatch entirely
+  }
+}
+
+// Batch variant: returns the subset of driverIds currently in cooldown for a ride.
+// Used where an async check can't live inside an Array.filter() callback.
+export async function getDriversInUnassignCooldown(rideId: number, driverIds: number[]): Promise<Set<number>> {
+  const inCooldown = new Set<number>();
+  const ids = [...new Set(driverIds.filter((d) => d != null))];
+  if (ids.length === 0) return inCooldown;
+  try {
+    const pipe = redis.pipeline();
+    for (const id of ids) pipe.exists(cooldownKey(rideId, id));
+    const res = await pipe.exec();
+    if (res) {
+      ids.forEach((id, i) => {
+        if (res[i] && res[i][1] === 1) inCooldown.add(id);
+      });
+    }
+  } catch {
+    /* fail open */
+  }
+  return inCooldown;
+}
+
+export async function clearUnassignCooldown(rideId: number): Promise<void> {
+  try {
+    const keys = await redis.keys(`${UNASSIGN_COOLDOWN_PREFIX}${rideId}:*`);
+    if (keys.length > 0) await redis.del(...keys);
+  } catch {
+    /* */
+  }
 }
 
 export function stopDispatchLoop(rideId: number) {
@@ -769,12 +796,16 @@ async function runQueueDispatchCycle(
   let batchIndex = 0;
   const alreadyOffered = new Set<number>();
 
+  // Cooldown lookups hit Redis (async), which can't run inside Array.filter() —
+  // precompute the in-cooldown set for this ride's route drivers up front.
+  const routeCooldownIds = await getDriversInUnassignCooldown(rideId, driverRoutes.map(dr => dr.driverId));
+
   const routeDriversFirst = driverRoutes.filter(dr => {
     if (allowedByCarModel && !allowedByCarModel.has(dr.driverId)) return false;
     if (allowedByCash && !allowedByCash.has(dr.driverId)) return false;
     if (allowedByOptions && !allowedByOptions.has(dr.driverId)) return false;
     if (driversWithPendingOffers.has(dr.driverId)) return false;
-    if (isInUnassignCooldown(rideId, dr.driverId)) {
+    if (routeCooldownIds.has(dr.driverId)) {
       clog.log(`[QUEUE DISPATCH] route-driver ${dr.driverId}: in unassign cooldown for ride ${rideId} → skip`);
       return false;
     }
@@ -858,7 +889,7 @@ async function runQueueDispatchCycle(
       );
       const fromCitySlug = resolveCitySlug(fromCity);
       for (const qc of queueCandidates) {
-        if (isInUnassignCooldown(rideId, qc.driver.id)) {
+        if (await isInUnassignCooldown(rideId, qc.driver.id)) {
           clog.log(`[QUEUE FILTER cooldown] driver ${qc.driver.id}: in unassign cooldown for ride ${rideId} → skip`);
           alreadyOffered.add(qc.driver.id);
           continue;

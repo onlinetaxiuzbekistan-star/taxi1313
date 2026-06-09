@@ -5,7 +5,7 @@ import { batchMatchRides, type BatchRide, type BatchDriver, type BatchAssignment
 import { broadcastToAll, broadcastToUser } from "./websocket.js";
 import { logger } from "./logger.js";
 import { getSettingNum, getSettingBool } from "./settingsCache.js";
-import { startAutoDispatch } from "./autodispatch.js";
+import { startAutoDispatch, isInUnassignCooldown } from "./autodispatch.js";
 
 interface BufferedRide {
   id: number;
@@ -122,7 +122,23 @@ export async function processBatch(): Promise<BatchAssignment[]> {
   const matchedRideIds = new Set(assignments.map(a => a.rideId));
   clog.log(`[BATCH] Matched ${assignments.length}/${ridesToMatch.length} rides`);
 
+  // from-city lookup so a cooldown-skipped ride can still be re-dispatched (to
+  // OTHER drivers) through the cooldown-aware auto-dispatch path.
+  const fromCityById = new Map(ridesToMatch.map(r => [r.id, r.fromCity]));
+
   for (const a of assignments) {
+    // Respect the unassign cooldown: batchMatchRides is cooldown-blind, so never
+    // auto-assign a ride straight back to the driver the dispatcher just pulled
+    // off it. Skip and hand the ride to auto-dispatch (which honors the cooldown).
+    if (await isInUnassignCooldown(a.rideId, a.driverId)) {
+      clog.log(`[BATCH] ride ${a.rideId}: driver ${a.driverId} in unassign cooldown → skip auto-assign, re-dispatch`);
+      // Hand it to auto-dispatch directly (cooldown-aware). We do NOT remove it
+      // from matchedRideIds, so the unmatched-fallback below won't dispatch it a
+      // second time. startAutoDispatch is idempotent (lock-guarded) regardless.
+      startAutoDispatch(a.rideId, fromCityById.get(a.rideId) || "");
+      continue;
+    }
+
     const price = 100000 + Math.floor(Math.random() * 200000);
 
     const updateResult = await db.update(ridesTable).set({
