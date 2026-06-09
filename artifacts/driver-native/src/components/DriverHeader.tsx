@@ -1,10 +1,9 @@
-import { View, Text, Pressable, Image } from "react-native";
+import { View, Text, Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { User, Power, LogOut, Loader2, Bell, Satellite } from "lucide-react-native";
+import { Power, LogOut, Loader2, Bell, Satellite } from "lucide-react-native";
 
 import type { DriverUser } from "@/types";
-import { getCallsign, getPhotoUrl } from "@/lib/driver";
 import { useT } from "@/lib/i18n";
 import { colors } from "@/lib/theme";
 import { useNewsBadge } from "@/features/notifications/use-news-badge";
@@ -29,8 +28,6 @@ export function DriverHeader({
   const router = useRouter();
   const newsCount = useNewsBadge();
 
-  const callsign = getCallsign(user);
-  const photo = getPhotoUrl(user.driverPhoto);
   const isOnline = user.status === "online" || user.status === "busy";
   const isBusy = user.status === "busy";
   const gps = useGpsActive(isOnline);
@@ -55,29 +52,8 @@ export function DriverHeader({
       style={{ paddingTop: insets.top }}
     >
       <View className="h-14 flex-row items-center justify-between px-3" style={{ gap: 10 }}>
-        {/* left: callsign + balance */}
+        {/* left: GPS status (callsign now lives only on the home card) */}
         <View className="flex-row items-center" style={{ gap: 6 }}>
-          <Pressable
-            className="flex-row items-center bg-white/[0.06] px-2 py-1 rounded-lg active:opacity-80"
-            style={{ gap: 6 }}
-          >
-            {photo ? (
-              <Image
-                source={{ uri: photo }}
-                className="w-5 h-5 rounded-full border border-white/10"
-              />
-            ) : (
-              <View className="w-5 h-5 rounded-full bg-primary/15 items-center justify-center">
-                <User size={12} color={colors.primary} />
-              </View>
-            )}
-            <Text className="text-[13px] font-mono text-foreground" style={{ fontWeight: "800", letterSpacing: 0.5 }}>
-              {callsign}
-            </Text>
-          </Pressable>
-
-          {/* GPS status indicator — green=tracking, yellow=acquiring, red=off
-              (balance moved to the home card). Hysteresis avoids flicker. */}
           <View className={`flex-row items-center px-2 py-1 rounded-lg border ${gpsStyle.box}`} style={{ gap: 5 }}>
             <View className={`w-2 h-2 rounded-full ${gpsStyle.dot}`} />
             <Satellite size={13} color={gpsStyle.icon} />

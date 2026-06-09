@@ -143,6 +143,7 @@ export const translations = {
   mc_add_seat: { ru: "Добавить — место", uz: "Qo‘shish — joy" },
   mc_phone_req: { ru: "Телефон клиента (обязательно)", uz: "Mijoz telefoni (majburiy)" },
   mc_phone_opt: { ru: "Телефон клиента (необязательно)", uz: "Mijoz telefoni (ixtiyoriy)" },
+  press_back_again: { ru: "Нажмите ещё раз для выхода", uz: "Chiqish uchun yana bir marta bosing" },
   mc_phone_err: { ru: "Введите номер телефона клиента", uz: "Mijoz telefon raqamini kiriting" },
   mc_gender: { ru: "Пол пассажира", uz: "Yo‘lovchi jinsi" },
   mc_male: { ru: "Муж", uz: "Erkak" },

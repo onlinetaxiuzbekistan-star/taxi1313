@@ -89,15 +89,15 @@ export function HomeScreen({
               ) : null}
             </View>
           </View>
-          <View className="items-end" style={{ gap: 4 }}>
-            <View className="bg-primary/15 rounded-lg px-2 py-1">
-              <Text className="font-mono text-primary text-[12px]" style={{ fontWeight: "800", letterSpacing: 0.5 }}>
+          <View className="items-end" style={{ gap: 6 }}>
+            <View className="bg-primary/15 rounded-lg px-2 py-0.5">
+              <Text className="font-mono text-primary text-[11px]" style={{ fontWeight: "800", letterSpacing: 0.5 }}>
                 {callsign}
               </Text>
             </View>
             {carNumber ? (
-              <View className="bg-white rounded-md px-2 py-0.5 border border-zinc-300">
-                <Text className="font-mono text-zinc-900 text-[12px]" style={{ fontWeight: "800", letterSpacing: 1 }}>
+              <View className="bg-white rounded-lg px-3 py-1.5 border-2 border-zinc-800">
+                <Text className="font-mono text-zinc-900 text-xl" style={{ fontWeight: "900", letterSpacing: 1.5 }}>
                   {carNumber}
                 </Text>
               </View>

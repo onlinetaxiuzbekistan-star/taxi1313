@@ -78,11 +78,11 @@ export default function RootLayout() {
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
             <StatusBar style={theme === "light" ? "dark" : "light"} />
-            {/* themeVars cascades the CSS variables (bg-background, text-foreground…)
-                to all screens; changing theme re-renders this wrapper so className
-                colors switch live. colors.* (icons) + font scale apply as each
-                screen next renders. No remount → the user stays where they are. */}
-            <View style={[{ flex: 1 }, themeVars(theme)]}>
+            {/* themeVars cascades the CSS variables to all screens. The key forces
+                a re-mount when theme / font size changes so every visible screen
+                re-reads colors.* and the scaled font sizes immediately (expo-router
+                restores the current route from the URL, so the driver stays put). */}
+            <View key={`${theme}:${fontSize}`} style={[{ flex: 1 }, themeVars(theme)]}>
               <Stack
                 screenOptions={{
                   headerShown: false,

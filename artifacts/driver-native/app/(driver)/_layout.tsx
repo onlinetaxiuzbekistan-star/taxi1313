@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
-import { Alert, BackHandler } from "react-native";
-import { Tabs, Redirect } from "expo-router";
+import { useState, useEffect, useRef } from "react";
+import { Alert, BackHandler, ToastAndroid, Platform } from "react-native";
+import { Tabs, Redirect, useRouter } from "expo-router";
+import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 
 import { preloadSounds } from "@/lib/sounds";
 
@@ -25,6 +26,7 @@ import type { DriverUser } from "@/types";
 // real navigation while DriverHeader/DriverTabBar control the look.
 export default function DriverShellLayout() {
   const { t } = useT();
+  const router = useRouter();
   const { user, token, hydrated, logout, refreshUser } = useAuth();
 
   // Establish the driver WebSocket whenever we have a session (no-op in preview).
@@ -38,6 +40,42 @@ export default function DriverShellLayout() {
   useEffect(() => {
     preloadSounds();
   }, []);
+
+  // Keep the screen awake while the driver is online (no screen lock/dim).
+  const online = user?.status === "online" || user?.status === "busy";
+  useEffect(() => {
+    if (!online) {
+      try {
+        deactivateKeepAwake("driver-online");
+      } catch {}
+      return;
+    }
+    activateKeepAwakeAsync("driver-online").catch(() => {});
+    return () => {
+      try {
+        deactivateKeepAwake("driver-online");
+      } catch {}
+    };
+  }, [online]);
+
+  // Hardware back: require a DOUBLE press within 2s to leave the app (only at a
+  // navigation root — pushed screens still pop normally on the first press).
+  const lastBack = useRef(0);
+  useEffect(() => {
+    const onBack = () => {
+      if (router.canGoBack()) return false; // let navigation handle in-app back
+      const now = Date.now();
+      if (now - lastBack.current < 2000) {
+        BackHandler.exitApp();
+        return true;
+      }
+      lastBack.current = now;
+      if (Platform.OS === "android") ToastAndroid.show(t("press_back_again"), ToastAndroid.SHORT);
+      return true;
+    };
+    const sub = BackHandler.addEventListener("hardwareBackPress", onBack);
+    return () => sub.remove();
+  }, [router, t]);
 
   const [toggling, setToggling] = useState(false);
   // Preview-only: lets the online/offline toggle visibly flip without a backend.

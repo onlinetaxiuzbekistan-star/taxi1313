@@ -1,3 +1,4 @@
+import { cloneElement, isValidElement } from "react";
 import { Text, TextInput, StyleSheet } from "react-native";
 import { vars } from "nativewind";
 
@@ -77,12 +78,11 @@ export function patchFontScaling() {
       Comp.render = function patchedRender(props: any, ref: any) {
         const el = orig.call(this, props, ref);
         try {
-          if (currentScale !== 1 && el && el.props) {
-            const flat = StyleSheet.flatten(el.props.style) || {};
-            const fs = (flat as any).fontSize;
-            if (typeof fs === "number") {
-              return { ...el, props: { ...el.props, style: [el.props.style, { fontSize: fs * currentScale }] } };
-            }
+          if (currentScale !== 1 && isValidElement(el)) {
+            const style = (el.props as any)?.style;
+            const flat = (StyleSheet.flatten(style) || {}) as any;
+            const fs = typeof flat.fontSize === "number" ? flat.fontSize : 14; // RN default ≈ 14
+            return cloneElement(el as any, { style: [style, { fontSize: fs * currentScale }] });
           }
         } catch {}
         return el;
