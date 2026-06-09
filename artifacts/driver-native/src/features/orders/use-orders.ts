@@ -77,6 +77,32 @@ export function useOrders() {
       .catch(() => {});
   }, [token, user]);
 
+  // Immediately drop the active ride (dispatcher cancel/unassign/complete). Nulls
+  // the ref synchronously too, so the derived screen + exit-guard flip THIS tick.
+  const clearActive = useCallback(() => {
+    setActiveRide(null);
+    activeRideRef.current = null;
+    setPassengers([]);
+    setScreen((prev) => (prev === "completed" ? prev : "route_select"));
+  }, []);
+
+  // Clear + notify ONCE, deduped by rideId within a short window. The operator
+  // unassign emits a targeted event AND a broadcast, AND the 5s poll may detect
+  // the same disappearance — dedupe so we never double-alert/sound, but ANY of
+  // the three paths clears the screen instantly.
+  const clearAndNotify = useCallback(
+    (rideId: number | null, title: string, sub: string) => {
+      const lc = lastClearedRef.current;
+      if (rideId != null && lc.id === rideId && Date.now() - lc.at < 5000) return;
+      lastClearedRef.current = { id: rideId ?? null, at: Date.now() };
+      markUnassigned(rideId); // suppress same-ride re-offers on this device for 2 min
+      clearActive();
+      playRemoved();
+      Alert.alert(title, sub);
+    },
+    [clearActive],
+  );
+
   // ---- active ride ----
   const loadActiveRide = useCallback(async () => {
     if (!token) return;
@@ -87,6 +113,12 @@ export function useOrders() {
       if (data.ride) {
         setActiveRide(data.ride);
         setPassengers(data.passengers || []);
+      } else if (activeRideRef.current) {
+        // Server says this driver has NO active ride, but we were showing one →
+        // it was cancelled / unassigned / reassigned. Force-clear INSTANTLY here —
+        // do NOT wait for the WS event (it may have been missed while the app was
+        // backgrounded or the socket was reconnecting). This poll is the safety net.
+        clearAndNotify(activeRideRef.current.id ?? null, t("order_removed"), t("order_removed_sub"));
       } else {
         setActiveRide(null);
         setPassengers([]);
@@ -94,7 +126,7 @@ export function useOrders() {
     } catch {
       // offline / network — keep last state
     }
-  }, [token, headers]);
+  }, [token, headers, clearAndNotify, t]);
 
   useEffect(() => {
     if (!token) {
@@ -113,13 +145,6 @@ export function useOrders() {
     };
   }, [token, loadActiveRide]);
 
-  // Immediately drop the active ride (dispatcher cancel/unassign/complete).
-  const clearActive = useCallback(() => {
-    setActiveRide(null);
-    setPassengers([]);
-    setScreen((prev) => (prev === "completed" ? prev : "route_select"));
-  }, []);
-
   // React to ride WS pushes — mirrors web orders/hooks/useRideWebSocket so
   // dispatcher cancellation/unassignment/completion clears the ride in real time
   // (not just via the 8s poll). broadcastToAll reaches this driver's socket.
@@ -133,20 +158,8 @@ export function useOrders() {
         console.log("[WS]", d.type, { eventRideId, activeId, isCurrent, rideDriverId: ride?.driverId, rideStatus: ride?.status });
       }
 
-      // Clear the active ride + notify ONCE. The backend's operator-unassign
-      // sends BOTH a targeted `ride_unassigned_by_dispatcher` AND a
-      // broadcastToAll `ride_updated` (driverId:null) for the same ride, so we
-      // dedup by rideId within a short window to avoid a double alert/sound.
-      const clearAndNotify = (rideId: number | null, title: string, sub: string) => {
-        const lc = lastClearedRef.current;
-        if (rideId != null && lc.id === rideId && Date.now() - lc.at < 5000) return;
-        lastClearedRef.current = { id: rideId ?? null, at: Date.now() };
-        markUnassigned(rideId); // suppress same-ride re-offers on this device for 2 min
-        clearActive();
-        activeRideRef.current = null; // immediate, so a same-tick sibling event is a no-op
-        playRemoved();
-        Alert.alert(title, sub);
-      };
+      // (clearAndNotify is defined at hook scope above — shared with the 5s poll
+      // so either path clears the screen, deduped by rideId.)
 
       // Operator pulled the order back to the efir (targeted event).
       if (d.type === "ride_unassigned_by_dispatcher") {
@@ -209,7 +222,7 @@ export function useOrders() {
         loadActiveRide();
       }
     });
-  }, [loadActiveRide, clearActive]);
+  }, [loadActiveRide, clearActive, clearAndNotify]);
 
   // ---- screen derivation (mirrors OrdersMain) ----
   useEffect(() => {
