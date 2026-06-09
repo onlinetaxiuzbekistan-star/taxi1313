@@ -142,6 +142,7 @@ export const translations = {
   // ── manual client ──
   mc_add_seat: { ru: "Добавить — место", uz: "Qo‘shish — joy" },
   mc_phone_req: { ru: "Телефон клиента (обязательно)", uz: "Mijoz telefoni (majburiy)" },
+  mc_phone_opt: { ru: "Телефон клиента (необязательно)", uz: "Mijoz telefoni (ixtiyoriy)" },
   mc_phone_err: { ru: "Введите номер телефона клиента", uz: "Mijoz telefon raqamini kiriting" },
   mc_gender: { ru: "Пол пассажира", uz: "Yo‘lovchi jinsi" },
   mc_male: { ru: "Муж", uz: "Erkak" },
@@ -254,6 +255,18 @@ export const translations = {
   earn_rides: { ru: "Поездок", uz: "Safarlar" },
   earn_7days: { ru: "За 7 дней", uz: "7 kun ichida" },
   no_rides: { ru: "Нет поездок", uz: "Safarlar yo‘q" },
+  earn_pick_date: { ru: "Выбрать дату", uz: "Sanani tanlash" },
+  earn_all_dates: { ru: "Все даты", uz: "Barcha sanalar" },
+  trip_detail: { ru: "Детали поездки", uz: "Safar tafsilotlari" },
+  f_date: { ru: "Дата", uz: "Sana" },
+  f_time: { ru: "Время", uz: "Vaqt" },
+  f_tariff: { ru: "Тариф", uz: "Tarif" },
+  f_route: { ru: "Маршрут", uz: "Yo‘nalish" },
+  f_passengers: { ru: "Пассажиры", uz: "Yo‘lovchilar" },
+  f_price: { ru: "Стоимость", uz: "Narx" },
+  f_commission: { ru: "Комиссия", uz: "Komissiya" },
+  f_income: { ru: "Ваш доход", uz: "Sizning daromadingiz" },
+  f_status: { ru: "Статус", uz: "Holat" },
 
   // ── news ──
   news_one: { ru: "Новость", uz: "Yangilik" },

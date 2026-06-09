@@ -48,7 +48,10 @@ const FILTERS: { key: string; labelKey: TKey }[] = [
 
 function dateOf(iso: string) {
   try {
-    return new Date(iso).toLocaleDateString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+    const d = new Date(iso);
+    const day = d.toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" });
+    const time = d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+    return `${day} · ${time}`;
   } catch {
     return "";
   }
@@ -154,12 +157,13 @@ export default function WalletScreen() {
                     <Icon size={18} color={cfg.positive ? colors.emerald : colors.red} />
                   </View>
                   <View className="flex-1">
-                    <Text className="font-sans-medium text-foreground text-sm" numberOfLines={1}>
+                    <View className="flex-row items-center" style={{ gap: 6 }}>
+                      <Text className="font-sans-bold text-foreground text-[13px]">{t(cfg.labelKey)}</Text>
+                    </View>
+                    <Text className="font-sans text-muted-foreground text-[12px] mt-0.5" numberOfLines={2}>
                       {tx.description}
                     </Text>
-                    <Text className="font-sans text-muted-foreground text-[11px] mt-0.5">
-                      {t(cfg.labelKey)} · {dateOf(tx.createdAt)}
-                    </Text>
+                    <Text className="font-sans text-muted-foreground text-[11px] mt-0.5">{dateOf(tx.createdAt)}</Text>
                   </View>
                   <Text className={`font-sans-bold text-sm ${cfg.positive ? "text-emerald-400" : "text-red-400"}`}>
                     {cfg.positive ? "+" : "−"}

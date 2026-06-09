@@ -20,17 +20,9 @@ export function ManualClientForm({
 }) {
   const { t } = useT();
   const [phone, setPhone] = useState("");
-  const [touched, setTouched] = useState(false);
 
-  // Phone is REQUIRED — need at least 7 digits before the client can be added.
-  const digits = phone.replace(/\D/g, "");
-  const phoneValid = digits.length >= 7;
-
+  // Phone is OPTIONAL for a manually-added passenger.
   const submit = (gender: string) => {
-    if (!phoneValid) {
-      setTouched(true);
-      return;
-    }
     onSubmit(seatNumber, gender, phone.trim());
     onClose();
   };
@@ -46,21 +38,13 @@ export function ManualClientForm({
       <View className="p-3" style={{ gap: 8 }}>
         <TextInput
           value={phone}
-          onChangeText={(v) => {
-            setPhone(v);
-            if (!touched) setTouched(true);
-          }}
-          placeholder={t("mc_phone_req")}
+          onChangeText={setPhone}
+          placeholder={t("mc_phone_opt")}
           placeholderTextColor={colors.mutedForeground}
           keyboardType="phone-pad"
-          className={`px-3 py-2.5 rounded-lg bg-muted border text-foreground text-sm ${
-            touched && !phoneValid ? "border-red-500" : "border-border"
-          }`}
+          className="px-3 py-2.5 rounded-lg bg-muted border border-border text-foreground text-sm"
           style={{ color: colors.foreground }}
         />
-        {touched && !phoneValid ? (
-          <Text className="font-sans text-red-400 text-[12px]">{t("mc_phone_err")}</Text>
-        ) : null}
 
         <Text className="font-sans text-muted-foreground text-[11px] uppercase mt-0.5" style={{ letterSpacing: 0.5 }}>
           {t("mc_gender")}
@@ -70,7 +54,7 @@ export function ManualClientForm({
             { g: "male", label: t("mc_male") },
             { g: "female", label: t("mc_female") },
           ].map((b) => {
-            const disabled = loading || !phoneValid;
+            const disabled = !!loading;
             return (
               <Pressable
                 key={b.g}

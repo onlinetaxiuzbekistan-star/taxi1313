@@ -72,8 +72,9 @@ export function SellOrderScreen({
   }, [computed]);
 
   const price = Number(priceStr.replace(/\D/g, "")) || 0;
-  // Phone is OPTIONAL now — only route + a valid price are required.
-  const canSubmit = !!routeId && price >= minPrice && minPrice > 0 && !loading;
+  const phoneDigits = phone.replace(/\D/g, "");
+  // Phone is MANDATORY on the sell screen (>= 9 digits).
+  const canSubmit = !!routeId && phoneDigits.length >= 9 && price >= minPrice && minPrice > 0 && !loading;
 
   const doSubmit = async () => {
     if (!canSubmit || !routeId) return;
@@ -186,8 +187,8 @@ export function SellOrderScreen({
         })}
       </View>
 
-      {/* Client phone — OPTIONAL */}
-      <Label text={t("sell_phone_optional")} className="mt-4" />
+      {/* Client phone — MANDATORY */}
+      <Label text={t("sell_phone")} className="mt-4" />
       <TextInput
         value={phone}
         onChangeText={setPhone}

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { View, Text, Pressable, ScrollView, ActivityIndicator } from "react-native";
+import { View, Text, Pressable, ScrollView, ActivityIndicator, Linking } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { MessageCircle, Users, ChevronRight, Phone } from "lucide-react-native";
 
@@ -9,7 +9,6 @@ import { colors } from "@/lib/theme";
 import { useChat } from "@/features/chat/use-chat";
 import { useGroupList, useGroupChat } from "@/features/chat/use-group-chat";
 import { useUnread } from "@/features/chat/unread";
-import { useVoiceCall } from "@/features/voice/VoiceCallProvider";
 import { ChatThread } from "@/features/chat/ChatThread";
 import { useT } from "@/lib/i18n";
 
@@ -29,7 +28,9 @@ export default function ChatScreen() {
   const { t } = useT();
   const { token, user } = useAuth();
   const { reset } = useUnread();
-  const { startCall } = useVoiceCall();
+  // Dispatcher hotline — a regular phone call (not WebRTC).
+  const DISPATCHER_PHONE = "+998787771313";
+  const callDispatcher = () => Linking.openURL(`tel:${DISPATCHER_PHONE}`).catch(() => {});
   const [dispatcher, setDispatcher] = useState<{ id: number; name: string } | null>(null);
   const [open, setOpen] = useState<Open>(null);
   const [text, setText] = useState("");
@@ -108,7 +109,7 @@ export default function ChatScreen() {
         onChangeText={onChangeText}
         onSend={onSend}
         onBack={back}
-        onCall={() => startCall(open.id, open.name)}
+        onCall={callDispatcher}
       />
     );
   }
@@ -135,7 +136,7 @@ export default function ChatScreen() {
       {/* Prominent call-dispatcher button */}
       {dispatcher && (
         <Pressable
-          onPress={() => startCall(dispatcher.id, dispatcher.name)}
+          onPress={callDispatcher}
           className="mx-4 mb-2 py-3.5 rounded-2xl bg-emerald-500 flex-row items-center justify-center active:opacity-90"
           style={{ gap: 8 }}
         >

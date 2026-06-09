@@ -1,10 +1,9 @@
 import { useState, useEffect } from "react";
 import { View, Text, Pressable, ScrollView, Alert } from "react-native";
 import { useRouter } from "expo-router";
-import { User, Star, Car, Wallet, TrendingUp, Bell, ChevronRight, LogOut, Settings, Trash2 } from "lucide-react-native";
+import { User, Star, Car, Wallet, TrendingUp, Bell, ChevronRight, Settings, Trash2 } from "lucide-react-native";
 
 import { useAuth } from "@/hooks/use-auth";
-import { useSettingsStore, type Language } from "@/stores/settings";
 import { useT } from "@/lib/i18n";
 import { getCallsign, DEMO_DRIVER } from "@/lib/driver";
 import { PREVIEW_MODE, API_BASE_URL } from "@/config";
@@ -15,8 +14,6 @@ export default function ProfileScreen() {
   const { user, token, logout } = useAuth();
   const { t } = useT();
   const router = useRouter();
-  const language = useSettingsStore((s) => s.language);
-  const setLanguage = useSettingsStore((s) => s.setLanguage);
   const [ratingCount, setRatingCount] = useState<number | null>(null);
 
   const driver = user ?? (PREVIEW_MODE ? DEMO_DRIVER : null);
@@ -33,11 +30,6 @@ export default function ProfileScreen() {
   }, [token]);
 
   if (!driver) return null;
-
-  const langs: { code: Language; label: string }[] = [
-    { code: "ru", label: t("lang_ru") },
-    { code: "uz", label: "Oʻzbekcha" },
-  ];
 
   const menu = [
     { icon: Wallet, label: t("wallet_menu"), sub: formatCurrency(Number((driver as any).balance || 0)), to: "/wallet" as const },
@@ -117,42 +109,7 @@ export default function ProfileScreen() {
         ))}
       </View>
 
-      {/* language */}
-      <View className="bg-card border border-border rounded-2xl p-4 mb-4">
-        <Text className="font-sans-semibold text-muted-foreground text-[12px] uppercase mb-3" style={{ letterSpacing: 0.5 }}>
-          {t("language")}
-        </Text>
-        <View className="flex-row" style={{ gap: 10 }}>
-          {langs.map((l) => {
-            const active = language === l.code;
-            return (
-              <Pressable
-                key={l.code}
-                onPress={() => setLanguage(l.code)}
-                className={`flex-1 py-3 rounded-xl border items-center active:opacity-80 ${
-                  active ? "bg-primary border-primary" : "bg-secondary border-border"
-                }`}
-              >
-                <Text className={`font-sans-semibold text-sm ${active ? "text-primary-foreground" : "text-foreground"}`}>
-                  {l.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      </View>
-
-      {/* logout (secondary) */}
-      <Pressable
-        onPress={() => logout()}
-        className="bg-secondary border border-border rounded-2xl py-3 flex-row items-center justify-center active:opacity-80 mb-3"
-        style={{ gap: 8 }}
-      >
-        <LogOut size={17} color={colors.foreground} />
-        <Text className="font-sans-bold text-foreground text-sm">{t("logout_short")}</Text>
-      </Pressable>
-
-      {/* delete account (primary destructive) */}
+      {/* delete account (only auth action) */}
       <Pressable
         onPress={confirmDelete}
         className="bg-red-500/10 border border-red-500/20 rounded-2xl py-3.5 flex-row items-center justify-center active:opacity-80"

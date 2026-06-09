@@ -2,7 +2,7 @@
   "expo": {
     "name": "Taxi 1313 — Водитель",
     "slug": "driver-native",
-    "version": "1.0.7",
+    "version": "1.0.8",
     "scheme": "taxi1313driver",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
