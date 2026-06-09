@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
-import { View, Text, Pressable, ScrollView } from "react-native";
+import { View, Text, Pressable, ScrollView, Alert } from "react-native";
 import { useRouter } from "expo-router";
-import { User, Star, Car, Wallet, TrendingUp, Bell, ChevronRight, LogOut } from "lucide-react-native";
+import { User, Star, Car, Wallet, TrendingUp, Bell, ChevronRight, LogOut, Settings, Trash2 } from "lucide-react-native";
 
 import { useAuth } from "@/hooks/use-auth";
 import { useSettingsStore, type Language } from "@/stores/settings";
@@ -43,7 +43,15 @@ export default function ProfileScreen() {
     { icon: Wallet, label: t("wallet_menu"), sub: formatCurrency(Number((driver as any).balance || 0)), to: "/wallet" as const },
     { icon: TrendingUp, label: t("earnings_menu"), sub: t("earnings_sub"), to: "/earnings" as const },
     { icon: Bell, label: t("news_menu"), sub: t("news_sub"), to: "/news" as const },
+    { icon: Settings, label: t("settings_title"), sub: "", to: "/settings" as const },
   ];
+
+  const confirmDelete = () => {
+    Alert.alert(t("delete_account"), t("delete_account_q"), [
+      { text: t("no"), style: "cancel" },
+      { text: t("yes"), style: "destructive", onPress: () => logout() },
+    ]);
+  };
 
   return (
     <ScrollView className="flex-1 bg-background" contentContainerClassName="p-4">
@@ -93,7 +101,7 @@ export default function ProfileScreen() {
         {menu.map((m, i) => (
           <Pressable
             key={m.label}
-            onPress={() => router.push(m.to)}
+            onPress={() => router.push(m.to as any)}
             className={`flex-row items-center px-4 py-3.5 active:opacity-80 ${i > 0 ? "border-t border-border" : ""}`}
             style={{ gap: 12 }}
           >
@@ -134,14 +142,24 @@ export default function ProfileScreen() {
         </View>
       </View>
 
-      {/* logout */}
+      {/* logout (secondary) */}
       <Pressable
         onPress={() => logout()}
+        className="bg-secondary border border-border rounded-2xl py-3 flex-row items-center justify-center active:opacity-80 mb-3"
+        style={{ gap: 8 }}
+      >
+        <LogOut size={17} color={colors.foreground} />
+        <Text className="font-sans-bold text-foreground text-sm">{t("logout_short")}</Text>
+      </Pressable>
+
+      {/* delete account (primary destructive) */}
+      <Pressable
+        onPress={confirmDelete}
         className="bg-red-500/10 border border-red-500/20 rounded-2xl py-3.5 flex-row items-center justify-center active:opacity-80"
         style={{ gap: 8 }}
       >
-        <LogOut size={18} color={colors.red} />
-        <Text className="font-sans-bold text-red-500 text-sm">{t("logout")}</Text>
+        <Trash2 size={18} color={colors.red} />
+        <Text className="font-sans-bold text-red-500 text-sm">{t("delete_account")}</Text>
       </Pressable>
     </ScrollView>
   );

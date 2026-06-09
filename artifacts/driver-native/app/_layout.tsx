@@ -28,14 +28,17 @@ import {
 import { configureApi } from "@/api";
 import { queryClient } from "@/lib/queryClient";
 import { AuthProvider } from "@/hooks/use-auth";
-import { useSettingsStore } from "@/stores/settings";
-import { colors } from "@/lib/theme";
+import { useSettingsStore, fontScaleOf } from "@/stores/settings";
+import { colors, applyThemeColors } from "@/lib/theme";
+import { themeVars, setFontScale, patchFontScaling } from "@/lib/theme-runtime";
 import { configurePushHandler } from "@/native/push";
 
 // Point the shared API client at the live backend + token store, once.
 configureApi();
 // Foreground notification presentation behavior (FCM-ready scaffold).
 configurePushHandler();
+// Enable global font scaling (no-op until the driver picks a non-default size).
+patchFontScaling();
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
@@ -53,10 +56,17 @@ export default function RootLayout() {
 
   const hydrate = useSettingsStore((s) => s.hydrate);
   const hydrated = useSettingsStore((s) => s.hydrated);
+  const theme = useSettingsStore((s) => s.theme);
+  const fontSize = useSettingsStore((s) => s.fontSize);
 
   useEffect(() => {
     hydrate();
   }, [hydrate]);
+
+  // Apply the live theme + font scale before rendering children so colors.* and
+  // the className CSS vars are consistent this frame.
+  applyThemeColors(theme);
+  setFontScale(fontScaleOf(fontSize));
 
   if (!fontsLoaded || !hydrated) {
     return <View style={{ flex: 1, backgroundColor: colors.background }} />;
@@ -67,16 +77,22 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
-            <StatusBar style="light" />
-            <Stack
-              screenOptions={{
-                headerShown: false,
-                contentStyle: { backgroundColor: colors.background },
-              }}
-            >
-              <Stack.Screen name="(driver)" />
-              <Stack.Screen name="driver-login" />
-            </Stack>
+            <StatusBar style={theme === "light" ? "dark" : "light"} />
+            {/* themeVars cascades the CSS variables (bg-background, text-foreground…)
+                to all screens; changing theme re-renders this wrapper so className
+                colors switch live. colors.* (icons) + font scale apply as each
+                screen next renders. No remount → the user stays where they are. */}
+            <View style={[{ flex: 1 }, themeVars(theme)]}>
+              <Stack
+                screenOptions={{
+                  headerShown: false,
+                  contentStyle: { backgroundColor: colors.background },
+                }}
+              >
+                <Stack.Screen name="(driver)" />
+                <Stack.Screen name="driver-login" />
+              </Stack>
+            </View>
           </AuthProvider>
         </QueryClientProvider>
       </SafeAreaProvider>

@@ -308,6 +308,38 @@ export const translations = {
   order_cancelled_sub: { ru: "Заказ отменён диспетчером", uz: "Buyurtma dispetcher tomonidan bekor qilindi" },
   st_collecting: { ru: "Собирает клиентов", uz: "Mijozlar yig‘ilmoqda" },
 
+  // ── common yes/no ──
+  yes: { ru: "Да", uz: "Ha" },
+  no: { ru: "Нет", uz: "Yo‘q" },
+  on: { ru: "Вкл", uz: "Yoniq" },
+  off: { ru: "Выкл", uz: "O‘chiq" },
+
+  // ── settings ──
+  settings_title: { ru: "Настройки", uz: "Sozlamalar" },
+  font_size: { ru: "Размер шрифта", uz: "Shrift o‘lchami" },
+  font_small: { ru: "Мелкий", uz: "Kichik" },
+  font_medium: { ru: "Средний", uz: "O‘rta" },
+  font_large: { ru: "Крупный", uz: "Katta" },
+  theme_label: { ru: "Тема оформления", uz: "Mavzu" },
+  theme_dark: { ru: "Тёмная", uz: "Tungi" },
+  theme_light: { ru: "Светлая", uz: "Kunduzgi" },
+  sounds_label: { ru: "Звуки уведомлений", uz: "Bildirishnoma ovozlari" },
+  font_preview: { ru: "Пример текста", uz: "Matn namunasi" },
+
+  // ── chat ──
+  call_dispatcher: { ru: "Позвонить диспетчеру", uz: "Dispetcherga qo‘ng‘iroq" },
+
+  // ── delete account / logout ──
+  delete_account: { ru: "Удалить аккаунт", uz: "Hisobni o‘chirish" },
+  delete_account_q: { ru: "Вы действительно хотите удалить аккаунт?", uz: "Rostdan ham hisobni o‘chirmoqchimisiz?" },
+  logout_short: { ru: "Выйти", uz: "Chiqish" },
+
+  // ── sell-order seat rows + confirm ──
+  sell_front_row: { ru: "Передний ряд", uz: "Oldingi qator" },
+  sell_back_row: { ru: "Задний ряд", uz: "Orqa qator" },
+  sell_confirm_q: { ru: "Вы действительно хотите продать заказ?", uz: "Buyurtmani sotishni xohlaysizmi?" },
+  sell_phone_optional: { ru: "Телефон клиента (необязательно)", uz: "Mijoz telefoni (ixtiyoriy)" },
+
   // ── sell-order screen (mirror web Marketplace sell form) ──
   sell_route: { ru: "Маршрут", uz: "Yo‘nalish" },
   sell_tariff: { ru: "Тариф", uz: "Tarif" },

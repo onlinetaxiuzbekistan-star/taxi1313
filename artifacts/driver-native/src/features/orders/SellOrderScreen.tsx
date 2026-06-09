@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
-import { View, Text, Pressable, ScrollView, TextInput, ActivityIndicator } from "react-native";
-import { ChevronLeft, ChevronDown, ChevronUp, Store, Check, Minus, Plus, MapPin } from "lucide-react-native";
+import { View, Text, Pressable, ScrollView, TextInput, ActivityIndicator, Modal } from "react-native";
+import { ChevronLeft, ChevronDown, ChevronUp, Store, Check, MapPin, X } from "lucide-react-native";
 
 import { colors } from "@/lib/theme";
 import { useT } from "@/lib/i18n";
@@ -43,11 +43,12 @@ export function SellOrderScreen({
   const { t } = useT();
   const [routeId, setRouteId] = useState<number | null>(null);
   const [tier, setTier] = useState<string>("economy");
-  const [seats, setSeats] = useState(1);
+  const [seatMode, setSeatMode] = useState<"front" | "back" | "whole">("whole");
   const [phone, setPhone] = useState("+998");
   const [priceStr, setPriceStr] = useState("");
   const [comment, setComment] = useState("");
   const [routeOpen, setRouteOpen] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const cityName = (s?: string) => cities.find((c) => c.id === s || c.nameRu === s)?.nameRu || s || "—";
 
@@ -55,6 +56,10 @@ export function SellOrderScreen({
     () => routes.find((r) => (r as any).id === routeId) as any,
     [routes, routeId],
   );
+
+  // Front row = seat 1, back row = seats 2..4, whole car = 1..4.
+  const seatNums = seatMode === "front" ? [1] : seatMode === "back" ? [2, 3, 4] : [1, 2, 3, 4];
+  const seats = seatNums.length;
 
   const tierCol = TIERS.find((x) => x.key === tier)!.col;
   const perSeat = selRoute ? Number(selRoute[tierCol] || selRoute.priceEconomy || 0) : 0;
@@ -67,18 +72,19 @@ export function SellOrderScreen({
   }, [computed]);
 
   const price = Number(priceStr.replace(/\D/g, "")) || 0;
-  const phoneDigits = phone.replace(/\D/g, "");
-  const canSubmit = !!routeId && phoneDigits.length >= 9 && price >= minPrice && minPrice > 0 && !loading;
+  // Phone is OPTIONAL now — only route + a valid price are required.
+  const canSubmit = !!routeId && price >= minPrice && minPrice > 0 && !loading;
 
-  const submit = async () => {
+  const doSubmit = async () => {
     if (!canSubmit || !routeId) return;
+    setConfirmOpen(false);
     const ok = await onSubmit({
       routeId,
       clientPhone: phone.trim(),
-      seatsCount: Array.from({ length: seats }, (_, i) => i + 1),
+      seatsCount: seatNums,
       price,
       comment: comment.trim() || undefined,
-      genders: Array.from({ length: seats }, () => "male"),
+      genders: seatNums.map(() => "male"),
     });
     if (ok) onBack();
   };
@@ -159,34 +165,29 @@ export function SellOrderScreen({
         })}
       </View>
 
-      {/* Seats */}
+      {/* Seats — row selection (front / back / whole car), like the ride picker */}
       <Label text={t("sell_seats")} className="mt-4" />
-      <View className="flex-row items-center" style={{ gap: 10 }}>
-        <Pressable
-          onPress={() => setSeats((s) => Math.max(1, s - 1))}
-          className="w-11 h-11 rounded-xl bg-card border border-border items-center justify-center active:opacity-80"
-        >
-          <Minus size={18} color={colors.foreground} />
-        </Pressable>
-        <View className="flex-1 items-center">
-          <Text className="font-display text-foreground text-2xl">{seats}</Text>
-        </View>
-        <Pressable
-          onPress={() => setSeats((s) => Math.min(4, s + 1))}
-          className="w-11 h-11 rounded-xl bg-card border border-border items-center justify-center active:opacity-80"
-        >
-          <Plus size={18} color={colors.foreground} />
-        </Pressable>
-        <Pressable
-          onPress={() => setSeats(4)}
-          className={`px-3 h-11 rounded-xl border items-center justify-center active:opacity-80 ${seats === 4 ? "bg-primary border-primary" : "bg-card border-border"}`}
-        >
-          <Text className={`font-sans-bold text-[12px] ${seats === 4 ? "text-primary-foreground" : "text-foreground"}`}>{t("sell_whole_car")}</Text>
-        </Pressable>
+      <View className="flex-row" style={{ gap: 8 }}>
+        {([
+          ["front", t("sell_front_row")],
+          ["back", t("sell_back_row")],
+          ["whole", t("sell_whole_car")],
+        ] as const).map(([mode, label]) => {
+          const sel = seatMode === mode;
+          return (
+            <Pressable
+              key={mode}
+              onPress={() => setSeatMode(mode)}
+              className={`flex-1 py-3 rounded-xl border items-center active:opacity-80 ${sel ? "bg-primary border-primary" : "bg-card border-border"}`}
+            >
+              <Text className={`font-sans-bold text-[12px] text-center ${sel ? "text-primary-foreground" : "text-foreground"}`}>{label}</Text>
+            </Pressable>
+          );
+        })}
       </View>
 
-      {/* Client phone */}
-      <Label text={t("sell_phone")} className="mt-4" />
+      {/* Client phone — OPTIONAL */}
+      <Label text={t("sell_phone_optional")} className="mt-4" />
       <TextInput
         value={phone}
         onChangeText={setPhone}
@@ -227,7 +228,7 @@ export function SellOrderScreen({
       {error ? <Text className="font-sans text-red-400 text-[13px] text-center mt-3">{error}</Text> : null}
 
       <Pressable
-        onPress={submit}
+        onPress={() => canSubmit && setConfirmOpen(true)}
         disabled={!canSubmit}
         className="mt-5 py-4 rounded-2xl bg-primary flex-row items-center justify-center active:opacity-90"
         style={{ gap: 8, opacity: !canSubmit ? 0.5 : 1 }}
@@ -237,6 +238,46 @@ export function SellOrderScreen({
           {price > 0 ? `${t("sell_list")} · ${formatCurrency(price)}` : t("sell_list")}
         </Text>
       </Pressable>
+
+      {/* Confirmation */}
+      <Modal visible={confirmOpen} transparent animationType="fade" onRequestClose={() => setConfirmOpen(false)}>
+        <View className="flex-1 bg-black/60 items-center justify-center px-6">
+          <View className="w-full bg-card rounded-3xl border border-border p-5" style={{ gap: 14 }}>
+            <View className="flex-row items-center justify-between">
+              <View className="flex-row items-center" style={{ gap: 8 }}>
+                <Store size={20} color={colors.primary} />
+                <Text className="font-display text-foreground text-lg">{t("sell_to_operator")}</Text>
+              </View>
+              <Pressable onPress={() => setConfirmOpen(false)} className="w-8 h-8 rounded-full bg-secondary items-center justify-center active:opacity-80">
+                <X size={16} color={colors.foreground} />
+              </Pressable>
+            </View>
+            <Text className="font-sans-bold text-foreground text-base text-center">{t("sell_confirm_q")}</Text>
+            <View className="items-center rounded-2xl bg-secondary py-3">
+              <Text className="font-sans text-muted-foreground text-[12px] uppercase" style={{ letterSpacing: 0.5 }}>
+                {cityName(selRoute?.fromCity)} → {cityName(selRoute?.toCity)}
+              </Text>
+              <Text className="font-display text-emerald-400 text-2xl mt-1">{formatCurrency(price)}</Text>
+            </View>
+            <View className="flex-row" style={{ gap: 10 }}>
+              <Pressable
+                onPress={() => setConfirmOpen(false)}
+                className="flex-1 py-3.5 rounded-2xl bg-secondary border border-border items-center active:opacity-80"
+              >
+                <Text className="font-sans-bold text-foreground text-sm">{t("no")}</Text>
+              </Pressable>
+              <Pressable
+                onPress={doSubmit}
+                disabled={loading}
+                className="flex-1 py-3.5 rounded-2xl bg-primary items-center justify-center active:opacity-90"
+                style={{ opacity: loading ? 0.6 : 1 }}
+              >
+                {loading ? <ActivityIndicator color={colors.primaryForeground} /> : <Text className="font-sans-bold text-primary-foreground text-sm">{t("yes")}</Text>}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }

@@ -1,6 +1,16 @@
 import { Vibration, Platform } from "react-native";
 import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from "expo-audio";
 
+import { useSettingsStore } from "@/stores/settings";
+
+function soundsOn(): boolean {
+  try {
+    return useSettingsStore.getState().soundsEnabled !== false;
+  } catch {
+    return true;
+  }
+}
+
 // Bundled, offline notification sounds (ship inside the APK), in assets/sounds/.
 // Replace with custom audio anytime, keeping the same names.
 const players: Record<string, AudioPlayer | null> = {};
@@ -37,6 +47,7 @@ export function preloadSounds() {
 }
 
 function fire(key: string) {
+  if (!soundsOn()) return;
   ensure();
   const p = players[key];
   if (!p) {
@@ -70,6 +81,7 @@ export function playMarket() {
 
 // Incoming voice call — loop the ringtone until stopCall() is called.
 export function playCall() {
+  if (!soundsOn()) return;
   ensure();
   const p = players.call;
   if (!p) return;

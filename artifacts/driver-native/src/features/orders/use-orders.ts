@@ -443,12 +443,16 @@ export function useOrders() {
       if (sellLoading) return false;
       setSellLoading(true);
       setSellError(null);
+      // Phone is optional in the UI; the backend still needs one, so fall back to
+      // the driver's own number (buyer can reach the seller) when left blank.
+      const phone = (params.clientPhone || "").replace(/\s/g, "");
+      const clientPhone = phone.replace(/\D/g, "").length >= 9 ? phone : ((user as any)?.phone || phone);
       const body = {
         routeId: params.routeId,
         fromDistrictId: null,
         toDistrictId: null,
         scheduledAt: new Date().toISOString(),
-        clientPhone: params.clientPhone,
+        clientPhone,
         seatsCount: params.seatsCount,
         baggageType: null,
         price: params.price,

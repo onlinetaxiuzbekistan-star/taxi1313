@@ -60,7 +60,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       refetchInterval: user?.role === "driver" ? 8000 : false,
       retry: (failureCount: number, err: any) => {
         const status = err?.status ?? err?.response?.status;
-        if (status === 401) return false;
+        // Don't hammer the backend on auth failure or rate-limit (429).
+        if (status === 401 || status === 429) return false;
         return failureCount < 2;
       },
     },
@@ -114,9 +115,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
+    // Stop all in-flight polling first so logout doesn't trigger a burst of
+    // /me + other requests (which were hitting the rate limiter / 429).
+    try {
+      queryClient.cancelQueries();
+      queryClient.clear();
+    } catch {}
     await clearAuth();
     router.replace("/driver-login");
-  }, [clearAuth]);
+  }, [clearAuth, queryClient]);
 
   return (
     <AuthContext.Provider

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { View, Text, Pressable, ScrollView, ActivityIndicator } from "react-native";
 import { useFocusEffect } from "expo-router";
-import { MessageCircle, Users, ChevronRight } from "lucide-react-native";
+import { MessageCircle, Users, ChevronRight, Phone } from "lucide-react-native";
 
 import { useAuth } from "@/hooks/use-auth";
 import { API_BASE_URL } from "@/config";
@@ -132,6 +132,18 @@ export default function ChatScreen() {
   // ---- conversations list ----
   return (
     <ScrollView className="flex-1 bg-background" contentContainerClassName="py-2">
+      {/* Prominent call-dispatcher button */}
+      {dispatcher && (
+        <Pressable
+          onPress={() => startCall(dispatcher.id, dispatcher.name)}
+          className="mx-4 mb-2 py-3.5 rounded-2xl bg-emerald-500 flex-row items-center justify-center active:opacity-90"
+          style={{ gap: 8 }}
+        >
+          <Phone size={18} color="#fff" />
+          <Text className="font-sans-bold text-white text-sm">{t("call_dispatcher")}</Text>
+        </Pressable>
+      )}
+
       {dispatcher && (
         <Pressable
           onPress={() => setOpen({ kind: "dm", id: dispatcher.id, name: dispatcher.name })}
