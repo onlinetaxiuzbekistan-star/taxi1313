@@ -34,7 +34,7 @@ interface SettingsStore extends AppSettings {
 }
 
 const defaults: AppSettings = {
-  theme: "dark",
+  theme: "light",
   language: "ru",
   fontSize: "medium",
   soundsEnabled: true,

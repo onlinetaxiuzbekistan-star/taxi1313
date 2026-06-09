@@ -2,12 +2,12 @@
   "expo": {
     "name": "Taxi 1313 — Водитель",
     "slug": "driver-native",
-    "version": "1.0.8",
+    "version": "1.0.9",
     "scheme": "taxi1313driver",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "dark",
-    "backgroundColor": "#0A0A1A",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#F2F4F7",
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",
