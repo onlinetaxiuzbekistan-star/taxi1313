@@ -13,7 +13,7 @@ import { broadcastToAll, broadcastToUser, enqueueDriverStatusBroadcast } from ".
 import { notifyOrderAccepted, notifyOrderTaken } from "../../lib/notifications.js";
 import { applyCancelPenalty, resetConsecutiveIgnores, isDriverBanned, getBanRemainingMs, handleStatusToggle } from "../../lib/bonuses.js";
 import { completeRide } from "../../lib/completion.js";
-import { stopDispatchLoop, citiesMatch, enrichRideForOffer } from "../../lib/autodispatch.js";
+import { stopDispatchLoop, citiesMatch, enrichRideForOffer, isInUnassignCooldown } from "../../lib/autodispatch.js";
 import { getDriver, updateDriver, getDriverBalance } from "../../lib/services/drivers.service.js";
 import { validateBody } from "../../middlewares/validate.js";
 import { driverStatusBodySchema, driverLocationBodySchema } from "../../middlewares/request-schemas.js";
@@ -131,6 +131,19 @@ router.post("/accept", authMiddleware, validateBody(rideIdBodySchema), async (re
     if (existing.driverId === driverId && ["accepted", "in_progress"].includes(existing.status as string)) {
       clog.log(`[IDEMPOTENT] rideId=${rideId}, driverId=${driverId}, status=${existing.status} — already accepted by this driver`);
       res.json({ success: true, ride: existing, idempotent: true });
+      return;
+    }
+
+    // Block re-accepting a ride the dispatcher JUST unassigned from this driver.
+    // The unassign cooldown is otherwise only enforced inside auto-dispatch's
+    // candidate selection; the urgent/market accept path (skipOffer) reaches here
+    // directly, so without this guard the driver could re-grab the same order the
+    // operator just pulled off them.
+    if (await isInUnassignCooldown(Number(rideId), driverId)) {
+      res.status(409).json({
+        error: "unassign_cooldown",
+        message: "Этот заказ был снят с вас диспетчером. Попробуйте позже.",
+      });
       return;
     }
 
