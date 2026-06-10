@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { View, Text, Pressable, ScrollView, ActivityIndicator, Linking, Modal } from "react-native";
-import { Navigation, XCircle, Phone, User, Users } from "lucide-react-native";
+import { Navigation, XCircle, Phone, User, Users, Clock, Package } from "lucide-react-native";
 
 import { useAuth } from "@/hooks/use-auth";
 import { API_BASE_URL } from "@/config";
@@ -147,6 +147,16 @@ export function SeatViewScreen({
           <Text className="font-display text-white text-base mt-0.5" numberOfLines={1}>
             {fromName} → {toName}
           </Text>
+          {(() => {
+            const ts = (ride as any).timeSlot as string | null | undefined;
+            const label = ts ? String(ts).replace("-", " – ") : ((ride as any).isUrgent ? t("time_now") : null);
+            return label ? (
+              <View className="flex-row items-center mt-1" style={{ gap: 5 }}>
+                <Clock size={13} color="#d4d4d8" />
+                <Text className="font-sans-bold text-zinc-200 text-xs">{label}</Text>
+              </View>
+            ) : null;
+          })()}
           <View className="flex-row mt-2" style={{ gap: 6 }}>
             <View className="flex-1 bg-white/10 rounded-lg py-1.5 items-center">
               <Text className="font-sans-bold text-white text-lg">
@@ -185,6 +195,14 @@ export function SeatViewScreen({
           />
         </View>
 
+        {/* Queue widget first ("Вы первый в очереди"), then the waiting-for-
+            passengers hint below it (positions swapped per request). */}
+        {queueInfo && filledSeats < totalSeats ? (
+          <View className="mt-3">
+            <QueueWidget queueInfo={queueInfo} />
+          </View>
+        ) : null}
+
         {/* No separate passenger list — tapping a seat opens a popup with the
             passenger details (or the manual-add form for an empty seat). */}
         {passengers.length === 0 ? (
@@ -192,12 +210,6 @@ export function SeatViewScreen({
             <Users size={32} color={colors.mutedForeground} />
             <Text className="font-sans text-muted-foreground text-sm mt-2">{t("waiting_pax")}</Text>
             <Text className="font-sans text-muted-foreground text-[12px] mt-1">{t("tap_seat_hint")}</Text>
-          </View>
-        ) : null}
-
-        {queueInfo && filledSeats < totalSeats ? (
-          <View className="mt-3">
-            <QueueWidget queueInfo={queueInfo} />
           </View>
         ) : null}
       </ScrollView>
@@ -259,12 +271,26 @@ export function SeatViewScreen({
           {/* stop propagation so taps inside the card don't dismiss it */}
           <Pressable onPress={() => {}}>
             {selectedPassenger ? (
-              <SeatPassengerCard
-                passenger={selectedPassenger}
-                onClose={() => setSelectedSeat(null)}
-                onReject={onRejectClient}
-                loading={passengerActionLoading === selectedPassenger.id}
-              />
+              <View style={{ gap: 8 }}>
+                <SeatPassengerCard
+                  passenger={selectedPassenger}
+                  onClose={() => setSelectedSeat(null)}
+                  onReject={onRejectClient}
+                  loading={passengerActionLoading === selectedPassenger.id}
+                />
+                {Array.isArray((ride as any).optionDetails) && (ride as any).optionDetails.length > 0 ? (
+                  <View className="bg-card rounded-2xl p-3 flex-row flex-wrap" style={{ gap: 6 }}>
+                    {(ride as any).optionDetails.map((o: any) => (
+                      <View key={o.key} className="flex-row items-center bg-amber-100 rounded-lg px-2 py-1" style={{ gap: 4 }}>
+                        <Package size={12} color="#854f0b" />
+                        <Text className="font-sans-bold text-[11px]" style={{ color: "#854f0b" }}>
+                          {o.label}{o.price ? ` +${formatCurrency(o.price)}` : ""}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
+              </View>
             ) : showManual !== null && onManualClient ? (
               <ManualClientForm
                 seatNumber={showManual}

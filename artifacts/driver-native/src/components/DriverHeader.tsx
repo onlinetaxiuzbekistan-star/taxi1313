@@ -31,13 +31,12 @@ export function DriverHeader({
 
   const isOnline = user.status === "online" || user.status === "busy";
   const isBusy = user.status === "busy";
-  const gps = useGpsActive(isOnline);
+  const gps = useGpsActive(isOnline, (user as any).lastLocationUpdate ?? (user as any).last_location_update);
+  // Two states only: working → green, not working → red. No amber/flicker.
   const gpsStyle =
     gps === "active"
       ? { box: "bg-emerald-500/15 border-emerald-500/40", dot: "bg-emerald-400", txt: "text-emerald-400", icon: colors.emerald }
-      : gps === "acquiring"
-        ? { box: "bg-amber-500/15 border-amber-500/40", dot: "bg-amber-400", txt: "text-amber-400", icon: colors.amber }
-        : { box: "bg-red-500/10 border-red-500/30", dot: "bg-red-500", txt: "text-red-400", icon: colors.red };
+      : { box: "bg-red-500/10 border-red-500/30", dot: "bg-red-500", txt: "text-red-400", icon: colors.red };
 
   const statusBg = isBusy ? "bg-amber-500" : isOnline ? "bg-emerald-500" : "bg-red-500";
   const statusBorder = isBusy

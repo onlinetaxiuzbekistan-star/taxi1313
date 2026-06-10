@@ -813,17 +813,22 @@ router.post("/:id/unassign-driver", authMiddleware, requireRole("dispatcher", "a
       message: "Диспетчер снял с вас этот заказ",
     });
 
-    // 6. broadcast обновления заказа всем (диспетчерам)
+    // 6. broadcast обновления заказа всем (диспетчерам + free-board у водителей).
+    //    new_ride заставляет приложение водителя сразу перезагрузить /free-orders,
+    //    так что снятый заказ появляется в «Свободные» МГНОВЕННО (а не через ~10с).
     broadcastToAll({ type: "ride_updated", ride });
+    broadcastToAll({ type: "new_ride", ride });
 
-    // 7. перезапустим автодиспетчинг — заказ снова уйдёт другим водителям
-    if (ride.fromCity) {
+    // 7. По умолчанию снятый заказ НЕ передиспетчеризуется — он «висит в эфире»
+    //    (на свободной доске) для ручного подбора, как просили. Старое поведение
+    //    (снова рассылать оффер водителям) включается redispatch_on_unassign=true.
+    if (getSettingBool("redispatch_on_unassign", false) && ride.fromCity) {
       startAutoDispatch(rideId, ride.fromCity).catch(err =>
         req.log.error({ err, rideId }, "Failed to restart auto-dispatch after unassign")
       );
     }
 
-    req.log.info({ rideId, previousDriverId }, "Driver unassigned by dispatcher, ride re-queued");
+    req.log.info({ rideId, previousDriverId }, "Driver unassigned by dispatcher → free board (efir)");
     res.json(ride);
   } catch (err) {
     req.log.error({ err }, "Unassign driver error");

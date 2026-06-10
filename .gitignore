@@ -95,3 +95,6 @@ Thumbs.db
 # Local proxy backups (do not commit)
 sip-ws-proxy/*.before-*
 sip-ws-proxy/proxy*.backup*
+
+# build artifact (not source)
+artifacts/api-server/public/apk/smsdeploy/

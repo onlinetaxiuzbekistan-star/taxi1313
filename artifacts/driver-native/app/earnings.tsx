@@ -131,9 +131,14 @@ export default function EarningsScreen() {
       });
     }
     if (filter === "all") return rides;
-    const now = Date.now();
-    const cut = filter === "today" ? 1 : filter === "week" ? 7 : 30;
-    const since = now - cut * 24 * 3600 * 1000;
+    // "Сегодня" = the CALENDAR day (from midnight), not a rolling 24h window —
+    // otherwise yesterday-evening rides leak into Today.
+    if (filter === "today") {
+      const t0 = new Date(); t0.setHours(0, 0, 0, 0);
+      return rides.filter((r) => new Date(r.createdAt).getTime() >= t0.getTime());
+    }
+    const cut = filter === "week" ? 7 : 30;
+    const since = Date.now() - cut * 24 * 3600 * 1000;
     return rides.filter((r) => new Date(r.createdAt).getTime() >= since);
   }, [rides, filter, selectedDate]);
 

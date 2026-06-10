@@ -4,8 +4,8 @@ import multer from "multer";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
-import { db, usersTable, ridesTable, orderOffersTable, transactionsTable, ridePassengersTable, marketplaceListingsTable, photoRequestsTable, driverAuditLogsTable, safeUserColumns} from "@workspace/db";
-import { eq, and, ne, desc, sql, gte, lte, inArray, notInArray } from "drizzle-orm";
+import { db, usersTable, ridesTable, orderOffersTable, transactionsTable, ridePassengersTable, marketplaceListingsTable, routeOptionsTable, photoRequestsTable, driverAuditLogsTable, safeUserColumns} from "@workspace/db";
+import { eq, and, ne, desc, sql, gte, lte, lt, inArray, notInArray, notExists } from "drizzle-orm";
 import { CITIES } from "../rides/index.js";
 import { getOsrmRoute, haversineDistance } from "../../lib/osrm.js";
 import { authMiddleware, requireRole, AuthRequest } from "../../middlewares/auth.js";
@@ -48,6 +48,171 @@ router.get("/available-rides", async (req, res) => {
     res.json({ rides, total: rides.length });
   } catch (err) {
     req.log.error({ err }, "Get available rides error");
+    res.status(500).json({ error: "server_error", message: "Internal server error" });
+  }
+});
+
+
+/**
+ * GET /api/drivers/free-orders
+ *
+ * The driver "free orders" board (new tab). Combines, in one list:
+ *   - kind:"order"       — PENDING dispatcher/client orders nobody has yet
+ *                          (status=pending, excludes driver route shells; status
+ *                          flips to "offered" the moment it's offered to someone,
+ *                          so an order being offered does NOT appear here).
+ *   - kind:"marketplace" — ACTIVE marketplace listings (driver-sold orders),
+ *                          EXCLUDING the requesting driver's own. Unlike the old
+ *                          /marketplace/listings (which hid listings from any
+ *                          driver without a matching active route), these are shown
+ *                          to every driver so sold orders are actually visible.
+ * Driver picks one up via POST /drivers/accept (order) or /marketplace/buy (listing).
+ */
+router.get("/free-orders", authMiddleware, requireRole("driver"), async (req: AuthRequest, res) => {
+  try {
+    const driverId = req.userId!;
+
+    // Grace so a freshly-created order is OFFERED to a driver first and only lands
+    // on the free board if it falls through (no driver took it). A pending order
+    // shows here only when: it's older than the grace AND has had NO offer in the
+    // last grace window (i.e. it is NOT being actively dispatched/offered right
+    // now). An order with an online matching driver keeps cycling offers, so it
+    // never appears here; one nobody could be offered to surfaces after the grace.
+    const graceSec = getSettingNum("free_board_grace_seconds", 30);
+    const graceCutoff = new Date(Date.now() - graceSec * 1000);
+
+    const pending = await db.select().from(ridesTable)
+      .where(and(
+        eq(ridesTable.status, "pending"),
+        ne(ridesTable.source, "driver"),
+        lt(ridesTable.createdAt, graceCutoff),
+        // Hide an order only while it is ACTIVELY being offered (has a live pending
+        // offer). A just-created order is being dispatched → has a pending offer →
+        // hidden. An order the operator UNASSIGNED back to the efir has its pending
+        // offers expired and is not re-dispatched, so it has NO pending offer →
+        // appears on the board INSTANTLY (no ~10-30s wait).
+        notExists(
+          db.select({ one: sql`1` }).from(orderOffersTable).where(and(
+            eq(orderOffersTable.rideId, ridesTable.id),
+            eq(orderOffersTable.status, "pending"),
+          )),
+        ),
+      ))
+      .orderBy(desc(ridesTable.createdAt))
+      .limit(50);
+
+    const listings = await db.select().from(marketplaceListingsTable)
+      .where(and(eq(marketplaceListingsTable.status, "active"), ne(marketplaceListingsTable.sellerId, driverId)))
+      .orderBy(desc(marketplaceListingsTable.createdAt))
+      .limit(50);
+
+    // DEDUP: a sold order exists both as a ride (pending) and a listing — show it
+    // ONCE, as the marketplace item. So drop pending orders that have a listing.
+    const listingRideIds = new Set(listings.map((l) => l.rideId).filter(Boolean) as number[]);
+    // optionDetails for the listings' underlying rides (for option badges on market items).
+    const listingRides = listingRideIds.size
+      ? await db.select({ id: ridesTable.id, optionDetails: ridesTable.optionDetails })
+          .from(ridesTable).where(inArray(ridesTable.id, [...listingRideIds]))
+      : [];
+    const optsByRide = new Map(listingRides.map((r) => [r.id, r.optionDetails]));
+
+    const orderItems = pending.filter((r) => !listingRideIds.has(r.id)).map((r) => ({
+      kind: "order" as const,
+      id: r.id,
+      rideId: r.id,
+      fromCity: r.fromCity,
+      toCity: r.toCity,
+      fromDistrictName: r.fromDistrictName,
+      toDistrictName: r.toDistrictName,
+      price: r.price,
+      passengers: r.passengers,
+      carClass: r.carClass,
+      distance: r.distance,
+      scheduledAt: r.scheduledAt,
+      timeSlot: r.timeSlot,
+      isUrgent: r.isUrgent,
+      comment: r.comment,
+      optionDetails: r.optionDetails || [],
+      createdAt: r.createdAt,
+    }));
+
+    const marketItems = listings.map((l) => ({
+      kind: "marketplace" as const,
+      id: l.id,
+      listingId: l.id,
+      rideId: l.rideId,
+      fromCity: l.fromCity,
+      toCity: l.toCity,
+      price: l.price,
+      basePrice: l.basePrice,
+      passengers: l.seatsCount,
+      seatsCount: l.seatsCount,
+      baggageType: l.baggageType,
+      sellerId: l.sellerId,
+      clientName: l.clientName,
+      scheduledAt: l.scheduledAt,
+      comment: l.comment,
+      optionDetails: (l.rideId && optsByRide.get(l.rideId)) || [],
+      createdAt: l.createdAt,
+    }));
+
+    // merged, newest first
+    const items = [...orderItems, ...marketItems].sort(
+      (a, b) => new Date(b.createdAt as any).getTime() - new Date(a.createdAt as any).getTime(),
+    );
+
+    res.json({ items, orders: orderItems, listings: marketItems, total: items.length });
+  } catch (err) {
+    req.log.error({ err }, "Get free orders error");
+    res.status(500).json({ error: "server_error", message: "Internal server error" });
+  }
+});
+
+
+/**
+ * GET /api/drivers/options — the dop-options catalog (distinct active route
+ * options) + whether THIS driver has each enabled. The driver toggles which
+ * options their car supports; a disabled option blocks ACCEPT of orders that
+ * need it (the order still stays visible). Disabled keys live in users.customOptions.
+ */
+router.get("/options", authMiddleware, requireRole("driver"), async (req: AuthRequest, res) => {
+  try {
+    const driverId = req.userId!;
+    const rows = await db.selectDistinct({ optionKey: routeOptionsTable.optionKey, label: routeOptionsTable.label })
+      .from(routeOptionsTable).where(eq(routeOptionsTable.isActive, true));
+    const byKey = new Map<string, Set<string>>();
+    for (const r of rows) {
+      if (!byKey.has(r.optionKey)) byKey.set(r.optionKey, new Set());
+      byKey.get(r.optionKey)!.add(r.label);
+    }
+    const [driver] = await db.select({ customOptions: usersTable.customOptions }).from(usersTable).where(eq(usersTable.id, driverId));
+    const disabled: string[] = Array.isArray((driver?.customOptions as any)?.disabledOptions)
+      ? (driver!.customOptions as any).disabledOptions : [];
+    const options = [...byKey.entries()].map(([key, labels]) => ({
+      key,
+      label: [...labels].join(" / "),
+      enabled: !disabled.includes(key),
+    }));
+    res.json({ options });
+  } catch (err) {
+    req.log.error({ err }, "Get driver options error");
+    res.status(500).json({ error: "server_error", message: "Internal server error" });
+  }
+});
+
+// POST /api/drivers/options — save the driver's disabled option keys.
+router.post("/options", authMiddleware, requireRole("driver"), async (req: AuthRequest, res) => {
+  try {
+    const driverId = req.userId!;
+    const disabledOptions: string[] = Array.isArray(req.body?.disabledOptions)
+      ? req.body.disabledOptions.filter((k: any) => typeof k === "string") : [];
+    const [driver] = await db.select({ customOptions: usersTable.customOptions }).from(usersTable).where(eq(usersTable.id, driverId));
+    const co: any = (driver?.customOptions && typeof driver.customOptions === "object") ? driver.customOptions : {};
+    co.disabledOptions = disabledOptions;
+    await db.update(usersTable).set({ customOptions: co, updatedAt: new Date() }).where(eq(usersTable.id, driverId));
+    res.json({ ok: true, disabledOptions });
+  } catch (err) {
+    req.log.error({ err }, "Save driver options error");
     res.status(500).json({ error: "server_error", message: "Internal server error" });
   }
 });
@@ -145,6 +310,24 @@ router.post("/accept", authMiddleware, validateBody(rideIdBodySchema), async (re
         message: "Этот заказ был снят с вас диспетчером. Попробуйте позже.",
       });
       return;
+    }
+
+    // Option gate: a driver who turned OFF an option in their profile can SEE such
+    // orders but cannot ACCEPT them. If the order requires an option the driver
+    // disabled, block the accept (the order stays visible to them).
+    {
+      const disabled: string[] = Array.isArray((driver as any).customOptions?.disabledOptions)
+        ? (driver as any).customOptions.disabledOptions : [];
+      const needed: string[] = Array.isArray(existing.selectedOptions) ? existing.selectedOptions : [];
+      const blockedBy = needed.filter((k) => disabled.includes(k));
+      if (blockedBy.length > 0) {
+        res.status(403).json({
+          error: "option_disabled",
+          message: "Включите доп. опцию в профиле, чтобы принять этот заказ.",
+          options: blockedBy,
+        });
+        return;
+      }
     }
 
     let matchedRouteRide: typeof existing | null = null;
@@ -1279,6 +1462,10 @@ router.get("/pending-offers", authMiddleware, async (req: AuthRequest, res) => {
           seatPassengers: passengers,
         },
         expiresIn,
+        // expiresAt drives the driver app's accept countdown. It is derived from
+        // the offer, whose lifetime = offer_timeout_seconds — so changing that
+        // setting changes the driver's visible countdown automatically.
+        expiresAt: offer.expiresAt,
         offerId: offer.id,
       };
     });

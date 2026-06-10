@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Modal, View, Text, Pressable, ActivityIndicator } from "react-native";
-import { Zap, MapPin, User, Check, X } from "lucide-react-native";
+import { Zap, MapPin, User, Check, X, Package } from "lucide-react-native";
 
 import { useAuth } from "@/hooks/use-auth";
 import { API_BASE_URL } from "@/config";
@@ -165,6 +165,19 @@ export function IncomingOfferModal({ onAccepted }: { onAccepted?: () => void }) 
               <View className="flex-row items-center" style={{ gap: 8 }}>
                 <User size={16} color={colors.mutedForeground} />
                 <Text className="font-sans text-muted-foreground text-sm">{r.riderName}</Text>
+              </View>
+            ) : null}
+
+            {Array.isArray(r.optionDetails) && r.optionDetails.length > 0 ? (
+              <View className="flex-row flex-wrap" style={{ gap: 6 }}>
+                {r.optionDetails.map((o: any) => (
+                  <View key={o.key} className="flex-row items-center bg-amber-100 rounded-lg px-2 py-1" style={{ gap: 4 }}>
+                    <Package size={12} color="#854f0b" />
+                    <Text className="font-sans-bold text-[11px]" style={{ color: "#854f0b" }}>
+                      {o.label}{o.price ? ` +${formatCurrency(o.price)}` : ""}
+                    </Text>
+                  </View>
+                ))}
               </View>
             ) : null}
 

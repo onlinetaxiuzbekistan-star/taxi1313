@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { View, Text, Pressable, ScrollView, Alert, Image } from "react-native";
 import { useRouter } from "expo-router";
-import { User, Star, Car, Wallet, TrendingUp, Bell, ChevronRight, Settings, Trash2, Camera } from "lucide-react-native";
+import { User, Star, Car, Wallet, TrendingUp, Bell, ChevronRight, Settings, Trash2, Camera, Package } from "lucide-react-native";
 import * as ImagePicker from "expo-image-picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -86,6 +86,7 @@ export default function ProfileScreen() {
   const menu = [
     { icon: Wallet, label: t("wallet_menu"), sub: formatCurrency(Number((driver as any).balance || 0)), to: "/wallet" as const },
     { icon: TrendingUp, label: t("earnings_menu"), sub: t("earnings_sub"), to: "/earnings" as const },
+    { icon: Package, label: t("options_menu"), sub: t("options_sub"), to: "/options" as const },
     { icon: Bell, label: t("news_menu"), sub: t("news_sub"), to: "/news" as const },
     { icon: Settings, label: t("settings_title"), sub: "", to: "/settings" as const },
   ];

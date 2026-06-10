@@ -131,6 +131,7 @@ router.post("/", validateBody(createRideBodySchema), async (req, res) => {
 
     let optionsTotal = 0;
     let optionsCommission = 0;
+    const optionDetails: Array<{ key: string; label: string; price: number }> = [];
     if (Array.isArray(selectedOptions) && selectedOptions.length > 0 && est.routeId) {
       const routeOpts = await db.select().from(routeOptionsTable)
         .where(and(
@@ -142,7 +143,11 @@ router.post("/", validateBody(createRideBodySchema), async (req, res) => {
       const validOptions = [...new Set(selectedOptions as string[])].filter((key: string) => optsMap.has(key));
       for (const key of validOptions) {
         const opt = optsMap.get(key);
-        if (opt) { optionsTotal += opt.price; optionsCommission += (opt.commission || 0); }
+        if (opt) {
+          optionsTotal += opt.price;
+          optionsCommission += (opt.commission || 0);
+          optionDetails.push({ key, label: opt.label, price: opt.price });
+        }
       }
     }
 
@@ -238,6 +243,7 @@ router.post("/", validateBody(createRideBodySchema), async (req, res) => {
       mode: computedUrgent ? "market" : "dispatch",
       requiredGroupLevel,
       selectedOptions: Array.isArray(selectedOptions) ? (selectedOptions as string[]).filter((k: any) => typeof k === "string") : [],
+      optionDetails,
       createdByUserId: creatorUserId,
       createdByUserName: creatorUserName,
     });

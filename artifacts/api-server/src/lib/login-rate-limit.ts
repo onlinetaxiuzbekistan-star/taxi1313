@@ -1,4 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
+import jwt from "jsonwebtoken";
 import { redis } from "./redis.js";
 
 const WINDOW_SEC = 15 * 60;
@@ -94,17 +95,44 @@ export async function clearLoginRateLimit(req: Request): Promise<void> {
   } catch {}
 }
 
-// ── Global per-IP API rate limit ──────────────────────────────────────────
-// Applied to every /api route as a coarse abuse/scraping/DoS backstop. The
-// limit is deliberately generous so it never trips legitimate dashboard polling
-// or app usage — fine-grained brute-force protection lives in the login/code
-// limiters above. Fails open (allows) if Redis is unavailable.
+// ── Global API rate limit (per authenticated user, else per IP) ────────────
+// Coarse abuse/scraping/DoS backstop on every /api route. CRITICAL: mobile
+// carriers in UZ use CGNAT, so MANY drivers share ONE public IP — a pure per-IP
+// limit makes them collectively trip it and each gets 429 (e.g. the Online
+// toggle failing with "Too many requests"). So for AUTHENTICATED requests we key
+// the bucket by the JWT subject (userId) — each driver/operator gets their own
+// generous bucket regardless of shared IP. Only unauthenticated traffic falls
+// back to per-IP. Token is DECODED (not verified) purely for bucketing; real
+// auth is still enforced downstream, so a forged token only buckets itself.
+// Fails open (allows) if Redis is unavailable.
 const API_WINDOW_SEC = 60;
-const API_MAX_PER_IP = Number(process.env.API_RATE_LIMIT_PER_MIN) || 1000;
+const API_MAX_PER_IP = Number(process.env.API_RATE_LIMIT_PER_MIN) || 4000;
+// Generous per-user ceiling. A driver's legitimate polling is well under this even
+// with every screen open; the higher headroom matters because several app poll
+// loops retry WITHOUT backoff, so once the limit is hit the 429s CASCADE (each
+// rejected poll instantly re-fires) into a self-sustaining storm. Keeping the
+// ceiling above any legitimate burst means the limit is never hit in normal use,
+// so the cascade never triggers. A true runaway loop would still be capped here.
+const API_MAX_PER_USER = Number(process.env.API_RATE_LIMIT_PER_USER_PER_MIN) || 3000;
+
+function getApiRateSubject(req: Request): { key: string; limit: number } {
+  const auth = req.headers.authorization;
+  if (typeof auth === "string" && auth.startsWith("Bearer ")) {
+    try {
+      const decoded = jwt.decode(auth.slice(7)) as { userId?: number } | null;
+      if (decoded && decoded.userId != null) {
+        return { key: `rl:api:user:${decoded.userId}`, limit: API_MAX_PER_USER };
+      }
+    } catch {
+      /* fall through to per-IP */
+    }
+  }
+  return { key: `rl:api:ip:${getClientIp(req)}`, limit: API_MAX_PER_IP };
+}
 
 export async function apiRateLimit(req: Request, res: Response, next: NextFunction): Promise<void> {
-  const ip = getClientIp(req);
-  const check = await bumpAndCheck(`rl:api:ip:${ip}`, API_MAX_PER_IP, API_WINDOW_SEC);
+  const { key, limit } = getApiRateSubject(req);
+  const check = await bumpAndCheck(key, limit, API_WINDOW_SEC);
   if (!check.allowed) {
     res.setHeader("Retry-After", String(check.retryAfter));
     res.status(429).json({

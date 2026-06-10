@@ -1137,9 +1137,32 @@ export async function resumePendingDispatches(): Promise<void> {
       return;
     }
 
-    clog.log(`[DISPATCH RESUME] resuming dispatch for ${pendingRides.length} pending rides: ${pendingRides.map(r => r.id).join(",")}`);
+    // A ride that was ALREADY offered to drivers and fell through (offers expired,
+    // nobody accepted) must NOT be auto-offered again and again — it rests "in the
+    // efir" (the free-orders board) for a driver to pick up manually. So the sweep
+    // only (re)dispatches rides that have NEVER been offered yet — i.e. ones whose
+    // initial dispatch never ran (e.g. created during a restart). Re-enabling the
+    // old "keep re-offering forever" behaviour: set redispatch_offered_rides=true.
+    const redispatchOffered = getSettingBool("redispatch_offered_rides", false);
+    let resumable = pendingRides;
+    if (!redispatchOffered) {
+      const ids = pendingRides.map((r) => r.id);
+      const offeredRows = ids.length
+        ? await db.select({ rideId: orderOffersTable.rideId }).from(orderOffersTable)
+            .where(inArray(orderOffersTable.rideId, ids))
+        : [];
+      const offeredSet = new Set(offeredRows.map((o) => o.rideId));
+      resumable = pendingRides.filter((r) => !offeredSet.has(r.id));
+    }
 
-    for (const ride of pendingRides) {
+    if (resumable.length === 0) {
+      clog.log(`[DISPATCH RESUME] all pending rides already offered — resting on the free board`);
+      return;
+    }
+
+    clog.log(`[DISPATCH RESUME] resuming dispatch for ${resumable.length} never-offered rides: ${resumable.map(r => r.id).join(",")}`);
+
+    for (const ride of resumable) {
       if (!activeLoops.has(ride.id)) {
         startAutoDispatch(ride.id, ride.fromCity || "").catch(err => {
           clog.error(`[DISPATCH RESUME] failed for ride ${ride.id}:`, (err as Error).message);

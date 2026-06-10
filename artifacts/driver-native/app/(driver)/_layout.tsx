@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Alert, BackHandler, ToastAndroid, Platform } from "react-native";
+import { Alert, BackHandler, ToastAndroid, Platform, AppState } from "react-native";
 import { Tabs, Redirect, useRouter } from "expo-router";
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 
@@ -42,32 +42,55 @@ export default function DriverShellLayout() {
     preloadSounds();
   }, []);
 
-  // Keep the screen awake while the driver is online (no screen lock/dim).
-  const online = user?.status === "online" || user?.status === "busy";
+  // Keep the screen awake the whole time the driver is in the app (logged in) —
+  // NOT just while user.status === "online". That status is server-derived and
+  // can flip to offline (presence reaper, a brief GPS lapse, a status blip); if
+  // keep-awake were tied to it, the screen would sleep WHILE THE DRIVER SITS
+  // WAITING FOR AN ORDER, the JS thread would freeze, and the incoming offer
+  // would be missed. Gating on the session (token) instead keeps the screen on
+  // the entire time the app is open; it also keeps the JS thread alive so GPS
+  // keeps flowing and the driver is never falsely reaped offline. Releases
+  // automatically when the app is backgrounded/closed.
   useEffect(() => {
-    if (!online) {
-      try {
-        deactivateKeepAwake("driver-online");
-      } catch {}
-      return;
-    }
-    activateKeepAwakeAsync("driver-online").catch(() => {});
+    if (!token) return;
+    activateKeepAwakeAsync("driver-app").catch(() => {});
     return () => {
       try {
-        deactivateKeepAwake("driver-online");
+        deactivateKeepAwake("driver-app");
       } catch {}
     };
-  }, [online]);
+  }, [token]);
+
+  // When the app returns to the foreground, immediately refetch /me. While
+  // backgrounded the JS thread is frozen, so user.lastLocationUpdate goes stale
+  // and the GPS indicator drops to red; the native GPS service kept posting fixes
+  // to the server the whole time, so one fresh /me flips GPS back to green at once
+  // (instead of waiting for the next 8s poll tick).
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") refreshUser();
+    });
+    return () => sub.remove();
+  }, [refreshUser]);
 
   // Hardware back: require a DOUBLE press within 2s to leave the app (only at a
   // navigation root — pushed screens still pop normally on the first press).
   const lastBack = useRef(0);
+  // Latest online state, read inside the back handler without re-subscribing.
+  const onlineRef = useRef(false);
+  onlineRef.current = user?.status === "online" || user?.status === "busy";
   useEffect(() => {
     const onBack = () => {
       if (router.canGoBack()) return false; // let navigation handle in-app back
       // Active ride → never allow exit (back / swipe). Finish the ride first.
       if (isRideActive()) {
         if (Platform.OS === "android") ToastAndroid.show(t("finish_ride_to_exit"), ToastAndroid.SHORT);
+        return true;
+      }
+      // Online → cannot leave the app until the driver goes Offline themselves.
+      // (Leaving while online would silently stop them receiving orders.)
+      if (onlineRef.current) {
+        if (Platform.OS === "android") ToastAndroid.show(t("go_offline_to_exit"), ToastAndroid.SHORT);
         return true;
       }
       const now = Date.now();
@@ -98,7 +121,13 @@ export default function DriverShellLayout() {
 
   // Red top-right button = EXIT the app (like the WebView app's exitApp), NOT
   // logout. Logout (clearing the session) lives only in Profile. Confirm first.
+  // While ONLINE the driver must go Offline first — closing the app online would
+  // silently stop them receiving orders, so we block exit and tell them.
   const handleExit = () => {
+    if (isOnline) {
+      Alert.alert(t("exit_q"), t("go_offline_to_exit"), [{ text: t("ok") }]);
+      return;
+    }
     Alert.alert(t("exit_q"), t("exit_sub"), [
       { text: t("cancel"), style: "cancel" },
       { text: t("go_offline_btn"), style: "destructive", onPress: () => BackHandler.exitApp() },
@@ -164,6 +193,7 @@ export default function DriverShellLayout() {
         }}
       >
         <Tabs.Screen name="index" />
+        <Tabs.Screen name="board" />
         <Tabs.Screen name="urgent" />
         <Tabs.Screen name="chat" />
         <Tabs.Screen name="profile" />

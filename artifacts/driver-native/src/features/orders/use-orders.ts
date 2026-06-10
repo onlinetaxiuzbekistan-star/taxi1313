@@ -36,6 +36,9 @@ export function useOrders() {
   setRideActive(!!activeRide);
   // De-dupes the operator-unassign double event (targeted + broadcastToAll).
   const lastClearedRef = useRef<{ id: number | null; at: number }>({ id: null, at: 0 });
+  // Rides this driver just COMPLETED — so when /my-active-ride goes null we show
+  // the receipt, not the wrong "Заказ снят / диспетчер снял" alert.
+  const completedIdsRef = useRef<Set<number>>(new Set());
   const [passengers, setPassengers] = useState<SeatPassenger[]>([]);
   const [screen, setScreen] = useState<DriverScreen>("loading");
   const [actionLoading, setActionLoading] = useState(false);
@@ -125,11 +128,19 @@ export function useOrders() {
         setActiveRide(data.ride);
         setPassengers(data.passengers || []);
       } else if (activeRideRef.current) {
-        // Server says this driver has NO active ride, but we were showing one →
-        // it was cancelled / unassigned / reassigned. Force-clear INSTANTLY here —
-        // do NOT wait for the WS event (it may have been missed while the app was
-        // backgrounded or the socket was reconnecting). This poll is the safety net.
-        clearAndNotify(activeRideRef.current.id ?? null, t("order_removed"), t("order_removed_sub"));
+        const goneId = activeRideRef.current.id ?? null;
+        // If the driver just COMPLETED this ride, the disappearance is expected —
+        // clear silently and let the "Рейс завершён" receipt screen stand. Do NOT
+        // show the "Заказ снят / диспетчер снял" alert (that's only for a real
+        // dispatcher cancel/unassign).
+        if (goneId != null && completedIdsRef.current.has(goneId)) {
+          completedIdsRef.current.delete(goneId);
+          clearActive();
+        } else {
+          // Server says this driver has NO active ride, but we were showing one →
+          // it was cancelled / unassigned / reassigned. Force-clear INSTANTLY here.
+          clearAndNotify(goneId, t("order_removed"), t("order_removed_sub"));
+        }
       } else {
         setActiveRide(null);
         setPassengers([]);
@@ -137,7 +148,7 @@ export function useOrders() {
     } catch {
       // offline / network — keep last state
     }
-  }, [token, headers, clearAndNotify, t]);
+  }, [token, headers, clearAndNotify, clearActive, t]);
 
   useEffect(() => {
     if (!token) {
@@ -203,6 +214,8 @@ export function useOrders() {
         return;
       }
       if (d.type === "trip_completed" || d.type === "ride_completed") {
+        // Mark completed so the poll's null-branch shows the receipt, not "removed".
+        if (eventRideId != null) completedIdsRef.current.add(eventRideId);
         if (isCurrent || activeId == null) clearActive();
         loadActiveRide();
         return;
@@ -367,8 +380,10 @@ export function useOrders() {
     if (!activeRide || actionLoading) return;
     setActionLoading(true);
     try {
+      const completingId = activeRide.id;
       const { ok, data } = await post("/api/drivers/complete", { rideId: activeRide.id });
       if (ok) {
+        if (completingId != null) completedIdsRef.current.add(completingId);
         setCompletedRide({ ...activeRide, seatPassengers: passengers });
         setActiveRide(null);
         setPassengers([]);

@@ -98,6 +98,10 @@ export const ridesTable = pgTable("rides", {
   isMoney: boolean("is_money").notNull().default(false),
   requiredCarModel: text("required_car_model"),
   selectedOptions: jsonb("selected_options").$type<string[]>().notNull().default([]),
+  // Per-option breakdown captured at creation (key + label + price) so the driver
+  // app can show option badges with their exact added price without re-resolving
+  // the route (optionKey→label/price is route-ambiguous otherwise).
+  optionDetails: jsonb("option_details").$type<Array<{ key: string; label: string; price: number }>>().notNull().default([]),
 
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

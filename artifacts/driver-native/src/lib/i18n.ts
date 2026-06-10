@@ -7,8 +7,14 @@ export const translations = {
   // bottom nav
   nav_orders: { ru: "Заказы", uz: "Buyurtmalar" },
   nav_urgent: { ru: "Срочные", uz: "Shoshilinch" },
+  nav_board: { ru: "Свободные", uz: "Bo'sh" },
   nav_chat: { ru: "Чат", uz: "Chat" },
   nav_profile: { ru: "Профиль", uz: "Profil" },
+  board_empty_title: { ru: "Свободных заказов нет", uz: "Bo'sh buyurtmalar yo'q" },
+  board_empty_sub: { ru: "Новые заказы появятся здесь", uz: "Yangi buyurtmalar shu yerda chiqadi" },
+  accept_failed: { ru: "Не удалось принять заказ", uz: "Buyurtmani olishda xatolik" },
+  accepted_title: { ru: "Заказ принят", uz: "Buyurtma olindi" },
+  accepted_sub: { ru: "Заказ добавлен в ваши поездки", uz: "Buyurtma reyslaringizga qo'shildi" },
 
   // online/offline toggle
   status_online: { ru: "Online", uz: "Online" },
@@ -25,6 +31,8 @@ export const translations = {
   exit_sub: { ru: "Приложение будет закрыто", uz: "Dastur yopiladi" },
   cancel: { ru: "Отмена", uz: "Bekor qilish" },
   close: { ru: "Закрыть", uz: "Chiqish" },
+  ok: { ru: "OK", uz: "OK" },
+  time_now: { ru: "Сейчас", uz: "Hozir" },
 
   // online confirm
   go_offline_q: { ru: "Выйти с линии?", uz: "Liniyadan chiqasizmi?" },
@@ -145,6 +153,7 @@ export const translations = {
   mc_phone_opt: { ru: "Телефон клиента (необязательно)", uz: "Mijoz telefoni (ixtiyoriy)" },
   press_back_again: { ru: "Нажмите ещё раз для выхода", uz: "Chiqish uchun yana bir marta bosing" },
   finish_ride_to_exit: { ru: "Завершите поездку, чтобы выйти", uz: "Chiqish uchun safarni yakunlang" },
+  go_offline_to_exit: { ru: "Сначала выйдите с линии (Offline), чтобы закрыть приложение", uz: "Dasturdan chiqish uchun avval Offline qiling" },
   tap_seat_hint: { ru: "Нажмите на место для деталей пассажира", uz: "Yo‘lovchi tafsilotlari uchun joyni bosing" },
   confirm_pickup_q: { ru: "Посадить пассажира?", uz: "Yo‘lovchini olasizmi?" },
   confirm_pickup_yes: { ru: "Да, посадил", uz: "Ha, oldim" },
@@ -222,6 +231,12 @@ export const translations = {
   wallet_menu: { ru: "Кошелёк", uz: "Hamyon" },
   earnings_menu: { ru: "Заработок", uz: "Daromad" },
   earnings_sub: { ru: "Статистика и поездки", uz: "Statistika va safarlar" },
+  options_menu: { ru: "Опции", uz: "Opsiyalar" },
+  options_sub: { ru: "Доп. услуги вашей машины", uz: "Mashinangiz qo‘shimcha xizmatlari" },
+  options_title: { ru: "Доп. опции", uz: "Qo‘shimcha opsiyalar" },
+  options_hint: { ru: "Выключенную опцию можно видеть, но нельзя принять такой заказ", uz: "O‘chirilgan opsiyani ko‘rasiz, lekin bunday buyurtmani ololmaysiz" },
+  options_empty: { ru: "Опции пока не настроены", uz: "Opsiyalar hali sozlanmagan" },
+  saved: { ru: "Сохранено", uz: "Saqlandi" },
   news_menu: { ru: "Новости", uz: "Yangiliklar" },
   news_sub: { ru: "Объявления диспетчерской", uz: "Dispetcherlik e’lonlari" },
   ratings_count: { ru: "оценок", uz: "baho" },

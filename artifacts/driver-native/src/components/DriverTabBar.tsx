@@ -1,6 +1,6 @@
 import { View, Text, Pressable, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Briefcase, Zap, MessageCircle, User, type LucideIcon } from "lucide-react-native";
+import { Briefcase, Zap, MessageCircle, User, LayoutGrid, type LucideIcon } from "lucide-react-native";
 
 import { useT, type TKey } from "@/lib/i18n";
 import { colors } from "@/lib/theme";
@@ -12,11 +12,12 @@ import { useUnread } from "@/features/chat/unread";
 // chip + glow, red count badges.
 const TABS: Record<string, { icon: LucideIcon; label: TKey }> = {
   index: { icon: Briefcase, label: "nav_orders" },
+  board: { icon: LayoutGrid, label: "nav_board" },
   urgent: { icon: Zap, label: "nav_urgent" },
   chat: { icon: MessageCircle, label: "nav_chat" },
   profile: { icon: User, label: "nav_profile" },
 };
-const ORDER = ["index", "urgent", "chat", "profile"];
+const ORDER = ["index", "board", "urgent", "chat", "profile"];
 
 export function DriverTabBar({ state, navigation }: any) {
   const insets = useSafeAreaInsets();

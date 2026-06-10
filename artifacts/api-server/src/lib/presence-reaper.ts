@@ -22,10 +22,13 @@ import { getSettingNum } from "./settingsCache.js";
 import { enqueueDriverStatusBroadcast } from "./websocket.js";
 
 const CHECK_INTERVAL_MS = 60_000;
-// Default: a driver who hasn't sent a GPS fix in 3 minutes is considered offline.
-// The native service pings every few seconds while online, so this is a wide,
-// false-positive-safe margin. Tunable via the `driver_offline_after_seconds` setting.
-const DEFAULT_THRESHOLD_SECONDS = 180;
+// Online must stay ON until the driver taps Offline themselves — we only reap a
+// driver who is GENUINELY GONE (app closed/killed). The native foreground GPS
+// service pings while online even when backgrounded/screen-off, so a long GPS
+// silence reliably means the app is no longer running. 15 min is deliberately
+// generous so an active driver (parked, waiting for an order) is NEVER auto-
+// offlined; it only cleans up true ghosts. Tunable via `driver_offline_after_seconds`.
+const DEFAULT_THRESHOLD_SECONDS = 900;
 
 let intervalId: ReturnType<typeof setInterval> | null = null;
 let bootTimeout: ReturnType<typeof setTimeout> | null = null;
